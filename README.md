@@ -6,7 +6,7 @@ Quick Start:
 ```
 cd backend
 npm install
-nodemon server.js
+$(npm bin)/nodemon
 ```
 
 ## Frontend
