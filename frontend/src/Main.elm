@@ -5,7 +5,7 @@ import Html.Events exposing (onClick, onInput)
 import Table exposing (defaultCustomizations)
 import Http
 import HttpBuilder
-import Json.Encode as Encode exposing (Value)
+import Json.Encode as Encode exposing (Value, string)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline as Pipeline exposing (optional, required)
 import Task
@@ -187,8 +187,9 @@ decodeLocation =
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ viewInputs model
+    div [ style "margin" "2em" ]
+        [ h1 [] [ text "Planet Microbe Search Demo" ]
+        , viewInputs model
         , br [] []
         , viewResults model
         ]
@@ -196,53 +197,74 @@ view model =
 
 viewInputs : Model -> Html Msg
 viewInputs model =
-    div []
-        [ div [ class "form-group" ]
-            [ label [ attribute "for" "name" ] [ text "Latitude: " ]
-            , input [ type_ "text", class "form-control", placeholder "", value model.lat, onInput SetLatitude ] []
-            , text " "
-            , label [ attribute "for" "name" ] [ text "Longitude: " ]
-            , input [ type_ "text", class "form-control", placeholder "", value model.lng, onInput SetLongitude ] []
-            , text " "
-            , label [ attribute "for" "name" ] [ text "Radius: " ]
-            , input [ type_ "text", class "form-control", placeholder "", value model.radius, onInput SetRadius ] []
+    div [ class "panel panel-default" ]
+        [ div [ class "panel-body" ]
+            [ Html.form [ class "form-inline" ]
+                [ div [ class "form-group" ]
+                    [ label [ attribute "for" "name" ] [ text "Latitude (deg):" ]
+                    , text " "
+                    , input [ type_ "text", class "form-control", size 5, placeholder "", value model.lat, onInput SetLatitude ] []
+                    , text " "
+                    , label [ attribute "for" "name" ] [ text "Longitude (deg):" ]
+                    , text " "
+                    , input [ type_ "text", class "form-control", size 5, placeholder "", value model.lng, onInput SetLongitude ] []
+                    , text " "
+                    , label [ attribute "for" "name" ] [ text "Radius (m):" ]
+                    , text " "
+                    , input [ type_ "text", class "form-control", size 5, placeholder "", value model.radius, onInput SetRadius ] []
+                    ]
+                ]
+            , br [] []
+            , Html.form [ class "form-inline" ]
+                [ div [ class "form-group" ]
+                    [ label [ attribute "for" "name" ] [ text "Depth (m):" ]
+                    , text " "
+                    , input [ type_ "text", class "form-control", size 5, placeholder "", value model.minDepth, onInput SetMinDepth ] []
+                    , text " to "
+                    , input [ type_ "text", class "form-control", size 5, placeholder "", value model.maxDepth, onInput SetMaxDepth ] []
+                    ]
+                ]
+            , br [] []
+            , Html.form [ class "form-inline" ]
+                [ div [ class "form-group" ]
+                    [ label [ attribute "for" "name" ] [ text "Date:" ]
+                    , text " "
+                    , input [ type_ "text", class "form-control", size 24, placeholder "", value model.startDate, onInput SetStartDate ] []
+                    , text " to "
+                    , input [ type_ "text", class "form-control", size 24, placeholder "", value model.endDate, onInput SetEndDate ] []
+                    , text " Can use YY-MM-DD or YY-MM-DDTHH:MM:SS"
+                    ]
+                ]
+            , br [] []
+            , button [ class "btn btn-primary", onClick Search ] [ text "Search" ]
             ]
-        , div [ class "form-group" ]
-            [ label [ attribute "for" "name" ] [ text "Depth: " ]
-            , input [ type_ "text", class "form-control", placeholder "", value model.minDepth, onInput SetMinDepth ] []
-            , text " to "
-            , input [ type_ "text", class "form-control", placeholder "", value model.maxDepth, onInput SetMaxDepth ] []
-            ]
-        , div [ class "form-group" ]
-            [ label [ attribute "for" "name" ] [ text "Date: " ]
-            , input [ type_ "text", class "form-control", placeholder "", value model.startDate, onInput SetStartDate ] []
-            , text " to "
-            , input [ type_ "text", class "form-control", placeholder "", value model.endDate, onInput SetEndDate ] []
-            ]
-        , button [ onClick Search ] [ text "Search" ]
         ]
 
 
 viewResults : Model -> Html Msg
 viewResults model =
-    case model.errorMsg of
-        Nothing ->
-            case model.results of
+    let
+        content =
+            case model.errorMsg of
                 Nothing ->
-                    text "No results"
+                    case model.results of
+                        Nothing ->
+                            text "No results"
 
-                Just results ->
+                        Just results ->
+                            div []
+                                [ List.length results |> toString |> text
+                                , text " results"
+                                , Table.view resultTableConfig model.tableState results
+                                ]
+
+                Just msg ->
                     div []
-                        [ List.length results |> toString |> text
-                        , text " results"
-                        , Table.view resultTableConfig model.tableState results
+                        [ p [] [ text "An error occurred:" ]
+                        , p [] [ text msg ]
                         ]
-
-        Just msg ->
-            div []
-                [ p [] [ text "An error occurred:" ]
-                , p [] [ text msg ]
-                ]
+    in
+    div [] [ content ]
 
 
 resultTableConfig : Table.Config Sample Msg
