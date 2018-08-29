@@ -16,5 +16,5 @@ Quick Start:
 cd frontend
 npm install
 elm package install
-elm-live src/Main
+elm-live src/Main --output=elm.js --open
 ```
