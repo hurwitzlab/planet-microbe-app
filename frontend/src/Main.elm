@@ -11,14 +11,11 @@ import Json.Decode.Pipeline as Pipeline exposing (optional, required)
 import Task
 import List.Extra
 import Debug exposing (toString)
+import Config exposing (apiBaseUrl)
 
 
 main =
     Browser.element { init = init, update = update, view = view, subscriptions = subscriptions }
-
-
-apiBaseUrl =
-    "http://localhost:3010"
 
 
 subscriptions : Model -> Sub Msg
@@ -153,7 +150,7 @@ type alias Sample =
     { sampleName : String
     , projectName : String
     , location : Location
-    , depth : Int
+    , depth : Float 
     , date : String
     }
 
@@ -170,7 +167,7 @@ decodeSample =
         |> required "sample" Decode.string
         |> required "project" Decode.string
         |> required "location" decodeLocation
-        |> required "depth" Decode.int
+        |> required "depth" Decode.float
         |> required "collected" Decode.string
 
 
@@ -277,7 +274,7 @@ resultTableConfig =
             , Table.stringColumn "Sample" .sampleName
             , latColumn
             , lngColumn
-            , Table.intColumn "Depth" .depth
+            , Table.floatColumn "Depth" .depth
             , Table.stringColumn "Date" .date
             ]
         , customizations =
