@@ -249,7 +249,7 @@ viewExamples model =
     div []
         [ a [ onClick (SetExample "" "" "" "0" "1000" "" "") ] [ text "Example 1" ]
         , text ", "
-        , a [ onClick (SetExample "22.7" "-158" "5000" "" "" "" "") ] [ text "Example 2" ]
+        , a [ onClick (SetExample "22.7" "-158" "1000" "" "" "" "") ] [ text "Example 2" ]
         , text ", "
         , a [ onClick (SetExample "" "" "" "" "" "1988-01-01" "1989-01-01") ] [ text "Example 3" ]
         ]
