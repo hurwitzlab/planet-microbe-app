@@ -39,7 +39,9 @@ function mongo() {
 
 //db.sample.find({ location: { $near : { $geometry: { type: "Point",  coordinates: [ -158, 22 ] }, $maxDistance: 5000 } } } ).count()
 function search(db, params) {
-    var query = {};
+    var query = {
+        project: "HOT"
+    };
     console.log(params);
 
     if (params.lat && params.lng) {
