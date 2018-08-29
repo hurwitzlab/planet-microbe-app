@@ -99,7 +99,11 @@ update msg model =
             ( { model | errorMsg = Just (toString error) }, Cmd.none )
 
         SetExample lat lng radius minDepth maxDepth startDate endDate ->
-            ( { model | lat = lat, lng = lng, radius = radius, minDepth = minDepth, maxDepth = maxDepth, startDate = startDate, endDate = endDate }, Cmd.none )
+            let
+                (newModel, newCmd) =
+                    update Search { model | lat = lat, lng = lng, radius = radius, minDepth = minDepth, maxDepth = maxDepth, startDate = startDate, endDate = endDate }
+            in
+            ( newModel, newCmd )
 
         SetLatitude val ->
             ( { model | lat = val }, Cmd.none )
@@ -247,9 +251,9 @@ viewInputs model =
 viewExamples : Model -> Html Msg
 viewExamples model =
     div []
-        [ a [ onClick (SetExample "" "" "" "0" "1000" "" "") ] [ text "Example 1" ]
+        [ a [ onClick (SetExample "22.7" "-158" "1000" "" "" "" "") ] [ text "Example 1" ]
         , text ", "
-        , a [ onClick (SetExample "22.7" "-158" "1000" "" "" "" "") ] [ text "Example 2" ]
+        , a [ onClick (SetExample "" "" "" "0" "1000" "" "") ] [ text "Example 2" ]
         , text ", "
         , a [ onClick (SetExample "" "" "" "" "" "1988-01-01" "1989-01-01") ] [ text "Example 3" ]
         ]
