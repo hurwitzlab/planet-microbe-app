@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "elm make --output elm.js src/Main.elm",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
