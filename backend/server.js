@@ -66,7 +66,7 @@ function search(db, params) {
 
     console.log("query:", JSON.stringify(query));
 
-    return db.collection('sample').countDocuments(query)
+    return db.collection('sample').find(query).count()
     .then(count => {
         return new Promise(function (resolve, reject) {
             db.collection('sample')
