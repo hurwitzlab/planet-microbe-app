@@ -64,6 +64,8 @@ function search(db, params) {
         query.collected = { $gte: new Date(params.startDate), $lte: new Date(params.endDate) };
     }
 
+    console.log(query);
+
     return db.collection('sample').countDocuments(query)
     .then(count => {
         return new Promise(function (resolve, reject) {
