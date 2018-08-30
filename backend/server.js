@@ -46,7 +46,7 @@ function search(db, params) {
 
     if (params.lat && params.lng) {
         query.location = {
-            $near: {
+            $geoNear: {
                 $geometry: {
                     type: "Point",
                     coordinates: [ 1*params.lng, 1*params.lat ]
