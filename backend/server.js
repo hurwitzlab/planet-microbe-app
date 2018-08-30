@@ -42,7 +42,7 @@ function search(db, params) {
     var query = {
         project: "HOT",
     };
-    console.log(params);
+    console.log("params:", params);
 
     if (params.lat && params.lng) {
         query.location = {
@@ -64,7 +64,7 @@ function search(db, params) {
         query.collected = { $gte: new Date(params.startDate), $lte: new Date(params.endDate) };
     }
 
-    console.log(query);
+    console.log("query:", JSON.stringify(query));
 
     return db.collection('sample').countDocuments(query)
     .then(count => {
