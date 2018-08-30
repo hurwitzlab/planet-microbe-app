@@ -76,6 +76,7 @@ init flags =
 type Msg
     = Search
     | SearchCompleted (Result Http.Error Response)
+    | Clear
     | SetExample String String String String String String String
     | SetLatitude String
     | SetLongitude String
@@ -108,6 +109,9 @@ update msg model =
                 _ = Debug.log "Error" (toString error)
             in
             ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
+
+        Clear ->
+            ( { model | lat = "", lng = "", radius = "", minDepth = "", maxDepth = "", startDate = "", endDate = "", results = Nothing, errorMsg = Nothing }, Cmd.none )
 
         SetExample lat lng radius minDepth maxDepth startDate endDate ->
             let
@@ -286,6 +290,8 @@ viewInputs model =
                     ]
                 ]
             , br [] []
+            , button [ class "btn btn-default", onClick Clear ] [ text "Clear" ]
+            , text " "
             , button [ class "btn btn-primary", onClick Search ] [ text "Search" ]
             ]
         ]
