@@ -39,7 +39,9 @@ function mongo() {
 
 //db.sample.find({ location: { $near : { $geometry: { type: "Point",  coordinates: [ -158, 22 ] }, $maxDistance: 5000 } } } ).count()
 function search(db, params) {
-    var query = {};
+    var query = {
+        project: "HOT",
+    };
     console.log(params);
 
     if (params.lat && params.lng) {
@@ -62,13 +64,23 @@ function search(db, params) {
         query.collected = { $gte: new Date(params.startDate), $lte: new Date(params.endDate) };
     }
 
-    return new Promise(function (resolve, reject) {
-        db.collection('sample').find(query)
-        .toArray((err, docs) => {
-            if (err)
-                reject(err);
-            else
-                resolve(docs);
-        });
+    return db.collection('sample').countDocuments(query)
+    .then(count => {
+        return new Promise(function (resolve, reject) {
+            db.collection('sample')
+            .find(query)
+            .sort({ sample: 1 })
+            .skip(1*params.skip)   // no skip if undefined
+            .limit(1*params.limit) // returns all docs if zero or undefined
+            .toArray((err, docs) => {
+                if (err)
+                    reject(err);
+                else
+                    resolve({
+                        count: count,
+                        results: docs
+                    });
+            });
+        })
     });
 }

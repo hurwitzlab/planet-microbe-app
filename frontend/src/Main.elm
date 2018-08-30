@@ -36,9 +36,13 @@ type alias Model =
     , maxDepth : String
     , startDate : String
     , endDate : String
+    , isSearching : Bool
     , results : Maybe (List Sample)
+    , count : Int
     , errorMsg : Maybe String
     , tableState : Table.State
+    , pageNum : Int
+    , pageSize : Int
     }
 
 
@@ -53,9 +57,13 @@ init flags =
         , maxDepth = ""
         , startDate = ""
         , endDate = ""
+        , isSearching = False
         , results = Nothing
+        , count = 0
         , errorMsg = Nothing
         , tableState = Table.initialSort "Sample"
+        , pageNum = 0
+        , pageSize = 50
         }
     , Cmd.none
     )
@@ -67,7 +75,7 @@ init flags =
 
 type Msg
     = Search
-    | SearchCompleted (Result Http.Error (List Sample))
+    | SearchCompleted (Result Http.Error Response)
     | SetExample String String String String String String String
     | SetLatitude String
     | SetLongitude String
@@ -76,6 +84,8 @@ type Msg
     | SetMaxDepth String
     | SetStartDate String
     | SetEndDate String
+    | Next
+    | Previous
     | SetTableState Table.State
 
 
@@ -85,18 +95,19 @@ update msg model =
         Search ->
             let
                 doSearch =
-                    search model.lat model.lng model.radius model.minDepth model.maxDepth model.startDate model.endDate |> Http.toTask
+                    search model.lat model.lng model.radius model.minDepth model.maxDepth model.startDate model.endDate model.pageSize (model.pageNum * model.pageSize)
+                        |> Http.toTask
             in
-            ( { model | errorMsg = Nothing, results = Nothing }, Task.attempt SearchCompleted doSearch)
+            ( { model | errorMsg = Nothing, results = Nothing, isSearching = True }, Task.attempt SearchCompleted doSearch)
 
-        SearchCompleted (Ok results) ->
-            ( { model | results = Just results }, Cmd.none )
+        SearchCompleted (Ok response) ->
+            ( { model | count = response.count, results = Just response.results, isSearching = False }, Cmd.none )
 
         SearchCompleted (Err error) ->
             let
                 _ = Debug.log "Error" (toString error)
             in
-            ( { model | errorMsg = Just (toString error) }, Cmd.none )
+            ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
 
         SetExample lat lng radius minDepth maxDepth startDate endDate ->
             let
@@ -126,14 +137,31 @@ update msg model =
         SetEndDate val ->
             ( { model | endDate = val }, Cmd.none )
 
+        Next ->
+            let
+                (newModel, newCmd) =
+                    update Search { model | pageNum = model.pageNum + 1 }
+            in
+            ( newModel, newCmd )
+
+        Previous ->
+            let
+                pageNum =
+                    model.pageNum - 1 |> Basics.max 0
+
+                (newModel, newCmd) =
+                    update Search { model | pageNum = pageNum }
+            in
+            ( newModel, newCmd )
+
         SetTableState newState ->
             ( { model | tableState = newState }
             , Cmd.none
             )
 
 
-search : String -> String -> String -> String -> String -> String -> String -> Http.Request (List Sample)
-search lat lng radius minDepth maxDepth startDate endDate =
+search : String -> String -> String -> String -> String -> String -> String -> Int -> Int -> Http.Request Response
+search lat lng radius minDepth maxDepth startDate endDate limit skip =
     let
         url =
             apiBaseUrl ++ "/search"
@@ -146,12 +174,20 @@ search lat lng radius minDepth maxDepth startDate endDate =
             , ("maxDepth", maxDepth)
             , ("startDate", startDate)
             , ("endDate", endDate)
+            , ("limit", toString limit)
+            , ("skip", toString skip)
             ]
     in
     HttpBuilder.get url
         |> HttpBuilder.withQueryParams queryParams
-        |> HttpBuilder.withExpect (Http.expectJson (Decode.list decodeSample))
+        |> HttpBuilder.withExpect (Http.expectJson decodeResponse)
         |> HttpBuilder.toRequest
+
+
+type alias Response =
+    { count : Int
+    , results : List Sample
+    }
 
 
 type alias Sample =
@@ -167,6 +203,13 @@ type alias Location =
     { type_ : String
     , coordinates : List Float
     }
+
+
+decodeResponse : Decoder Response
+decodeResponse =
+    Decode.succeed Response
+        |> required "count" Decode.int
+        |> required "results" (Decode.list decodeSample)
 
 
 decodeSample : Decoder Sample
@@ -263,24 +306,36 @@ viewResults : Model -> Html Msg
 viewResults model =
     let
         content =
-            case model.errorMsg of
-                Nothing ->
-                    case model.results of
-                        Nothing ->
-                            text "No results"
+            if model.isSearching then
+                text "Searching ..."
+            else
+                case model.errorMsg of
+                    Nothing ->
+                        case model.results of
+                            Nothing ->
+                                text "No results"
 
-                        Just results ->
-                            div []
-                                [ List.length results |> toString |> text
-                                , text " results"
-                                , Table.view resultTableConfig model.tableState results
-                                ]
+                            Just results ->
+                                div []
+                                    [ model.count |> toString |> text
+                                    , text " total results. Showing "
+                                    , model.pageSize |> toString |> text
+                                    , text " results starting at result #"
+                                    , (model.pageNum * model.pageSize) |> Basics.max 1 |> toString |> text
+                                    , text ". "
+                                    , a [ onClick Previous ] [ text "Prev" ]
+                                    , text " / "
+                                    , a [ onClick Next ] [ text "Next" ]
+                                    , br [] []
+                                    , br [] []
+                                    , Table.view resultTableConfig model.tableState results
+                                    ]
 
-                Just msg ->
-                    div []
-                        [ p [] [ text "An error occurred:" ]
-                        , p [] [ text msg ]
-                        ]
+                    Just msg ->
+                        div []
+                            [ p [] [ text "An error occurred:" ]
+                            , p [] [ text msg ]
+                            ]
     in
     div [] [ content ]
 
