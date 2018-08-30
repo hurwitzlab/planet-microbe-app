@@ -253,11 +253,11 @@ viewInputs model =
                 [ div [ class "form-group" ]
                     [ label [ attribute "for" "name" ] [ text "Latitude (deg):" ]
                     , text " "
-                    , input [ type_ "text", class "form-control", size 5, placeholder "", value model.lat, onInput SetLatitude ] []
+                    , input [ type_ "text", class "form-control", size 8, placeholder "", value model.lat, onInput SetLatitude ] []
                     , text " "
                     , label [ attribute "for" "name" ] [ text "Longitude (deg):" ]
                     , text " "
-                    , input [ type_ "text", class "form-control", size 5, placeholder "", value model.lng, onInput SetLongitude ] []
+                    , input [ type_ "text", class "form-control", size 8, placeholder "", value model.lng, onInput SetLongitude ] []
                     , text " "
                     , label [ attribute "for" "name" ] [ text "Radius (m):" ]
                     , text " "
