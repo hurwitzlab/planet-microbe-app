@@ -17,4 +17,6 @@ cd frontend
 npm install
 elm package install
 $(npm bin)/elm-live src/Main --output=elm.js --open
+  *or*
+node_modules/elm/bin/elm make --output=elm.js src/Main.elm
 ```
