@@ -6,8 +6,7 @@ Quick Start:
 ```
 cd backend
 npm install
-dev: ($npm bin)/nodemon
-  *or*
+dev: $(npm bin)/nodemon
 prod: pm2 start --name planet-microbe-search-app server.js
 ```
 
@@ -19,6 +18,5 @@ cd frontend
 npm install
 elm package install
 dev: npm start
-  *or*
 prod: npm build
 ```
