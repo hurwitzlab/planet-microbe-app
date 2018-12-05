@@ -48,7 +48,7 @@ app.get('/searchTerms', (req, res) => {
             Object.values(rdfTermIndex)
             .filter(term => term.id)
             .map(term => {
-                let aliases = Object.values(term.schemas).reduce((acc, s) => Object.keys(s), []);
+                let aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
                 return {
                     id: term.id,
                     label: term.label,
@@ -74,7 +74,8 @@ app.get('/searchTerms/:id(\\S+)', (req, res) => {
             return;
         }
     }
-    let aliases = Object.values(term.schemas).reduce((acc, s) => Object.keys(s), []);
+    //let aliases = Object.values(term.schemas).reduce((acc, s) => Object.keys(s), []);
+    let aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
 
     if (term.type == "string") {
         mongo()
@@ -102,7 +103,7 @@ app.get('/searchTerms/:id(\\S+)', (req, res) => {
                 label: term.label,
                 type: term.type,
                 aliases: aliases,
-                values: results[0].values
+                values: results.sort()
             })
         })
         .catch(err => {
@@ -346,11 +347,13 @@ function search(db, params) {
             .toArray((err, docs) => {
                 if (err)
                     reject(err);
-                else
+                else {
+                    let keys = ['_id'].concat(Object.keys(fields));
                     resolve({
                         count: count,
-                        results: docs.map(doc => Object.keys(fields).map(f => doc[f]))
+                        results: docs.map(doc => keys.filter(k => k in doc).map(k => doc[k]))
                     });
+                }
             });
         })
     });
@@ -383,16 +386,18 @@ function findMinOrMax(db, schema_id, alias, minOrMax) {
 }
 
 function aggregate(db, query) {
-    console.log('aggregate:', query);
+    console.log('aggregate:', JSON.stringify(query));
     return new Promise(function (resolve, reject) {
         db.collection('samples')
         .aggregate(query)
         .toArray((err, docs) => {
-            //console.log("docs:", docs)
+            console.log("docs:", docs)
             if (err)
                 reject(err);
-            else
-                resolve(docs);
+            else {
+                let results = Array.from(new Set(docs.reduce((acc, doc) => acc.concat(doc.values), [])));
+                resolve(results);
+            }
         });
     });
 }
