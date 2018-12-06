@@ -27,6 +27,7 @@ mongo()
 //----------------------------------------------------------------------------------------------------------------------
 
 app.use(cors());
+app.use(requestLogger);
 
 app.get('/index', (req, res) => {
     res.json(rdfTermIndex);
@@ -80,19 +81,9 @@ app.get('/searchTerms/:id(\\S+)', (req, res) => {
     if (term.type == "string") {
         mongo()
         .then( db => {
-//            let queries = aliases.map(alias => {
-//                return { $group: { _id: '$__schema_id', values: { $addToSet: '$'+alias } } }
-//            });
-//            return aggregate(db, queries);
-//            return aggregate(db,
-//            [
-//                { $group: { _id: "$__schema_id", Biome: { $addToSet: '$Biome' }, Material: { $addToSet: '$Material' } } },
-//                { $project: { _id: false, values: { $setUnion: [ '$Biome', '$Material' ] } } }
-//            ])
             let group = { '_id': '$__schema_id' };
             aliases.forEach(alias => group[alias] = { '$addToSet': '$'+alias });
-            return aggregate(db,
-            [
+            return aggregate(db, [
                 { $group: group },
                 { $project: { _id: false, values: { $setUnion: aliases.map(alias => '$'+alias) } } }
             ])
@@ -343,7 +334,7 @@ function search(db, params) {
             .project(fields)
 //          .sort({ sample: 1 })
 //          .skip(1*params.skip)   // no skip if undefined
-//          .limit(1*params.limit) // returns all docs if zero or undefined
+          .limit(1*params.limit) // returns all docs if zero or undefined
             .toArray((err, docs) => {
                 if (err)
                     reject(err);
@@ -391,7 +382,7 @@ function aggregate(db, query) {
         db.collection('samples')
         .aggregate(query)
         .toArray((err, docs) => {
-            console.log("docs:", docs)
+            console.log("docs:", docs.length)
             if (err)
                 reject(err);
             else {
@@ -400,4 +391,9 @@ function aggregate(db, query) {
             }
         });
     });
+}
+
+function requestLogger(req, res, next) {
+    console.log(["REQUEST:", req.method, req.url].join(" ").concat(" ").padEnd(80, "-"));
+    next();
 }
