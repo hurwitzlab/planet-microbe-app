@@ -47,7 +47,7 @@ app.get('/searchTerms', (req, res) => {
     else {
         res.json(
             Object.values(rdfTermIndex)
-            .filter(term => term.id)
+            .filter(term => term.id && term.schemas)
             .map(term => {
                 let aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
                 return {
