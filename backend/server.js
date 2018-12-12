@@ -1,33 +1,37 @@
 const express = require('express');
 const app = express();
 const cors = require('cors');
+const logger = require('morgan');
 const Promise = require('promise');
-const mongodb = require('mongodb');
+const {promisify} = require('util');
+const {Client} = require('pg');
 const shortid = require('shortid');
 const stringSimilarity = require('string-similarity');
 const config = require('./config.json');
 
-
 var rdfTermIndex = {};
-var termIndex = {};
+var db;
 
-mongo()
-.then( db => generateTermIndex(db) )
-.then( index => {
-    console.log('index:', JSON.stringify(index, null, 4));
-    rdfTermIndex = index;
-})
-.then( () =>
-    app.listen(config.serverPort, () => console.log('Server listening on port', config.serverPort))
-)
-.catch(err => {
-    console.error(err);
-});
+// Initialize
+(async function() {
+    db = new Client({
+        user: 'mbomhoff',
+        host: 'localhost',
+        database: 'jsontest',
+        password: ''
+    });
+    await db.connect();
+
+    rdfTermIndex = await generateTermIndex(db);
+    console.log("index:", JSON.stringify(rdfTermIndex, null, 4));
+
+    app.listen(config.serverPort, () => console.log('Server listening on port', config.serverPort));
+})();
 
 //----------------------------------------------------------------------------------------------------------------------
 
+app.use(logger('dev'));
 app.use(cors());
-app.use(requestLogger);
 
 app.get('/index', (req, res) => {
     res.json(rdfTermIndex);
@@ -61,11 +65,10 @@ app.get('/searchTerms', (req, res) => {
     }
 });
 
-app.get('/searchTerms/:id(\\S+)', (req, res) => {
+app.get('/searchTerms/:id(\\S+)', async (req, res) => {
     let id = req.params.id;
-    console.log("searchTerms:", id);
-
     let term = rdfTermIndex[id];
+
     if (!term) {
         let matches = Object.keys(rdfTermIndex).filter(key => key.endsWith(id));
         if (matches && matches.length)
@@ -75,138 +78,159 @@ app.get('/searchTerms/:id(\\S+)', (req, res) => {
             return;
         }
     }
-    //let aliases = Object.values(term.schemas).reduce((acc, s) => Object.keys(s), []);
+
     let aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
 
     if (term.type == "string") {
-        mongo()
-        .then( db => {
-            let group = { '_id': '$__schema_id' };
-            aliases.forEach(alias => group[alias] = { '$addToSet': '$'+alias });
-            return aggregate(db, [
-                { $group: group },
-                { $project: { _id: false, values: { $setUnion: aliases.map(alias => '$'+alias) } } }
-            ])
-        })
-        .then(results => {
-            res.json({
-                id: term.id,
-                label: term.label,
-                type: term.type,
-                aliases: aliases,
-                values: results.sort()
-            })
-        })
-        .catch(err => {
-            console.log(err);
-            res.send(err);
+        let uniqueVals = {};
+        for (let schemaId in term.schemas) {
+            for (let alias in term.schemas[schemaId]) {
+                let arrIndex = term.schemas[schemaId][alias];
+                let vals = await db.query({ text: "SELECT DISTINCT(fields[$1].string) FROM sample", values: [ arrIndex ], rowMode: 'array'});
+                vals.rows.forEach(row => {
+                    uniqueVals[row[0]] = 1;
+                });
+            }
+        }
+
+        res.json({
+            id: term.id,
+            label: term.label,
+            type: term.type,
+            aliases: aliases,
+            values: Object.keys(uniqueVals).sort()
         });
+//        })
+//        .catch(err => {
+//            console.log(err);
+//            res.send(err);
+//        });
     }
-    else {
-        mongo()
-        .then( db => {
-            return Promise.all(
-                Object.keys(term.schemas).map(schema_id => {
-                    return Promise.all(
-                        Object.keys(term.schemas[schema_id]).map(alias => {
-                            return Promise.all([
-                                findMinOrMax(db, schema_id, alias, 1),
-                                findMinOrMax(db, schema_id, alias, -1)
-                            ]);
-                        })
-                    )
-                })
-            )
-        })
-        .then( results => {
-            console.log(results);
-            let min = Math.min( ...results.map(a => Math.min(...a[0])) );
-            let max = Math.max( ...results.map(a => Math.max(...a[0])) );
-            res.json({
-                id: term.id,
-                label: term.label,
-                type: term.type,
-                aliases: aliases,
-                min: min,
-                max: max
-            });
-        })
-        .catch(err => {
-            console.log(err);
-            res.send(err);
+    else if (term.type == "number") { // numeric -- TODO:datetime
+        let min, max;
+        for (let schemaId in term.schemas) {
+            for (let alias in term.schemas[schemaId]) {
+                let arrIndex = term.schemas[schemaId][alias];
+                let vals = await db.query("SELECT MAX(fields[$1].number),MIN(fields[$2].number) FROM sample", [arrIndex,arrIndex]);
+                vals.rows.forEach(row => {
+                    min = Math.min(row.min);
+                    max = Math.max(row.max);
+                });
+            }
+        }
+
+        res.json({
+            id: term.id,
+            label: term.label,
+            type: term.type,
+            aliases: aliases,
+            min: min,
+            max: max
         });
+//        .catch(err => {
+//            console.log(err);
+//            res.send(err);
+//        });
     }
 });
 
-app.get('/search', (req, res) => {
-    mongo()
-    .then( db => {
-        return search(db, req.query);
-    })
-    .then( results => {
-        res.json(results);
-    })
-    .catch(err => {
-        console.log(err);
-        res.send(err);
-    });
+app.get('/search', async (req, res) => {
+    let results = await search(db, req.query);
+    res.json(results);
+//    .catch(err => {
+//        console.log(err);
+//        res.send(err);
+//    });
 });
 
 //----------------------------------------------------------------------------------------------------------------------
 
-// Connect to MongoDB
-function mongo() {
-    return new Promise(function (resolve, reject) {
-        mongodb.MongoClient.connect(config.mongo.url, { useNewUrlParser: true }, (err, db) => {
-          if (err)
-            reject(err)
-          else
-            resolve(db.db(config.mongo.db))
+async function generateTermIndex(db) {
+    const ontologies = [
+        {
+          "name": "envo",
+          "terms": [
+            {
+              "id": "http://purl.obolibrary.org/obo/IAO_0000578",
+              "label": "centrally registered identifier"
+            },
+            {
+              "id": "http://purl.obolibrary.org/obo/IAO_0000577",
+              "label": "centrally registered identifier symbol"
+            },
+            {
+              "id": "http://purl.obolibrary.org/obo/BFO_0000148",
+              "label": "zero-dimensional temporal region"
+            },
+            {
+              "id": "http://purl.obolibrary.org/obo/OBI_0001620",
+              "label": "latitude coordinate measurement datum"
+            },
+            {
+              "id": "http://purl.obolibrary.org/obo/OBI_0001621",
+              "label": "longitude coordinate measurement datum"
+            },
+            {
+              "id": "http://purl.obolibrary.org/obo/ENVO_00000428",
+              "label": "biome"
+            },
+            {
+              "id": "http://purl.obolibrary.org/obo/ENVO_00002297",
+              "label": "environmental feature"
+            },
+            {
+              "id": "http://purl.obolibrary.org/obo/ENVO_00010483",
+              "label": "environmental material"
+            },
+            {
+              "id": "http://purl.obolibrary.org/obo/ENVO_09200014",
+              "label": "temperature of water"
+            },
+            {
+              "id": "http://planetmicrobe.org/purl/PM_00000001",
+              "label": "salinity of water"
+            },
+            {
+              "id": "http://purl.obolibrary.org/obo/ENVO_01001215",
+              "label": "visible spectrum stellar radiation"
+            }
+          ]
+        }
+    ];
+
+    //let result = await db.query('select fields[1].string from sample limit 1')
+    let schemas = await db.query("SELECT schema_id,name,fields->'fields' as fields FROM schema LIMIT 1");
+//    console.log(schemas.rows[0]);
+
+    let index = {};
+
+    ontologies.forEach( ontology => {
+        console.log("Indexing ontology", ontology.name);
+        ontology.terms.forEach( term => {
+            index[term.id] = term;
         });
     });
-}
 
-function generateTermIndex(db) {
-    return new Promise(function (resolve, reject) {
-        let index = {};
+    schemas.rows.forEach( schema => {
+        console.log("Indexing schema", schema.name);
 
-        db.collection('ontologies').find().toArray((err, ontologies) => {
-            if (err)
-                reject(err);
+        for (let i = 0; i < schema.fields.length; i++) {
+            let field = schema.fields[i];
+            let rdf = field.rdfType;
+            if (!rdf)
+                rdf = 'http://planetmicrobe.org/temppurl/PM_'+ shortid.generate(); //FIXME hardcoded URL
+            if (!(rdf in index))
+                index[rdf] = {};
+            if (!('schemas' in index[rdf]))
+                index[rdf]['schemas'] = {};
+            if (!index[rdf]['schemas'][schema.schema_id])
+                index[rdf]['schemas'][schema.schema_id] = {};
+            index[rdf]['schemas'][schema.schema_id][field.name] = i+1;
+            index[rdf]['type'] = field.type;
+        }
+    });
 
-            ontologies.forEach( ontology => {
-                console.log("Indexing ontology", ontology.name);
-                ontology.terms.forEach( term => {
-                    index[term.id] = term;
-                });
-            });
-
-            db.collection('schemas').find().toArray((err, schemas) => {
-                if (err)
-                    reject(err);
-
-                schemas.forEach( schema => {
-                    console.log("Indexing schema", schema.name);
-
-                    schema.fields.forEach(field => {
-                        let rdf = field.rdfType;
-                        if (!rdf)
-                            rdf = 'http://planetmicrobe.org/temppurl/PM_'+ shortid.generate(); //FIXME hardcoded URL
-                        if (!(rdf in index))
-                            index[rdf] = {};
-                        if (!('schemas' in index[rdf]))
-                            index[rdf]['schemas'] = {};
-                        if (!index[rdf]['schemas'][schema._id])
-                            index[rdf]['schemas'][schema._id] = {};
-                        index[rdf]['schemas'][schema._id][field.name] = 1;
-                        index[rdf]['type'] = field.type;
-                    })
-                });
-
-                resolve(index);
-            });
-        })
-    })
+    return index;
 }
 
 //db.sample.find({ location: { $near : { $geometry: { type: "Point",  coordinates: [ -158, 22 ] }, $maxDistance: 5000 } } } ).count()
@@ -259,7 +283,7 @@ function generateTermIndex(db) {
 //    });
 //}
 
-function search(db, params) {
+async function search(db, params) {
     console.log("params:", params);
 
     /* CASES
@@ -275,126 +299,68 @@ function search(db, params) {
     FIXME:
     http://localhost:3010/search?IAO_0000577=%22ABOKM42%22
     query: {"$or":[{"__schema_id":"5c0570963914e94f86574a7c","Sample label (BioSample)":"\"ABOKM42\"","Sample label (BioArchive)":"\"ABOKM42\"","Sample label (ENA)":"\"ABOKM42\""}]}
-
     */
 
-    let terms = {};
-    let fields = {};
+    let clauses = {};
+    let fields = [];
 
-    Object.keys(params).forEach(param => {
-        Object.values(rdfTermIndex).forEach(term => {
+    for (param in params) {
+        for (term of Object.values(rdfTermIndex)) {
             if ((term.id && (param === term.id || term.id.endsWith(param))) || (term.label && (param === term.label || term.label.startsWith(param)))) {
-                Object.keys(term.schemas).forEach(schema_id => {
-                    if (!terms[schema_id])
-                        terms[schema_id] = {};
-                    Object.keys(term.schemas[schema_id]).forEach(alias => {
+                for (schemaId in term.schemas) {
+                    if (!clauses[schemaId])
+                        clauses[schemaId] = {};
+                    for (alias in term.schemas[schemaId]) {
+                        console.log("alias:", alias)
+                        let arrIndex = term.schemas[schemaId][alias];
                         let val = params[param];
-                        fields[alias] = true;
 
+                        // FIXME should use query substitution here -- SQL injection risk
                         if (val === '') // empty - show in results
                             ;
-                        else if (!isNaN(val)) // literal number match
-                            terms[schema_id][alias] = parseFloat(val);
+                        else if (!isNaN(val)) { // literal number match
+                            clauses[schemaId][alias] = alias + "=" + parseFloat(val);
+                            fields.push("fields[" + arrIndex + "].number");
+                        }
                         else if (val.match(/\[-?\d+\,-?\d+\]/)) { // range query
                             let bounds = JSON.parse(val);
-                            terms[schema_id][alias] = { $gt: bounds[0], $lt: bounds[1] };
+                            clauses[schemaId][alias] = "fields[" + arrIndex + "].number" + ">=" + bounds[0] + " AND " + "fields[" + arrIndex + "].number" + "<=" + bounds[1];
+                            fields.push("fields[" + arrIndex + "].number");
                         }
                         else if (val.match(/\~\w+/)) { // partial string match
                             val = val.substr(1);
-                            terms[schema_id][alias] = { $regex: val };
+                            clauses[schemaId][alias] = "fields[" + arrIndex + "].string" + " LIKE " + "'%" + val + "%'";
+                            fields.push("fields[" + arrIndex + "].string");
                         }
-                        else // literal string match
-                            terms[schema_id][alias] = val;
-                    })
-                })
+                        else { // literal string match
+                            clauses[schemaId][alias] = "fields[" + arrIndex + "].string" + "=" + "'" + val + "'";
+                            fields.push("fields[" + arrIndex + "].string");
+                        }
+                    }
+                }
             }
-        })
-    });
-    console.log("terms:", terms);
-
-    let query = {};
-    query['$or'] = [];
-    Object.keys(terms).forEach(schema_id => {
-        let clause = {};
-        clause['__schema_id'] = new mongodb.ObjectID(schema_id);
-        Object.keys(terms[schema_id]).forEach(alias => {
-            clause[alias] = terms[schema_id][alias];
-        });
-        query['$or'].push(clause);
-    });
-
-    console.log("query:", JSON.stringify(query));
+        }
+    }
+    console.log("clauses:", clauses);
     console.log("fields:", fields);
 
-    return db.collection('samples').countDocuments(query)
-    .then(count => {
-        return new Promise(function (resolve, reject) {
-            db.collection('samples')
-            .find(query)
-            .project(fields)
-          .sort({ "__schema_id": 1 })
-          .skip(1*params.skip)   // no skip if undefined
-          .limit(1*params.limit) // returns all docs if zero or undefined
-            .toArray((err, docs) => {
-                console.log("docs:", docs.length);
-                if (err)
-                    reject(err);
-                else {
-                    let keys = ['_id'].concat(Object.keys(fields));
-                    resolve({
-                        count: count,
-                        results: docs.map(doc => keys.filter(k => k in doc).map(k => doc[k]))
-                    });
-                }
-            });
-        })
-    });
-}
+    let clauseStr = "1=1";
+    for (schemaId in clauses) {
+        for (alias in clauses[schemaId]) {
+            clauseStr += " AND " + clauses[schemaId][alias];
+        }
+    }
 
-function findMinOrMax(db, schema_id, alias, minOrMax) {
-    console.log("findMinMax:", schema_id, alias, minOrMax);
-    let query = {};
-    query[alias] = {$ne:null};
-    query['__schema_id'] = mongodb.ObjectID(schema_id);
-    filter = {};
-    filter[alias] = true;
-    sort = {}
-    sort[alias] = minOrMax;
-    console.log("query:", query);
-    return new Promise(function (resolve, reject) {
-        db.collection('samples')
-        .find(query, filter)
-        .project(filter)
-        .sort(sort)
-        .limit(1)
-        .toArray((err, docs) => {
-            console.log("docs:", docs[0][alias])
-            if (err)
-                reject(err);
-            else
-                resolve(docs[0][alias]);
-        });
-    });
-}
+    let queryStr = "SELECT sample_id," + fields.join(',') + " FROM sample WHERE " + clauseStr;
+    console.log(queryStr);
 
-function aggregate(db, query) {
-    console.log('aggregate:', JSON.stringify(query));
-    return new Promise(function (resolve, reject) {
-        db.collection('samples')
-        .aggregate(query)
-        .toArray((err, docs) => {
-            console.log("docs:", docs.length)
-            if (err)
-                reject(err);
-            else {
-                let results = Array.from(new Set(docs.reduce((acc, doc) => acc.concat(doc.values), [])));
-                resolve(results);
-            }
-        });
+    let results = await db.query({
+        text: queryStr,
+        values: [],
+        rowMode: 'array',
     });
-}
-
-function requestLogger(req, res, next) {
-    console.log(["REQUEST:", req.method, req.url].join(" ").concat(" ").padEnd(80, "-"));
-    next();
+    return {
+        count: 0,
+        results: results.rows
+    };
 }
