@@ -316,7 +316,7 @@ function search(db, params) {
     query['$or'] = [];
     Object.keys(terms).forEach(schema_id => {
         let clause = {};
-        clause['__schema_id'] = mongodb.ObjectID(schema_id);
+        clause['__schema_id'] = new mongodb.ObjectID(schema_id);
         Object.keys(terms[schema_id]).forEach(alias => {
             clause[alias] = terms[schema_id][alias];
         });
@@ -326,16 +326,17 @@ function search(db, params) {
     console.log("query:", JSON.stringify(query));
     console.log("fields:", fields);
 
-    return db.collection('samples').find(query).count()
+    return db.collection('samples').countDocuments(query)
     .then(count => {
         return new Promise(function (resolve, reject) {
             db.collection('samples')
             .find(query)
             .project(fields)
-//          .sort({ sample: 1 })
-//          .skip(1*params.skip)   // no skip if undefined
+          .sort({ "__schema_id": 1 })
+          .skip(1*params.skip)   // no skip if undefined
           .limit(1*params.limit) // returns all docs if zero or undefined
             .toArray((err, docs) => {
+                console.log("docs:", docs.length);
                 if (err)
                     reject(err);
                 else {
