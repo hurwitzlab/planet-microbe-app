@@ -78,15 +78,17 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
             return;
         }
     }
+    console.log(term);
 
     let aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
 
     if (term.type == "string") {
         let uniqueVals = {};
         for (let schemaId in term.schemas) {
+            console.log("schemaId:", schemaId);
             for (let alias in term.schemas[schemaId]) {
                 let arrIndex = term.schemas[schemaId][alias];
-                let vals = await db.query({ text: "SELECT DISTINCT(fields[$1].string) FROM sample", values: [ arrIndex ], rowMode: 'array'});
+                let vals = await query({ text: "SELECT DISTINCT(fields[$1].string) FROM sample WHERE schema_id=$2", values: [arrIndex,schemaId*1], rowMode: 'array'});
                 vals.rows.forEach(row => {
                     uniqueVals[row[0]] = 1;
                 });
@@ -107,17 +109,25 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
 //        });
     }
     else if (term.type == "number") { // numeric -- TODO:datetime
-        let min, max;
+        let queries = [];
         for (let schemaId in term.schemas) {
             for (let alias in term.schemas[schemaId]) {
                 let arrIndex = term.schemas[schemaId][alias];
-                let vals = await db.query("SELECT MAX(fields[$1].number),MIN(fields[$2].number) FROM sample", [arrIndex,arrIndex]);
-                vals.rows.forEach(row => {
-                    min = Math.min(row.min);
-                    max = Math.max(row.max);
-                });
+                queries.push({ text: "SELECT MIN(fields[$1].number),MAX(fields[$1].number) FROM sample WHERE schema_id=$2", values: [arrIndex,schemaId*1], rowMode: 'array' });
             }
         }
+
+        let min, max;
+        let results = await batchQuery(queries);
+        results.forEach(vals => {
+            vals.rows.forEach(row => {
+                console.log(row);
+                if (typeof row[0] !== "undefined" && typeof row[1] !== "undefined") {
+                    min = (typeof min === "undefined" ? row[0] : Math.min(min, row[0]));
+                    max = (typeof max === "undefined" ? row[1] : Math.max(max, row[1]));
+                }
+            });
+        });
 
         res.json({
             id: term.id,
@@ -198,8 +208,8 @@ async function generateTermIndex(db) {
         }
     ];
 
-    //let result = await db.query('select fields[1].string from sample limit 1')
-    let schemas = await db.query("SELECT schema_id,name,fields->'fields' as fields FROM schema LIMIT 1");
+    //let result = await query('select fields[1].string from sample limit 1')
+    let schemas = await query("SELECT schema_id,name,fields->'fields' as fields FROM schema");
 //    console.log(schemas.rows[0]);
 
     let index = {};
@@ -301,66 +311,114 @@ async function search(db, params) {
     query: {"$or":[{"__schema_id":"5c0570963914e94f86574a7c","Sample label (BioSample)":"\"ABOKM42\"","Sample label (BioArchive)":"\"ABOKM42\"","Sample label (ENA)":"\"ABOKM42\""}]}
     */
 
+    let limit, sort;
+
     let clauses = {};
     let fields = [];
+    let fields2 = {};
+    let schemas = {};
+    let schemaCount = 0;
+    let fieldCount = 0;
 
     for (param in params) {
-        for (term of Object.values(rdfTermIndex)) {
-            if ((term.id && (param === term.id || term.id.endsWith(param))) || (term.label && (param === term.label || term.label.startsWith(param)))) {
-                for (schemaId in term.schemas) {
-                    if (!clauses[schemaId])
-                        clauses[schemaId] = {};
-                    for (alias in term.schemas[schemaId]) {
-                        console.log("alias:", alias)
-                        let arrIndex = term.schemas[schemaId][alias];
-                        let val = params[param];
+        if (param == 'limit')
+            limit = params['limit'] * 1; // convert to int
+        else if (param == 'sort')
+            sort = params['sort'] * 1; // convert to int
+        else {
+            for (term of Object.values(rdfTermIndex)) {
+                if ((term.id && (param === term.id || term.id.endsWith(param))) || (term.label && (param === term.label || term.label.startsWith(param)))) {
+                    for (schemaId in term.schemas) {
+                        if (!(schemaId in schemas))
+                            schemas[schemaId] = schemaCount++;
+                        if (!clauses[schemaId])
+                            clauses[schemaId] = {};
+                        for (alias in term.schemas[schemaId]) {
+                            let arrIndex = term.schemas[schemaId][alias];
+                            let val = params[param];
 
-                        // FIXME should use query substitution here -- SQL injection risk
-                        if (val === '') // empty - show in results
-                            ;
-                        else if (!isNaN(val)) { // literal number match
-                            clauses[schemaId][alias] = alias + "=" + parseFloat(val);
-                            fields.push("fields[" + arrIndex + "].number");
-                        }
-                        else if (val.match(/\[-?\d+\,-?\d+\]/)) { // range query
-                            let bounds = JSON.parse(val);
-                            clauses[schemaId][alias] = "fields[" + arrIndex + "].number" + ">=" + bounds[0] + " AND " + "fields[" + arrIndex + "].number" + "<=" + bounds[1];
-                            fields.push("fields[" + arrIndex + "].number");
-                        }
-                        else if (val.match(/\~\w+/)) { // partial string match
-                            val = val.substr(1);
-                            clauses[schemaId][alias] = "fields[" + arrIndex + "].string" + " LIKE " + "'%" + val + "%'";
-                            fields.push("fields[" + arrIndex + "].string");
-                        }
-                        else { // literal string match
-                            clauses[schemaId][alias] = "fields[" + arrIndex + "].string" + "=" + "'" + val + "'";
-                            fields.push("fields[" + arrIndex + "].string");
+                            // FIXME should use query substitution here -- SQL injection risk
+                            let field;
+                            if (val === '') // empty - show in results
+                                ;
+                            else if (!isNaN(val)) { // literal number match
+                                field = "fields[" + arrIndex + "].number";
+                                clauses[schemaId][alias] = field + "=" + parseFloat(val);
+                            }
+                            else if (val.match(/\[-?\d+\,-?\d+\]/)) { // range query
+                                field = "fields[" + arrIndex + "].number";
+                                let bounds = JSON.parse(val);
+                                clauses[schemaId][alias] = field + ">=" + bounds[0] + " AND " + field + "<=" + bounds[1];
+                            }
+                            else if (val.match(/\~\w+/)) { // partial string match
+                                val = val.substr(1);
+                                field = "fields[" + arrIndex + "].string";
+                                clauses[schemaId][alias] = field + " LIKE " + "'%" + val + "%'";
+                            }
+                            else { // literal string match
+                                field = "fields[" + arrIndex + "].string";
+                                clauses[schemaId][alias] = field + "=" + "'" + val + "'";
+                            }
+
+                            if (field) {
+                                fields.push(field);
+                                if (!fields2[fieldCount])
+                                    fields2[fieldCount] = {};
+                                fields2[fieldCount][schemaId] = field;
+                            }
                         }
                     }
+
+                    fieldCount++;
                 }
             }
         }
     }
-    console.log("clauses:", clauses);
-    console.log("fields:", fields);
+    //console.log("clauses:", clauses);
+    //console.log("fields:", fields);
+    //console.log("fields2:", fields2);
 
-    let clauseStr = "1=1";
+    let subClauses = [];
     for (schemaId in clauses) {
-        for (alias in clauses[schemaId]) {
-            clauseStr += " AND " + clauses[schemaId][alias];
-        }
+        let subClauseStr = "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")";
+        subClauses.push(subClauseStr);
     }
+    let clauseStr = subClauses.join(" OR ");
 
-    let queryStr = "SELECT sample_id," + fields.join(',') + " FROM sample WHERE " + clauseStr;
-    console.log(queryStr);
+    let selectStr = "";
+    Object.values(fields2).forEach(f => {
+        selectStr += ",CASE";
+        Object.keys(f).forEach(schemaId => {
+            selectStr += " WHEN schema_id=" + schemaId + " THEN " + f[schemaId]
+        });
+        selectStr += " END"
+    });
 
-    let results = await db.query({
+    let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
+    let sortStr = (typeof sort !== 'undefined' ? "ORDER BY " + (Math.abs(sort) + 2) + " " + sortDir : "");
+
+    let limitStr = (limit ? "LIMIT " + limit : "");
+
+    let queryStr = "SELECT schema_id,sample_id" + selectStr + " FROM sample WHERE " + clauseStr + " " + sortStr + " " + limitStr;
+
+    let results = await query({
         text: queryStr,
         values: [],
         rowMode: 'array',
     });
+
     return {
         count: 0,
         results: results.rows
     };
+}
+
+function query(queryStrOrObj, params) {
+    console.log(queryStrOrObj, params || "");
+    return db.query(queryStrOrObj, params);
+}
+
+async function batchQuery(queryObjArray) {
+  const promises = queryObjArray.map(obj => query(obj));
+  return await Promise.all(promises);
 }
