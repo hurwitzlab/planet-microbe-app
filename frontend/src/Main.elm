@@ -10,6 +10,8 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline as Pipeline exposing (optional, required)
 import Task
 import List.Extra
+import Set
+import Dict exposing (Dict)
 import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
 
@@ -36,6 +38,9 @@ type alias Model =
     , maxDepth : String
     , startDate : String
     , endDate : String
+    , attributes : List String
+    , selectedAttr : List String -- for maintaining order
+    , selectedVal : Dict String (Maybe SearchTermValues)
     , isSearching : Bool
     , results : Maybe (List Sample)
     , count : Int
@@ -57,6 +62,9 @@ init flags =
         , maxDepth = ""
         , startDate = ""
         , endDate = ""
+        , attributes = []
+        , selectedAttr = []
+        , selectedVal = Dict.empty
         , isSearching = False
         , results = Nothing
         , count = 0
@@ -65,7 +73,7 @@ init flags =
         , pageNum = 0
         , pageSize = 50
         }
-    , Cmd.none
+    , Http.toTask getSearchTerms |> Task.attempt GetSearchTermsCompleted
     )
 
 
@@ -74,7 +82,9 @@ init flags =
 
 
 type Msg
-    = Search
+    = GetSearchTermsCompleted (Result Http.Error (List SearchTerm))
+    | GetSearchTermCompleted (Result Http.Error SearchTerm)
+    | Search
     | SearchCompleted (Result Http.Error Response)
     | Clear
     | SetExample String String String String String String String
@@ -85,6 +95,7 @@ type Msg
     | SetMaxDepth String
     | SetStartDate String
     | SetEndDate String
+    | SelectAttribute String
     | Next
     | Previous
     | SetTableState Table.State
@@ -93,6 +104,41 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        GetSearchTermsCompleted (Ok terms) ->
+            let
+                _ = Debug.log "foo" (toString terms)
+
+                attr =
+                    List.map .label terms
+            in
+            ( { model | attributes = attr }, Cmd.none )
+
+        GetSearchTermsCompleted (Err error) -> --TODO
+            ( model, Cmd.none )
+
+        GetSearchTermCompleted (Ok term) ->
+            let
+                _ = Debug.log "foo" (toString term)
+
+                vals =
+                    case term.type_ of
+                        "string" ->
+                            Just (StringValues term.values)
+
+                        "number" ->
+                            Just (MinMax (term.min, term.max))
+
+                        _ ->
+                            Nothing
+
+                selectedVal =
+                    Dict.insert term.label vals model.selectedVal
+            in
+            ( { model | selectedVal = selectedVal }, Cmd.none )
+
+        GetSearchTermCompleted (Err error) -> --TODO
+            ( model, Cmd.none )
+
         Search ->
             let
                 doSearch =
@@ -141,6 +187,18 @@ update msg model =
         SetEndDate val ->
             ( { model | endDate = val }, Cmd.none )
 
+        SelectAttribute val ->
+            let
+                _ = Debug.log "Selected" (toString selectedAttr)
+
+                selectedAttr =
+                    (val :: model.selectedAttr) |> Set.fromList |> Set.toList
+
+                getTerm =
+                    getSearchTerm val |> Http.toTask
+            in
+            ( { model | selectedAttr = selectedAttr }, Task.attempt GetSearchTermCompleted getTerm )
+
         Next ->
             let
                 (newModel, newCmd) =
@@ -188,6 +246,28 @@ search lat lng radius minDepth maxDepth startDate endDate limit skip =
         |> HttpBuilder.toRequest
 
 
+getSearchTerms : Http.Request (List SearchTerm)
+getSearchTerms =
+    let
+        url =
+            apiBaseUrl ++ "/searchTerms"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list decodeSearchTerm))
+        |> HttpBuilder.toRequest
+
+
+getSearchTerm : String -> Http.Request SearchTerm
+getSearchTerm term =
+    let
+        url =
+            apiBaseUrl ++ "/searchTerms/" ++ term
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson decodeSearchTerm)
+        |> HttpBuilder.toRequest
+
+
 type alias Response =
     { count : Int
     , results : List Sample
@@ -207,6 +287,21 @@ type alias Location =
     { type_ : String
     , coordinates : List Float
     }
+
+
+type alias SearchTerm =
+    { type_ : String
+    , id : String
+    , label : String
+    , aliases : List String
+    , min : Float
+    , max : Float
+    , values : List String
+    }
+
+type SearchTermValues
+    = StringValues (List String)
+    | MinMax (Float, Float)
 
 
 decodeResponse : Decoder Response
@@ -233,6 +328,18 @@ decodeLocation =
         |> required "coordinates" (Decode.list Decode.float)
 
 
+decodeSearchTerm : Decoder SearchTerm
+decodeSearchTerm =
+    Decode.succeed SearchTerm
+        |> required "type" Decode.string
+        |> required "id" Decode.string
+        |> required "label" Decode.string
+        |> optional "alias" (Decode.list Decode.string) []
+        |> optional "min" Decode.float 0
+        |> optional "max" Decode.float 0
+        |> optional "values" (Decode.list Decode.string) []
+
+
 
 -- VIEW
 
@@ -251,6 +358,10 @@ view model =
 
 viewInputs : Model -> Html Msg
 viewInputs model =
+    let
+        attrOptions =
+            option [ disabled True, selected True ] [ text "Please select an attribute" ] :: (List.map (\attr -> option [ value attr ] [ text attr ] ) model.attributes)
+    in
     div [ class "panel panel-default" ]
         [ div [ class "panel-body" ]
             [ Html.form [ class "form-inline" ]
@@ -290,6 +401,16 @@ viewInputs model =
                     ]
                 ]
             , br [] []
+            , Html.form [ class "form-inline" ]
+                [ div [ class "form-group" ]
+                    [ label [ attribute "for" "name" ] [ text "Attributes:" ]
+                    , text " "
+                    , select [ class "form-control", onInput SelectAttribute ] attrOptions
+                    ]
+                ]
+            , br [] []
+            , viewParams model
+            , br [] []
             , button [ class "btn btn-default", onClick Clear ] [ text "Clear" ]
             , text " "
             , button [ class "btn btn-primary", onClick Search ] [ text "Search" ]
@@ -306,6 +427,32 @@ viewExamples model =
         , text ", "
         , a [ onClick (SetExample "" "" "" "" "" "1988-01-01" "1989-01-01") ] [ text "Example 3" ]
         ]
+
+
+viewParams : Model -> Html Msg
+viewParams model =
+    let
+        mkOpt val =
+            option [] [ text val ]
+
+        mkRow term =
+            case Dict.get term model.selectedVal |> Maybe.withDefault Nothing of
+                Just (StringValues possibleVals) ->
+                    div []
+                        [ text term
+                        , select [] (List.map mkOpt possibleVals)
+                        ]
+
+                Just (MinMax (min, max)) ->
+                    div []
+                        [ text term
+                        , input [ size 8, value (toString min) ] []
+                        , input [ size 8, value (toString max) ] []
+                        ]
+                Nothing ->
+                    div [] [ text "Loading..." ]
+    in
+    div [] (List.map mkRow model.selectedAttr)
 
 
 viewResults : Model -> Html Msg
