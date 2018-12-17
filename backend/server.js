@@ -349,7 +349,7 @@ async function search(db, params) {
                         field = "fields[" + arrIndex + "].number";
                         clauses[schemaId][alias] = field + "=" + parseFloat(val);
                     }
-                    else if (val.match(/\[-?\d*(\.\d+)\,-?\d*(\.\d+)\]/)) { // range query
+                    else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // range query
                         field = "fields[" + arrIndex + "].number";
                         let bounds = JSON.parse(val);
                         clauses[schemaId][alias] = field + ">=" + bounds[0] + " AND " + field + "<=" + bounds[1];
