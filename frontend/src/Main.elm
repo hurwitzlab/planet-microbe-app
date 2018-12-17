@@ -38,9 +38,10 @@ type alias Model =
     , maxDepth : String
     , startDate : String
     , endDate : String
-    , attributes : List String
-    , selectedAttr : List String -- for maintaining order
-    , selectedVal : Dict String (Maybe SearchTermValues)
+    , allParams : List String
+    , availableParams : List String
+    , selectedParams : List String -- for maintaining order
+    , selectedVals : Dict String (Maybe SearchTermValues)
     , isSearching : Bool
     , results : Maybe (List Sample)
     , count : Int
@@ -62,9 +63,10 @@ init flags =
         , maxDepth = ""
         , startDate = ""
         , endDate = ""
-        , attributes = []
-        , selectedAttr = []
-        , selectedVal = Dict.empty
+        , allParams = []
+        , availableParams = []
+        , selectedParams = []
+        , selectedVals = Dict.empty
         , isSearching = False
         , results = Nothing
         , count = 0
@@ -85,7 +87,7 @@ type Msg
     = GetSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | GetSearchTermCompleted (Result Http.Error SearchTerm)
     | Search
-    | SearchCompleted (Result Http.Error Response)
+    | SearchCompleted (Result Http.Error SearchResponse)
     | Clear
     | SetExample String String String String String String String
     | SetLatitude String
@@ -95,7 +97,7 @@ type Msg
     | SetMaxDepth String
     | SetStartDate String
     | SetEndDate String
-    | SelectAttribute String
+    | SelectParam String
     | Next
     | Previous
     | SetTableState Table.State
@@ -106,12 +108,10 @@ update msg model =
     case msg of
         GetSearchTermsCompleted (Ok terms) ->
             let
-                _ = Debug.log "foo" (toString terms)
-
-                attr =
+                params =
                     List.map .label terms
             in
-            ( { model | attributes = attr }, Cmd.none )
+            ( { model | allParams = params }, Cmd.none )
 
         GetSearchTermsCompleted (Err error) -> --TODO
             ( model, Cmd.none )
@@ -131,19 +131,22 @@ update msg model =
                         _ ->
                             Nothing
 
-                selectedVal =
-                    Dict.insert term.label vals model.selectedVal
+                selectedVals =
+                    Dict.insert term.label vals model.selectedVals
             in
-            ( { model | selectedVal = selectedVal }, Cmd.none )
+            ( { model | selectedVals = selectedVals }, Cmd.none )
 
         GetSearchTermCompleted (Err error) -> --TODO
             ( model, Cmd.none )
 
         Search ->
             let
+--                doSearch =
+--                    search model.lat model.lng model.radius model.minDepth model.maxDepth model.startDate model.endDate model.pageSize (model.pageNum * model.pageSize)
+--                        |> Http.toTask
+
                 doSearch =
-                    search model.lat model.lng model.radius model.minDepth model.maxDepth model.startDate model.endDate model.pageSize (model.pageNum * model.pageSize)
-                        |> Http.toTask
+                    search model.selectedVals |> Http.toTask
             in
             ( { model | errorMsg = Nothing, results = Nothing, isSearching = True }, Task.attempt SearchCompleted doSearch)
 
@@ -187,17 +190,15 @@ update msg model =
         SetEndDate val ->
             ( { model | endDate = val }, Cmd.none )
 
-        SelectAttribute val ->
+        SelectParam val ->
             let
-                _ = Debug.log "Selected" (toString selectedAttr)
-
-                selectedAttr =
-                    (val :: model.selectedAttr) |> Set.fromList |> Set.toList
+                params =
+                    (val :: model.selectedParams) |> Set.fromList |> Set.toList
 
                 getTerm =
                     getSearchTerm val |> Http.toTask
             in
-            ( { model | selectedAttr = selectedAttr }, Task.attempt GetSearchTermCompleted getTerm )
+            ( { model | selectedParams = params }, Task.attempt GetSearchTermCompleted getTerm )
 
         Next ->
             let
@@ -222,30 +223,6 @@ update msg model =
             )
 
 
-search : String -> String -> String -> String -> String -> String -> String -> Int -> Int -> Http.Request Response
-search lat lng radius minDepth maxDepth startDate endDate limit skip =
-    let
-        url =
-            apiBaseUrl ++ "/search"
-
-        queryParams =
-            [ ("lat", lat)
-            , ("lng", lng)
-            , ("radius", radius)
-            , ("minDepth", minDepth)
-            , ("maxDepth", maxDepth)
-            , ("startDate", startDate)
-            , ("endDate", endDate)
-            , ("limit", toString limit)
-            , ("skip", toString skip)
-            ]
-    in
-    HttpBuilder.get url
-        |> HttpBuilder.withQueryParams queryParams
-        |> HttpBuilder.withExpect (Http.expectJson decodeResponse)
-        |> HttpBuilder.toRequest
-
-
 getSearchTerms : Http.Request (List SearchTerm)
 getSearchTerms =
     let
@@ -268,9 +245,60 @@ getSearchTerm term =
         |> HttpBuilder.toRequest
 
 
-type alias Response =
+--search : String -> String -> String -> String -> String -> String -> String -> Int -> Int -> Http.Request SearchResponse
+--search lat lng radius minDepth maxDepth startDate endDate limit skip =
+--    let
+--        url =
+--            apiBaseUrl ++ "/search"
+--
+--        queryParams =
+--            [ ("lat", lat)
+--            , ("lng", lng)
+--            , ("radius", radius)
+--            , ("minDepth", minDepth)
+--            , ("maxDepth", maxDepth)
+--            , ("startDate", startDate)
+--            , ("endDate", endDate)
+--            , ("limit", toString limit)
+--            , ("skip", toString skip)
+--            ]
+--    in
+--    HttpBuilder.get url
+--        |> HttpBuilder.withQueryParams queryParams
+--        |> HttpBuilder.withExpect (Http.expectJson decodeSearchResponse)
+--        |> HttpBuilder.toRequest
+
+
+search : Dict String (Maybe SearchTermValues) -> Http.Request SearchResponse
+search params =
+    let
+        url =
+            apiBaseUrl ++ "/search"
+
+        range min max = --TODO use encoder here instead
+            "[" ++ (toString min) ++ "," ++ (toString max) ++ "]"
+
+        format name val =
+            case val of
+                Nothing ->
+                    ""
+
+                Just (MinMax (min, max)) -> range min max
+
+                _ -> ""
+
+        queryParams =
+            params |> Dict.map format |> Dict.toList
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withQueryParams queryParams
+        |> HttpBuilder.withExpect (Http.expectJson decodeSearchResponse)
+        |> HttpBuilder.toRequest
+
+
+type alias SearchResponse =
     { count : Int
-    , results : List Sample
+    , results : List (List Int) --List Sample
     }
 
 
@@ -299,16 +327,17 @@ type alias SearchTerm =
     , values : List String
     }
 
+
 type SearchTermValues
     = StringValues (List String)
     | MinMax (Float, Float)
 
 
-decodeResponse : Decoder Response
-decodeResponse =
-    Decode.succeed Response
+decodeSearchResponse : Decoder SearchResponse
+decodeSearchResponse =
+    Decode.succeed SearchResponse
         |> required "count" Decode.int
-        |> required "results" (Decode.list decodeSample)
+        |> required "results" (Decode.list (Decode.list Decode.int))--(Decode.list decodeSample)
 
 
 decodeSample : Decoder Sample
@@ -334,7 +363,7 @@ decodeSearchTerm =
         |> required "type" Decode.string
         |> required "id" Decode.string
         |> required "label" Decode.string
-        |> optional "alias" (Decode.list Decode.string) []
+        |> optional "aliases" (Decode.list Decode.string) []
         |> optional "min" Decode.float 0
         |> optional "max" Decode.float 0
         |> optional "values" (Decode.list Decode.string) []
@@ -359,8 +388,8 @@ view model =
 viewInputs : Model -> Html Msg
 viewInputs model =
     let
-        attrOptions =
-            option [ disabled True, selected True ] [ text "Please select an attribute" ] :: (List.map (\attr -> option [ value attr ] [ text attr ] ) model.attributes)
+        options =
+            option [ disabled True, selected True ] [ text "Please select a parameter" ] :: (List.map (\label -> option [ value label ] [ text label ] ) model.allParams)
     in
     div [ class "panel panel-default" ]
         [ div [ class "panel-body" ]
@@ -405,7 +434,7 @@ viewInputs model =
                 [ div [ class "form-group" ]
                     [ label [ attribute "for" "name" ] [ text "Attributes:" ]
                     , text " "
-                    , select [ class "form-control", onInput SelectAttribute ] attrOptions
+                    , select [ class "form-control", onInput SelectParam ] options
                     ]
                 ]
             , br [] []
@@ -436,7 +465,7 @@ viewParams model =
             option [] [ text val ]
 
         mkRow term =
-            case Dict.get term model.selectedVal |> Maybe.withDefault Nothing of
+            case Dict.get term model.selectedVals |> Maybe.withDefault Nothing of
                 Just (StringValues possibleVals) ->
                     div []
                         [ text term
@@ -452,7 +481,7 @@ viewParams model =
                 Nothing ->
                     div [] [ text "Loading..." ]
     in
-    div [] (List.map mkRow model.selectedAttr)
+    div [] (List.map mkRow model.selectedParams)
 
 
 viewResults : Model -> Html Msg
