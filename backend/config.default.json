@@ -1,0 +1,8 @@
+{
+    "serverPort": 3010,
+    "postgres": {
+        "db": "",
+        "username": "",
+        "password": ""
+    }
+}

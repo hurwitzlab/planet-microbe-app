@@ -3,7 +3,6 @@ const app = express();
 const cors = require('cors');
 const logger = require('morgan');
 const Promise = require('promise');
-const {promisify} = require('util');
 const {Client} = require('pg');
 const shortid = require('shortid');
 const stringSimilarity = require('string-similarity');
@@ -15,10 +14,10 @@ var db;
 // Initialize
 (async function() {
     db = new Client({
-        user: 'mbomhoff',
+        user: config.postgres.username,
         host: 'localhost',
-        database: 'jsontest',
-        password: ''
+        database: config.postgres.db,
+        password: config.postgres.password
     });
     await db.connect();
 
@@ -83,7 +82,7 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
             console.log("schemaId:", schemaId);
             for (let alias in term.schemas[schemaId]) {
                 let arrIndex = term.schemas[schemaId][alias];
-                let vals = await query({ text: "SELECT DISTINCT(fields[$1].string) FROM sample WHERE schema_id=$2", values: [arrIndex,schemaId*1], rowMode: 'array'});
+                let vals = await query({ text: "SELECT DISTINCT(string_vals[$1]) FROM sample WHERE schema_id=$2", values: [arrIndex,schemaId*1], rowMode: 'array'});
                 vals.rows.forEach(row => {
                     uniqueVals[row[0]] = 1;
                 });
@@ -97,23 +96,24 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
             aliases: aliases,
             values: Object.keys(uniqueVals).sort()
         });
+// TODO
 //        })
 //        .catch(err => {
 //            console.log(err);
 //            res.send(err);
 //        });
     }
-    else if (term.type == "number") { // numeric -- TODO:datetime
+    else if (term.type == "number") { // numeric
         let queries = [];
         for (let schemaId in term.schemas) {
             for (let alias in term.schemas[schemaId]) {
                 let arrIndex = term.schemas[schemaId][alias];
-                queries.push({ text: "SELECT MIN(fields[$1].number),MAX(fields[$1].number) FROM sample WHERE schema_id=$2", values: [arrIndex,schemaId*1], rowMode: 'array' });
+                queries.push({ text: "SELECT MIN(number_vals[$1]),MAX(number_vals[$1]) FROM sample WHERE schema_id=$2", values: [arrIndex,schemaId*1], rowMode: 'array' });
             }
         }
 
         let min, max;
-        let results = await batchQuery(queries);
+        let results = await batchQuery(queries); // FIXME would a single query be faster?
         results.forEach(vals => {
             vals.rows.forEach(row => {
                 console.log(row);
@@ -132,10 +132,20 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
             min: min,
             max: max
         });
+// TODO
 //        .catch(err => {
 //            console.log(err);
 //            res.send(err);
 //        });
+    }
+// TODO
+//    else if (term.type == "datetime") {
+//    }
+    else {
+        console.log("ERROR: unknown term type '" + term.type + "'");
+        res.status(500).json({
+            error: "Unknown term type"
+        });
     }
 });
 
@@ -205,7 +215,7 @@ async function generateTermIndex(db) {
 
     //let result = await query('select fields[1].string from sample limit 1')
     let schemas = await query("SELECT schema_id,name,fields->'fields' as fields FROM schema");
-//    console.log(schemas.rows[0]);
+    //console.log(schemas.rows);
 
     let index = {};
 
@@ -346,21 +356,21 @@ async function search(db, params) {
                     if (val === '') // empty - show in results
                         ;
                     else if (!isNaN(val)) { // literal number match
-                        field = "fields[" + arrIndex + "].number";
+                        field = "number_vals[" + arrIndex + "]";
                         clauses[schemaId][alias] = field + "=" + parseFloat(val);
                     }
                     else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // range query
-                        field = "fields[" + arrIndex + "].number";
+                        field = "number_vals[" + arrIndex + "]";
                         let bounds = JSON.parse(val);
-                        clauses[schemaId][alias] = field + ">=" + bounds[0] + " AND " + field + "<=" + bounds[1];
+                        clauses[schemaId][alias] = field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
                     }
                     else if (val.match(/\~\w+/)) { // partial string match
                         val = val.substr(1);
-                        field = "fields[" + arrIndex + "].string";
+                        field = "string_vals[" + arrIndex + "]";
                         clauses[schemaId][alias] = field + " LIKE " + "'%" + val + "%'";
                     }
                     else { // literal string match
-                        field = "fields[" + arrIndex + "].string";
+                        field = "string_vals[" + arrIndex + "]";
                         clauses[schemaId][alias] = field + "=" + "'" + val + "'";
                     }
 
