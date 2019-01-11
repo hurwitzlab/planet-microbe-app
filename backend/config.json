@@ -1,7 +1,0 @@
-{
-    "serverPort": 3010,
-    "mongo": {
-        "url": "mongodb://localhost:27017",
-        "db": "pm_test2"
-    }
-}
