@@ -214,8 +214,8 @@ async function generateTermIndex(db) {
     ];
 
     //let result = await query('select fields[1].string from sample limit 1')
-    let schemas = await query("SELECT schema_id,name,fields->'fields' as fields FROM schema");
-    //console.log(schemas.rows);
+    let schemas = await query("SELECT schema_id,name,fields FROM schema");
+    console.log(schemas.rows);
 
     let index = {};
 
@@ -229,8 +229,8 @@ async function generateTermIndex(db) {
     schemas.rows.forEach( schema => {
         console.log("Indexing schema", schema.name);
 
-        for (let i = 0; i < schema.fields.length; i++) {
-            let field = schema.fields[i];
+        for (let i = 0; i < schema.fields.fields.length; i++) {
+            let field = schema.fields.fields[i];
             let rdf = field.rdfType;
             if (!rdf)
                 rdf = 'http://planetmicrobe.org/temppurl/PM_'+ shortid.generate(); //FIXME hardcoded URL
@@ -240,7 +240,7 @@ async function generateTermIndex(db) {
                 index[rdf]['schemas'] = {};
             if (!index[rdf]['schemas'][schema.schema_id])
                 index[rdf]['schemas'][schema.schema_id] = {};
-            index[rdf]['schemas'][schema.schema_id][field.name] = i+1;
+            index[rdf]['schemas'][schema.schema_id][field.name] = i+1 
             index[rdf]['type'] = field.type;
         }
     });
