@@ -8,9 +8,9 @@
     "express": "^4.16.3",
     "morgan": "^1.9.1",
     "pg": "^7.7.1",
+    "promise": "^8.0.1",
     "shortid": "^2.2.14",
-    "string-similarity": "^3.0.0",
-    "promise": "^8.0.1"
+    "string-similarity": "^3.0.0"
   },
   "devDependencies": {
     "nodemon": "^1.18.3"
