@@ -208,6 +208,14 @@ async function generateTermIndex(db) {
             {
               "id": "http://purl.obolibrary.org/obo/ENVO_01001215",
               "label": "visible spectrum stellar radiation"
+            },
+            {
+              "id": "http://planetmicrobe.org/temppurl/PM_1",
+              "label": "depth"
+            },
+            {
+              "id": "http://planetmicrobe.org/temppurl/PM_2",
+              "label": "oxygen"
             }
           ]
         }
@@ -337,7 +345,8 @@ async function search(db, params) {
             let term = getTerm(param);
             console.log("term:", term);
             if (!term) {
-                res.status(404).json({ error: "Term not found" });
+                //res.status(404).json({ error: "Term not found" });
+                console.log("Error: term not found:", term); 
                 return;
             }
 
