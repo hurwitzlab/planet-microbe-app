@@ -302,7 +302,7 @@ async function search(db, params) {
     console.log("params:", params);
 
     let limit, offset, sort;
-    let clauses = [];
+    let clauses = {};
     let selections = [];
 
     for (param in params) {
@@ -329,8 +329,7 @@ async function search(db, params) {
 //                selections.push("ST_Y(location::geometry)");
 //            }
 //            else {
-                let selectStr = "CASE";
-                let clauseStr = "";
+                let selectStr = "";
 
                 for (schemaId in term.schemas) {
                     for (alias in term.schemas[schemaId]) {
@@ -338,8 +337,7 @@ async function search(db, params) {
                         let val = params[param];
 
                         // FIXME should use query substitution here -- SQL injection risk
-                        let field;
-                        let clause;
+                        let field, clause;
                         if (val === '') // empty - show in results
                             ;
                         else if (!isNaN(val)) { // literal number match
@@ -362,24 +360,25 @@ async function search(db, params) {
                         }
 
                         selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
-                        clauses.push("(schema_id=" + schemaId + " AND " + clause + ")");
+                        if (!clauses[schemaId])
+                            clauses[schemaId] = {};
+                        clauses[schemaId][arrIndex] = "(schema_id=" + schemaId + " AND " + clause + ")";
                     }
                 }
 
-                selectStr += " END"
-                selections.push(selectStr);
+                selections.push("CASE" + selectStr + " END");
 //            }
         }
     }
     //console.log("clauses:", clauses);
     //console.log("selections:", selections);
 
-//    let subClauses = [];
-//    for (schemaId in clauses) {
-//        let subClauseStr = "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")";
-//        subClauses.push(subClauseStr);
-//    }
-    let clauseStr = clauses.join(" OR ");
+    let subClauses = [];
+    for (schemaId in clauses) {
+        let subClauseStr = Object.values(clauses[schemaId]).join(" AND ");
+        subClauses.push("(" + subClauseStr + ")");
+    }
+    let clauseStr = subClauses.join(" OR ");
 
 //    let selectStr = "";
 //    Object.values(fields).forEach(f => {
