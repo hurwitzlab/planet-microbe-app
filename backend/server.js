@@ -349,7 +349,7 @@ async function search(db, params) {
                         else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // range query
                             field = "number_vals[" + arrIndex + "]";
                             let bounds = JSON.parse(val);
-                            clause = field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
+                            clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1]; //field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
                         }
                         else if (val.match(/\~\w+/)) { // partial string match
                             val = val.substr(1);
@@ -364,13 +364,11 @@ async function search(db, params) {
                         selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
                         clauses.push("(schema_id=" + schemaId + " AND " + clause + ")");
                     }
-
-//                    clauses.push("(schema_id=" + schemaId + " AND " + Object.values(subClauses[schemaId]).join(" AND ") + ")");
-//                }
+                }
 
                 selectStr += " END"
                 selections.push(selectStr);
-            }
+//            }
         }
     }
     //console.log("clauses:", clauses);
