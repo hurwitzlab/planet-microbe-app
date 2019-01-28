@@ -307,12 +307,23 @@ async function search(db, params) {
 
     for (param in params) {
         param = param.replace(/\+/gi, ''); // work around for Elm uri encoding
+        let val = params[param];
+
         if (param == 'limit')
-            limit = params['limit'] * 1; // convert to int
+            limit = val * 1; // convert to int
         else if (param == 'offset')
-            offset = params['offset'] * 1; // convert to int
+            offset = val * 1; // convert to int
         else if (param == 'sort')
-            sort = params['sort'] * 1; // convert to int
+            sort = val * 1; // convert to int
+        else if (param == 'location') {
+            if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) {
+                let bounds = JSON.parse(val);
+                selections.push("ST_AsText(location::geometry)");
+                if (!clauses[0])
+                    clauses[0] = [];
+                clauses[0].push("ST_DistanceSphere(location::geometry, ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")) <= " + bounds[2]);
+            }
+        }
         else {
             let term = getTerm(param);
             console.log("term:", term);
@@ -321,57 +332,47 @@ async function search(db, params) {
                 return;
             }
 
-//            if (term.id == "http://purl.obolibrary.org/obo/OBI_0001620") { // latitude
-//                selections.push("ST_Y(location::geometry)");
-//                clauses.push(term.schemaId);
-//            }
-//            else if (term.id == "http://purl.obolibrary.org/obo/OBI_0001621") { // latitude
-//                selections.push("ST_Y(location::geometry)");
-//            }
-//            else {
-                let selectStr = "";
+            let selectStr = "";
 
-                for (schemaId in term.schemas) {
-                    for (alias in term.schemas[schemaId]) {
-                        let arrIndex = term.schemas[schemaId][alias];
-                        let val = params[param];
+            for (schemaId in term.schemas) {
+                for (alias in term.schemas[schemaId]) {
+                    let arrIndex = term.schemas[schemaId][alias];
 
-                        // FIXME should use query substitution here -- SQL injection risk
-                        let field, clause;
-                        if (val === '') // empty - show in results
-                            ;
-                        else if (!isNaN(val)) { // literal number match
-                            field = "number_vals[" + arrIndex + "]";
-                            clause = field + "=" + parseFloat(val);
-                        }
-                        else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // range query
-                            field = "number_vals[" + arrIndex + "]";
-                            let bounds = JSON.parse(val);
-                            clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1]; //field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
-                        }
-                        else if (val.match(/\~\w+/)) { // partial string match
-                            val = val.substr(1);
-                            field = "string_vals[" + arrIndex + "]";
-                            clause = field + " LIKE " + "'%" + val + "%'";
-                        }
-                        else { // literal string match
-                            field = "string_vals[" + arrIndex + "]";
-                            clause = field + "=" + "'" + val + "'";
-                        }
-
-                        selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
-                        if (!clauses[schemaId])
-                            clauses[schemaId] = {};
-                        clauses[schemaId][arrIndex] = "(schema_id=" + schemaId + " AND " + clause + ")";
+                    // FIXME should use query substitution here -- SQL injection risk
+                    let field, clause;
+                    if (val === '') // empty - show in results
+                        ;
+                    else if (!isNaN(val)) { // literal number match
+                        field = "number_vals[" + arrIndex + "]";
+                        clause = field + "=" + parseFloat(val);
                     }
-                }
+                    else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // range query
+                        field = "number_vals[" + arrIndex + "]";
+                        let bounds = JSON.parse(val);
+                        clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1]; //field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
+                    }
+                    else if (val.match(/\~\w+/)) { // partial string match
+                        val = val.substr(1);
+                        field = "string_vals[" + arrIndex + "]";
+                        clause = field + " LIKE " + "'%" + val + "%'";
+                    }
+                    else { // literal string match
+                        field = "string_vals[" + arrIndex + "]";
+                        clause = field + "=" + "'" + val + "'";
+                    }
 
-                selections.push("CASE" + selectStr + " END");
-//            }
+                    selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
+                    if (!clauses[schemaId])
+                        clauses[schemaId] = [];
+                    clauses[schemaId].push("(schema_id=" + schemaId + " AND " + clause + ")");
+                }
+            }
+
+            selections.push("CASE" + selectStr + " END");
         }
     }
-    //console.log("clauses:", clauses);
-    //console.log("selections:", selections);
+    console.log("selections:", selections);
+    console.log("clauses:", clauses);
 
     let subClauses = [];
     for (schemaId in clauses) {
@@ -379,15 +380,6 @@ async function search(db, params) {
         subClauses.push("(" + subClauseStr + ")");
     }
     let clauseStr = subClauses.join(" OR ");
-
-//    let selectStr = "";
-//    Object.values(fields).forEach(f => {
-//        selectStr += ",CASE";
-//        Object.keys(f).forEach(schemaId => {
-//            selectStr += " WHEN schema_id=" + schemaId + " THEN " + f[schemaId]
-//        });
-//        selectStr += " END"
-//    });
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
     let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort) + 2) + " " + sortDir : "");
