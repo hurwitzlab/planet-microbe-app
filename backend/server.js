@@ -301,29 +301,9 @@ async function generateTermIndex(db) {
 async function search(db, params) {
     console.log("params:", params);
 
-    /* CASES
-
-    http://localhost:3010/search?longitude%20coordinate%20measurement%20datum=[-90,90]&latitude%20coordinate%20measurement%20datum=[0,10]
-
-    http://localhost:3010/search?longitude%20coordinate%20measurement%20datum=[-90,90]&OBI_0001620=[0,10]
-
-    http://localhost:3010/search?longitude=[-90,90]&latitude%20coordinate%20measurement%20datum=[0,30]&biome=marine%20pelagic%20biome%20(ENVO:1000023)
-
-    http://localhost:3010/search?longitude=[-90,90]&latitude=[0,30]&biome=~marine
-
-    FIXME:
-    http://localhost:3010/search?IAO_0000577=%22ABOKM42%22
-    query: {"$or":[{"__schema_id":"5c0570963914e94f86574a7c","Sample label (BioSample)":"\"ABOKM42\"","Sample label (BioArchive)":"\"ABOKM42\"","Sample label (ENA)":"\"ABOKM42\""}]}
-    */
-
     let limit, offset, sort;
-
-    let clauses = {};
-    let fields = [];
-    let fields2 = {};
-    let schemas = {};
-    let schemaCount = 0;
-    let fieldCount = 0;
+    let clauses = [];
+    let selections = [];
 
     for (param in params) {
         param = param.replace(/\+/gi, ''); // work around for Elm uri encoding
@@ -337,74 +317,80 @@ async function search(db, params) {
             let term = getTerm(param);
             console.log("term:", term);
             if (!term) {
-                res.status(404).json({ error: "Term not found" });
+                console.log("Error: term not found");
                 return;
             }
 
-            for (schemaId in term.schemas) {
-                if (!(schemaId in schemas))
-                    schemas[schemaId] = schemaCount++;
-                if (!clauses[schemaId])
-                    clauses[schemaId] = {};
-                for (alias in term.schemas[schemaId]) {
-                    let arrIndex = term.schemas[schemaId][alias];
-                    let val = params[param];
-                    console.log("val:", val);
+//            if (term.id == "http://purl.obolibrary.org/obo/OBI_0001620") { // latitude
+//                selections.push("ST_Y(location::geometry)");
+//                clauses.push(term.schemaId);
+//            }
+//            else if (term.id == "http://purl.obolibrary.org/obo/OBI_0001621") { // latitude
+//                selections.push("ST_Y(location::geometry)");
+//            }
+//            else {
+                let selectStr = "CASE";
+                let clauseStr = "";
 
-                    // FIXME should use query substitution here -- SQL injection risk
-                    let field;
-                    if (val === '') // empty - show in results
-                        ;
-                    else if (!isNaN(val)) { // literal number match
-                        field = "number_vals[" + arrIndex + "]";
-                        clauses[schemaId][alias] = field + "=" + parseFloat(val);
-                    }
-                    else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // range query
-                        field = "number_vals[" + arrIndex + "]";
-                        let bounds = JSON.parse(val);
-                        clauses[schemaId][alias] = field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
-                    }
-                    else if (val.match(/\~\w+/)) { // partial string match
-                        val = val.substr(1);
-                        field = "string_vals[" + arrIndex + "]";
-                        clauses[schemaId][alias] = field + " LIKE " + "'%" + val + "%'";
-                    }
-                    else { // literal string match
-                        field = "string_vals[" + arrIndex + "]";
-                        clauses[schemaId][alias] = field + "=" + "'" + val + "'";
+                for (schemaId in term.schemas) {
+                    for (alias in term.schemas[schemaId]) {
+                        let arrIndex = term.schemas[schemaId][alias];
+                        let val = params[param];
+
+                        // FIXME should use query substitution here -- SQL injection risk
+                        let field;
+                        let clause;
+                        if (val === '') // empty - show in results
+                            ;
+                        else if (!isNaN(val)) { // literal number match
+                            field = "number_vals[" + arrIndex + "]";
+                            clause = field + "=" + parseFloat(val);
+                        }
+                        else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // range query
+                            field = "number_vals[" + arrIndex + "]";
+                            let bounds = JSON.parse(val);
+                            clause = field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
+                        }
+                        else if (val.match(/\~\w+/)) { // partial string match
+                            val = val.substr(1);
+                            field = "string_vals[" + arrIndex + "]";
+                            clause = field + " LIKE " + "'%" + val + "%'";
+                        }
+                        else { // literal string match
+                            field = "string_vals[" + arrIndex + "]";
+                            clause = field + "=" + "'" + val + "'";
+                        }
+
+                        selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
+                        clauses.push("(schema_id=" + schemaId + " AND " + clause + ")");
                     }
 
-                    if (field) {
-                        fields.push(field);
-                        if (!fields2[fieldCount])
-                            fields2[fieldCount] = {};
-                        fields2[fieldCount][schemaId] = field;
-                    }
-                }
+//                    clauses.push("(schema_id=" + schemaId + " AND " + Object.values(subClauses[schemaId]).join(" AND ") + ")");
+//                }
+
+                selectStr += " END"
+                selections.push(selectStr);
             }
-
-            fieldCount++;
         }
     }
     //console.log("clauses:", clauses);
-    //console.log("fields:", fields);
-    //console.log("fields2:", fields2);
+    //console.log("selections:", selections);
 
-    let subClauses = [];
-    for (schemaId in clauses) {
-        let subClauseStr = "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")";
-        subClauses.push(subClauseStr);
-    }
-    let clauseStr = subClauses.join(" OR ");
+//    let subClauses = [];
+//    for (schemaId in clauses) {
+//        let subClauseStr = "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")";
+//        subClauses.push(subClauseStr);
+//    }
+    let clauseStr = clauses.join(" OR ");
 
-    let selectStr = "";
-    Object.values(fields2).forEach(f => {
-        selectStr += ",CASE";
-        Object.keys(f).forEach(schemaId => {
-            selectStr += " WHEN schema_id=" + schemaId + " THEN " + f[schemaId]
-        });
-        selectStr += " END"
-    });
+//    let selectStr = "";
+//    Object.values(fields).forEach(f => {
+//        selectStr += ",CASE";
+//        Object.keys(f).forEach(schemaId => {
+//            selectStr += " WHEN schema_id=" + schemaId + " THEN " + f[schemaId]
+//        });
+//        selectStr += " END"
+//    });
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
     let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort) + 2) + " " + sortDir : "");
@@ -416,7 +402,8 @@ async function search(db, params) {
     let limitStr = (limit ? " LIMIT " + limit : "");
     let offsetStr = (offset ? " OFFSET " + offset : "");
 
-    let queryStr = "SELECT schema_id,sample_id" + selectStr + " FROM sample WHERE " + clauseStr + sortStr + offsetStr + limitStr;
+    let selectStr = selections.join(",");
+    let queryStr = "SELECT schema_id,sample_id," + selectStr + " FROM sample WHERE " + clauseStr + sortStr + offsetStr + limitStr;
 
     let count = await query({
         text: countQueryStr,
