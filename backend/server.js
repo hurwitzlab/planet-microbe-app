@@ -305,6 +305,8 @@ async function search(db, params) {
     let clauses = {};
     let selections = [];
 
+    clauses[0] = [];
+
     for (param in params) {
         param = param.replace(/\+/gi, ''); // work around for Elm uri encoding
         let val = params[param];
@@ -316,12 +318,15 @@ async function search(db, params) {
         else if (param == 'sort')
             sort = val * 1; // convert to int
         else if (param == 'location') {
-            if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) {
+            if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // [lat, lng] exact match
+                //TODO
+            }
+            else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // [lat, lng, radius] in meters
                 let bounds = JSON.parse(val);
-                selections.push("ST_AsText(location::geometry)");
-                if (!clauses[0])
-                    clauses[0] = [];
-                clauses[0].push("ST_DistanceSphere(location::geometry, ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")) <= " + bounds[2]);
+                //selections.push("ST_AsText(location::geometry)");
+                selections.push("ST_AsText(location::geography)");
+                //clauses[0].push("ST_Distance_Sphere(location::geometry, ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")) <= " + bounds[2]);
+                clauses[0].push("ST_DWithin(ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")::geography, location, " + bounds[2] + ")");
             }
         }
         else {
@@ -371,13 +376,14 @@ async function search(db, params) {
             selections.push("CASE" + selectStr + " END");
         }
     }
-    console.log("selections:", selections);
-    console.log("clauses:", clauses);
+//    console.log("selections:", selections);
+//    console.log("clauses:", clauses);
 
     let subClauses = [];
     for (schemaId in clauses) {
         let subClauseStr = Object.values(clauses[schemaId]).join(" AND ");
-        subClauses.push("(" + subClauseStr + ")");
+        if (subClauseStr)
+            subClauses.push("(" + subClauseStr + ")");
     }
     let clauseStr = subClauses.join(" OR ");
 
