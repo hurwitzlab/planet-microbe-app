@@ -116,7 +116,6 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
         let results = await batchQuery(queries); // FIXME would a single query be faster?
         results.forEach(vals => {
             vals.rows.forEach(row => {
-                console.log(row);
                 if (typeof row[0] !== "undefined" && typeof row[1] !== "undefined") {
                     min = (typeof min === "undefined" ? row[0] : Math.min(min, row[0]));
                     max = (typeof max === "undefined" ? row[1] : Math.max(max, row[1]));
@@ -138,9 +137,41 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
 //            res.send(err);
 //        });
     }
+    else if (term.type == "datetime") {
+        let queries = [];
+        for (let schemaId in term.schemas) {
+            for (let alias in term.schemas[schemaId]) {
+                let arrIndex = term.schemas[schemaId][alias];
+                queries.push({ text: "SELECT MIN(datetime_vals[$1]),MAX(datetime_vals[$1]) FROM sample WHERE schema_id=$2", values: [arrIndex,schemaId*1], rowMode: 'array' });
+            }
+        }
+
+        let min, max;
+        let results = await batchQuery(queries); // FIXME would a single query be faster?
+        results.forEach(vals => {
+            vals.rows.forEach(row => {
+                if (typeof row[0] !== "undefined" && typeof row[1] !== "undefined") {
+                    min = (typeof min === "undefined" ? row[0].getTime() : Math.min(min, row[0].getTime()));
+                    max = (typeof max === "undefined" ? row[1].getTime() : Math.max(max, row[1].getTime()));
+                }
+            });
+        });
+
+
+        res.json({
+            id: term.id,
+            label: term.label,
+            type: term.type,
+            aliases: aliases,
+            min: new Date(min).toISOString(),
+            max: new Date(max).toISOString()
+        });
 // TODO
-//    else if (term.type == "datetime") {
-//    }
+//        .catch(err => {
+//            console.log(err);
+//            res.send(err);
+//        });
+    }
     else {
         console.log("ERROR: unknown term type '" + term.type + "'");
         res.status(500).json({
@@ -223,7 +254,7 @@ async function generateTermIndex(db) {
 
     //let result = await query('select fields[1].string from sample limit 1')
     let schemas = await query("SELECT schema_id,name,fields FROM schema");
-    console.log(schemas.rows);
+    //console.log(schemas.rows);
 
     let index = {};
 
@@ -256,164 +287,111 @@ async function generateTermIndex(db) {
     return index;
 }
 
-//db.sample.find({ location: { $near : { $geometry: { type: "Point",  coordinates: [ -158, 22 ] }, $maxDistance: 5000 } } } ).count()
-//function search(db, params) {
-//    let query = {
-//        project: "HOT",
-//    };
-//    console.log("params:", params);
-//
-//    if (params.lat && params.lng) {
-//        query.location = {
-//            $geoNear: {
-//                $geometry: {
-//                    type: "Point",
-//                    coordinates: [ 1*params.lng, 1*params.lat ]
-//                },
-//                $maxDistance: (params.radius ? 1*params.radius : 5000)
-//            }
-//        };
-//    }
-//
-//    if (params.minDepth || params.maxDepth) {
-//        query.depth = { $gte: 1*params.minDepth, $lte: 1*params.maxDepth  };
-//    }
-//
-//    if (params.startDate || params.endDate) {
-//        query.collected = { $gte: new Date(params.startDate), $lte: new Date(params.endDate) };
-//    }
-//
-//    console.log("query:", JSON.stringify(query));
-//
-//    return db.collection('sample').find(query).count()
-//    .then(count => {
-//        return new Promise(function (resolve, reject) {
-//            db.collection('sample')
-//            .find(query)
-//            .sort({ sample: 1 })
-//            .skip(1*params.skip)   // no skip if undefined
-//            .limit(1*params.limit) // returns all docs if zero or undefined
-//            .toArray((err, docs) => {
-//                if (err)
-//                    reject(err);
-//                else
-//                    resolve({
-//                        count: count,
-//                        results: docs
-//                    });
-//            });
-//        })
-//    });
-//}
-
 async function search(db, params) {
     console.log("params:", params);
 
-    /* CASES
-
-    http://localhost:3010/search?longitude%20coordinate%20measurement%20datum=[-90,90]&latitude%20coordinate%20measurement%20datum=[0,10]
-
-    http://localhost:3010/search?longitude%20coordinate%20measurement%20datum=[-90,90]&OBI_0001620=[0,10]
-
-    http://localhost:3010/search?longitude=[-90,90]&latitude%20coordinate%20measurement%20datum=[0,30]&biome=marine%20pelagic%20biome%20(ENVO:1000023)
-
-    http://localhost:3010/search?longitude=[-90,90]&latitude=[0,30]&biome=~marine
-
-    FIXME:
-    http://localhost:3010/search?IAO_0000577=%22ABOKM42%22
-    query: {"$or":[{"__schema_id":"5c0570963914e94f86574a7c","Sample label (BioSample)":"\"ABOKM42\"","Sample label (BioArchive)":"\"ABOKM42\"","Sample label (ENA)":"\"ABOKM42\""}]}
-    */
-
     let limit, offset, sort;
-
     let clauses = {};
-    let fields = [];
-    let fields2 = {};
-    let schemas = {};
-    let schemaCount = 0;
-    let fieldCount = 0;
+    let selections = [];
+
+    clauses[0] = [];
 
     for (param in params) {
         param = param.replace(/\+/gi, ''); // work around for Elm uri encoding
+        let val = params[param];
+
         if (param == 'limit')
-            limit = params['limit'] * 1; // convert to int
+            limit = val * 1; // convert to int
         else if (param == 'offset')
-            offset = params['offset'] * 1; // convert to int
+            offset = val * 1; // convert to int
         else if (param == 'sort')
-            sort = params['sort'] * 1; // convert to int
+            sort = val * 1; // convert to int
+        else if (param == 'location') {
+            if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // [lat, lng] exact match
+                //TODO
+            }
+            else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // [lat, lng, radius] in meters
+                let bounds = JSON.parse(val);
+                //selections.push("ST_AsText(location::geometry)");
+                selections.push("ST_AsText(location::geography)");
+                //clauses[0].push("ST_Distance_Sphere(location::geometry, ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")) <= " + bounds[2]);
+                clauses[0].push("ST_DWithin(ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")::geography, location, " + bounds[2] + ")");
+            }
+        }
         else {
             let term = getTerm(param);
-            console.log("term:", term);
             if (!term) {
-                //res.status(404).json({ error: "Term not found" });
-                console.log("Error: term not found:", term); 
+                console.log("Error: term not found for param '" + param + "'");
                 return;
             }
+            console.log("term:", term);
+
+            let selectStr = "";
 
             for (schemaId in term.schemas) {
-                if (!(schemaId in schemas))
-                    schemas[schemaId] = schemaCount++;
-                if (!clauses[schemaId])
-                    clauses[schemaId] = {};
                 for (alias in term.schemas[schemaId]) {
                     let arrIndex = term.schemas[schemaId][alias];
-                    let val = params[param];
-                    console.log("val:", val);
 
                     // FIXME should use query substitution here -- SQL injection risk
-                    let field;
+                    let field, clause, bounds;
                     if (val === '') // empty - show in results
                         ;
                     else if (!isNaN(val)) { // literal number match
                         field = "number_vals[" + arrIndex + "]";
-                        clauses[schemaId][alias] = field + "=" + parseFloat(val);
+                        clause = field + "=" + parseFloat(val);
                     }
-                    else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // range query
-                        field = "number_vals[" + arrIndex + "]";
-                        let bounds = JSON.parse(val);
-                        clauses[schemaId][alias] = field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
+                    else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // numeric range query
+                        bounds = JSON.parse(val);
+
+                        if (term.type == "number") {
+                            field = "number_vals[" + arrIndex + "]";
+                            clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1]; //field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
+                        }
+                        else {
+                            //TODO error
+                        }
+                    }
+                    else if (bounds = val.match(/\[([\d\-\ ]+)\,([\d\-\ ]+)\]/)) { // date/time range query
+                        console.log("foo!", bounds);
+
+                        if (term.type == "datetime") {
+                            field = "datetime_vals[" + arrIndex + "]";
+                            clause = field + " >= timestamp'" + bounds[1] + "' AND " + field + " <= timestamp'" + bounds[2] + "'";
+                        }
+                        else {
+                            //TODO error
+                        }
                     }
                     else if (val.match(/\~\w+/)) { // partial string match
                         val = val.substr(1);
                         field = "string_vals[" + arrIndex + "]";
-                        clauses[schemaId][alias] = field + " LIKE " + "'%" + val + "%'";
+                        clause = field + " LIKE " + "'%" + val + "%'";
                     }
                     else { // literal string match
                         field = "string_vals[" + arrIndex + "]";
-                        clauses[schemaId][alias] = field + "=" + "'" + val + "'";
+                        clause = field + "=" + "'" + val + "'";
                     }
 
-                    if (field) {
-                        fields.push(field);
-                        if (!fields2[fieldCount])
-                            fields2[fieldCount] = {};
-                        fields2[fieldCount][schemaId] = field;
-                    }
+                    selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
+                    if (!clauses[schemaId])
+                        clauses[schemaId] = [];
+                    clauses[schemaId].push("(schema_id=" + schemaId + " AND " + clause + ")");
                 }
             }
 
-            fieldCount++;
+            selections.push("CASE" + selectStr + " END");
         }
     }
-    //console.log("clauses:", clauses);
-    //console.log("fields:", fields);
-    //console.log("fields2:", fields2);
+//    console.log("selections:", selections);
+//    console.log("clauses:", clauses);
 
     let subClauses = [];
     for (schemaId in clauses) {
-        let subClauseStr = "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")";
-        subClauses.push(subClauseStr);
+        let subClauseStr = Object.values(clauses[schemaId]).join(" AND ");
+        if (subClauseStr)
+            subClauses.push("(" + subClauseStr + ")");
     }
     let clauseStr = subClauses.join(" OR ");
-
-    let selectStr = "";
-    Object.values(fields2).forEach(f => {
-        selectStr += ",CASE";
-        Object.keys(f).forEach(schemaId => {
-            selectStr += " WHEN schema_id=" + schemaId + " THEN " + f[schemaId]
-        });
-        selectStr += " END"
-    });
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
     let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort) + 2) + " " + sortDir : "");
@@ -425,7 +403,8 @@ async function search(db, params) {
     let limitStr = (limit ? " LIMIT " + limit : "");
     let offsetStr = (offset ? " OFFSET " + offset : "");
 
-    let queryStr = "SELECT schema_id,sample_id" + selectStr + " FROM sample WHERE " + clauseStr + sortStr + offsetStr + limitStr;
+    let selectStr = selections.join(",");
+    let queryStr = "SELECT schema_id,sample_id," + selectStr + " FROM sample WHERE " + clauseStr + sortStr + offsetStr + limitStr;
 
     let count = await query({
         text: countQueryStr,
@@ -447,7 +426,7 @@ async function search(db, params) {
 
 function getTerm(nameOrId) {
     for (term of Object.values(rdfTermIndex)) {
-        if ((term.id && (nameOrId === term.id || term.id.endsWith(nameOrId))) || (term.label && (nameOrId === term.label || term.label.startsWith(nameOrId)))) {
+        if ((term.id && (nameOrId === term.id || term.id.endsWith(nameOrId))) || (term.label && (nameOrId === term.label || term.label.includes(nameOrId)))) {
             return term;
         }
     }
