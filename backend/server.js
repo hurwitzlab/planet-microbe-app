@@ -341,9 +341,8 @@ async function search(db, params) {
                         clause = field + "=" + parseFloat(val);
                     }
                     else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // numeric range query
-                        bounds = JSON.parse(val);
-
                         if (term.type == "number") {
+                            bounds = JSON.parse(val);
                             field = "number_vals[" + arrIndex + "]";
                             clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1]; //field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
                         }
@@ -352,8 +351,6 @@ async function search(db, params) {
                         }
                     }
                     else if (bounds = val.match(/\[([\d\-\ ]+)\,([\d\-\ ]+)\]/)) { // date/time range query
-                        console.log("foo!", bounds);
-
                         if (term.type == "datetime") {
                             field = "datetime_vals[" + arrIndex + "]";
                             clause = field + " >= timestamp'" + bounds[1] + "' AND " + field + " <= timestamp'" + bounds[2] + "'";
