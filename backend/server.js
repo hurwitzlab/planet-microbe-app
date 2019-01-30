@@ -116,7 +116,6 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
         let results = await batchQuery(queries); // FIXME would a single query be faster?
         results.forEach(vals => {
             vals.rows.forEach(row => {
-                console.log(row);
                 if (typeof row[0] !== "undefined" && typeof row[1] !== "undefined") {
                     min = (typeof min === "undefined" ? row[0] : Math.min(min, row[0]));
                     max = (typeof max === "undefined" ? row[1] : Math.max(max, row[1]));
@@ -138,9 +137,41 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
 //            res.send(err);
 //        });
     }
+    else if (term.type == "datetime") {
+        let queries = [];
+        for (let schemaId in term.schemas) {
+            for (let alias in term.schemas[schemaId]) {
+                let arrIndex = term.schemas[schemaId][alias];
+                queries.push({ text: "SELECT MIN(datetime_vals[$1]),MAX(datetime_vals[$1]) FROM sample WHERE schema_id=$2", values: [arrIndex,schemaId*1], rowMode: 'array' });
+            }
+        }
+
+        let min, max;
+        let results = await batchQuery(queries); // FIXME would a single query be faster?
+        results.forEach(vals => {
+            vals.rows.forEach(row => {
+                if (typeof row[0] !== "undefined" && typeof row[1] !== "undefined") {
+                    min = (typeof min === "undefined" ? row[0].getTime() : Math.min(min, row[0].getTime()));
+                    max = (typeof max === "undefined" ? row[1].getTime() : Math.max(max, row[1].getTime()));
+                }
+            });
+        });
+
+
+        res.json({
+            id: term.id,
+            label: term.label,
+            type: term.type,
+            aliases: aliases,
+            min: new Date(min).toISOString(),
+            max: new Date(max).toISOString()
+        });
 // TODO
-//    else if (term.type == "datetime") {
-//    }
+//        .catch(err => {
+//            console.log(err);
+//            res.send(err);
+//        });
+    }
     else {
         console.log("ERROR: unknown term type '" + term.type + "'");
         res.status(500).json({
@@ -248,56 +279,6 @@ async function generateTermIndex(db) {
     return index;
 }
 
-//db.sample.find({ location: { $near : { $geometry: { type: "Point",  coordinates: [ -158, 22 ] }, $maxDistance: 5000 } } } ).count()
-//function search(db, params) {
-//    let query = {
-//        project: "HOT",
-//    };
-//    console.log("params:", params);
-//
-//    if (params.lat && params.lng) {
-//        query.location = {
-//            $geoNear: {
-//                $geometry: {
-//                    type: "Point",
-//                    coordinates: [ 1*params.lng, 1*params.lat ]
-//                },
-//                $maxDistance: (params.radius ? 1*params.radius : 5000)
-//            }
-//        };
-//    }
-//
-//    if (params.minDepth || params.maxDepth) {
-//        query.depth = { $gte: 1*params.minDepth, $lte: 1*params.maxDepth  };
-//    }
-//
-//    if (params.startDate || params.endDate) {
-//        query.collected = { $gte: new Date(params.startDate), $lte: new Date(params.endDate) };
-//    }
-//
-//    console.log("query:", JSON.stringify(query));
-//
-//    return db.collection('sample').find(query).count()
-//    .then(count => {
-//        return new Promise(function (resolve, reject) {
-//            db.collection('sample')
-//            .find(query)
-//            .sort({ sample: 1 })
-//            .skip(1*params.skip)   // no skip if undefined
-//            .limit(1*params.limit) // returns all docs if zero or undefined
-//            .toArray((err, docs) => {
-//                if (err)
-//                    reject(err);
-//                else
-//                    resolve({
-//                        count: count,
-//                        results: docs
-//                    });
-//            });
-//        })
-//    });
-//}
-
 async function search(db, params) {
     console.log("params:", params);
 
@@ -331,11 +312,11 @@ async function search(db, params) {
         }
         else {
             let term = getTerm(param);
-            console.log("term:", term);
             if (!term) {
-                console.log("Error: term not found");
+                console.log("Error: term not found for param '" + param + "'");
                 return;
             }
+            console.log("term:", term);
 
             let selectStr = "";
 
@@ -344,17 +325,34 @@ async function search(db, params) {
                     let arrIndex = term.schemas[schemaId][alias];
 
                     // FIXME should use query substitution here -- SQL injection risk
-                    let field, clause;
+                    let field, clause, bounds;
                     if (val === '') // empty - show in results
                         ;
                     else if (!isNaN(val)) { // literal number match
                         field = "number_vals[" + arrIndex + "]";
                         clause = field + "=" + parseFloat(val);
                     }
-                    else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // range query
-                        field = "number_vals[" + arrIndex + "]";
-                        let bounds = JSON.parse(val);
-                        clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1]; //field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
+                    else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // numeric range query
+                        bounds = JSON.parse(val);
+
+                        if (term.type == "number") {
+                            field = "number_vals[" + arrIndex + "]";
+                            clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1]; //field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
+                        }
+                        else {
+                            //TODO error
+                        }
+                    }
+                    else if (bounds = val.match(/\[([\d\-\ ]+)\,([\d\-\ ]+)\]/)) { // date/time range query
+                        console.log("foo!", bounds);
+
+                        if (term.type == "datetime") {
+                            field = "datetime_vals[" + arrIndex + "]";
+                            clause = field + " >= timestamp'" + bounds[1] + "' AND " + field + " <= timestamp'" + bounds[2] + "'";
+                        }
+                        else {
+                            //TODO error
+                        }
                     }
                     else if (val.match(/\~\w+/)) { // partial string match
                         val = val.substr(1);
@@ -420,7 +418,7 @@ async function search(db, params) {
 
 function getTerm(nameOrId) {
     for (term of Object.values(rdfTermIndex)) {
-        if ((term.id && (nameOrId === term.id || term.id.endsWith(nameOrId))) || (term.label && (nameOrId === term.label || term.label.startsWith(nameOrId)))) {
+        if ((term.id && (nameOrId === term.id || term.id.endsWith(nameOrId))) || (term.label && (nameOrId === term.label || term.label.includes(nameOrId)))) {
             return term;
         }
     }
