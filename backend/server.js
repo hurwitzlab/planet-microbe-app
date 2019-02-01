@@ -328,7 +328,7 @@ async function search(db, params) {
 //    console.log("clauses:", clauses);
 
     let clauseStr = Object.keys(clauses)
-        .map(key => "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")")
+        .map(schemaId => "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")")
         .join(" OR ");
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
