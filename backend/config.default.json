@@ -4,5 +4,8 @@
         "db": "",
         "username": "",
         "password": ""
-    }
+    },
+    "ontologies": [
+        "./ENVO.json"
+    ]
 }

@@ -5,6 +5,7 @@ const logger = require('morgan');
 const Promise = require('promise');
 const {Client} = require('pg');
 const shortid = require('shortid');
+const fs = require('fs');
 const stringSimilarity = require('string-similarity');
 const config = require('./config.json');
 
@@ -21,7 +22,12 @@ var db;
     });
     await db.connect();
 
-    rdfTermIndex = await generateTermIndex(db);
+    let ontologies = config.ontologies.map(path => {
+        var json = fs.readFileSync(path);
+        return JSON.parse(json);
+    });
+
+    rdfTermIndex = await generateTermIndex(db, ontologies);
     console.log("index:", JSON.stringify(rdfTermIndex, null, 4));
 
     app.listen(config.serverPort, () => console.log('Server listening on port', config.serverPort));
@@ -191,67 +197,7 @@ app.get('/search', async (req, res) => {
 
 //----------------------------------------------------------------------------------------------------------------------
 
-async function generateTermIndex(db) {
-    const ontologies = [
-        {
-          "name": "envo",
-          "terms": [
-            {
-              "id": "http://purl.obolibrary.org/obo/IAO_0000578",
-              "label": "centrally registered identifier"
-            },
-            {
-              "id": "http://purl.obolibrary.org/obo/IAO_0000577",
-              "label": "centrally registered identifier symbol"
-            },
-            {
-              "id": "http://purl.obolibrary.org/obo/BFO_0000148",
-              "label": "zero-dimensional temporal region"
-            },
-            {
-              "id": "http://purl.obolibrary.org/obo/OBI_0001620",
-              "label": "latitude coordinate measurement datum"
-            },
-            {
-              "id": "http://purl.obolibrary.org/obo/OBI_0001621",
-              "label": "longitude coordinate measurement datum"
-            },
-            {
-              "id": "http://purl.obolibrary.org/obo/ENVO_00000428",
-              "label": "biome"
-            },
-            {
-              "id": "http://purl.obolibrary.org/obo/ENVO_00002297",
-              "label": "environmental feature"
-            },
-            {
-              "id": "http://purl.obolibrary.org/obo/ENVO_00010483",
-              "label": "environmental material"
-            },
-            {
-              "id": "http://purl.obolibrary.org/obo/ENVO_09200014",
-              "label": "temperature of water"
-            },
-            {
-              "id": "http://planetmicrobe.org/purl/PM_00000001",
-              "label": "salinity of water"
-            },
-            {
-              "id": "http://purl.obolibrary.org/obo/ENVO_01001215",
-              "label": "visible spectrum stellar radiation"
-            },
-            {
-              "id": "http://planetmicrobe.org/temppurl/PM_1",
-              "label": "depth"
-            },
-            {
-              "id": "http://planetmicrobe.org/temppurl/PM_2",
-              "label": "oxygen"
-            }
-          ]
-        }
-    ];
-
+async function generateTermIndex(db, ontologies) {
     //let result = await query('select fields[1].string from sample limit 1')
     let schemas = await query("SELECT schema_id,name,fields FROM schema");
     //console.log(schemas.rows);

@@ -1,0 +1,57 @@
+{
+  "name": "ENVO",
+  "terms": [
+    {
+      "id": "http://purl.obolibrary.org/obo/IAO_0000578",
+      "label": "centrally registered identifier"
+    },
+    {
+      "id": "http://purl.obolibrary.org/obo/IAO_0000577",
+      "label": "centrally registered identifier symbol"
+    },
+    {
+      "id": "http://purl.obolibrary.org/obo/BFO_0000148",
+      "label": "zero-dimensional temporal region"
+    },
+    {
+      "id": "http://purl.obolibrary.org/obo/OBI_0001620",
+      "label": "latitude coordinate measurement datum"
+    },
+    {
+      "id": "http://purl.obolibrary.org/obo/OBI_0001621",
+      "label": "longitude coordinate measurement datum"
+    },
+    {
+      "id": "http://purl.obolibrary.org/obo/ENVO_00000428",
+      "label": "biome"
+    },
+    {
+      "id": "http://purl.obolibrary.org/obo/ENVO_00002297",
+      "label": "environmental feature"
+    },
+    {
+      "id": "http://purl.obolibrary.org/obo/ENVO_00010483",
+      "label": "environmental material"
+    },
+    {
+      "id": "http://purl.obolibrary.org/obo/ENVO_09200014",
+      "label": "temperature of water"
+    },
+    {
+      "id": "http://planetmicrobe.org/purl/PM_00000001",
+      "label": "salinity of water"
+    },
+    {
+      "id": "http://purl.obolibrary.org/obo/ENVO_01001215",
+      "label": "visible spectrum stellar radiation"
+    },
+    {
+      "id": "http://planetmicrobe.org/temppurl/PM_1",
+      "label": "depth"
+    },
+    {
+      "id": "http://planetmicrobe.org/temppurl/PM_2",
+      "label": "oxygen"
+    }
+  ]
+}
