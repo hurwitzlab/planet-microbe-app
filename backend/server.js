@@ -240,8 +240,6 @@ async function search(db, params) {
     let clauses = {};
     let selections = [];
 
-    clauses[0] = [];
-
     for (param in params) {
         param = param.replace(/\+/gi, ''); // work around for Elm uri encoding
         let val = params[param];
@@ -253,6 +251,7 @@ async function search(db, params) {
         else if (param == 'sort')
             sort = val * 1; // convert to int
         else if (param == 'location') {
+            clauses[0] = [];
             if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // [lat, lng] exact match
                 //TODO
             }
@@ -318,7 +317,7 @@ async function search(db, params) {
                     selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
                     if (!clauses[schemaId])
                         clauses[schemaId] = [];
-                    clauses[schemaId].push("(schema_id=" + schemaId + " AND " + clause + ")");
+                    clauses[schemaId].push(clause);
                 }
             }
 
@@ -328,13 +327,9 @@ async function search(db, params) {
 //    console.log("selections:", selections);
 //    console.log("clauses:", clauses);
 
-    let subClauses = [];
-    for (schemaId in clauses) {
-        let subClauseStr = Object.values(clauses[schemaId]).join(" AND ");
-        if (subClauseStr)
-            subClauses.push("(" + subClauseStr + ")");
-    }
-    let clauseStr = subClauses.join(" OR ");
+    let clauseStr = Object.keys(clauses)
+        .map(key => "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")")
+        .join(" OR ");
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
     let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort) + 2) + " " + sortDir : "");
