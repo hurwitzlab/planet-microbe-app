@@ -315,11 +315,11 @@ async function search(db, params) {
                     }
 
                     selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
-                    if (!clauses[term.id])
-                        clauses[term.id] = {}
-                    if (!clauses[term.id][schemaId])
-                        clauses[term.id][schemaId] = [];
-                    clauses[term.id][schemaId].push(clause);
+                    if (!clauses[schemaId])
+                        clauses[schemaId] = {}
+                    if (!clauses[schemaId][term.id])
+                        clauses[schemaId][term.id] = [];
+                    clauses[schemaId][term.id].push(clause);
                 }
             }
 
@@ -329,16 +329,22 @@ async function search(db, params) {
 //    console.log("selections:", selections);
 //    console.log("clauses:", clauses);
 
+//    let clauseStr =
+//        Object.values(clauses).map(v =>
+//            "(" + Object.keys(v)
+//            .map(schemaId => "(schema_id=" + schemaId + " AND " + Object.values(v[schemaId]).join(" AND ") + ")")
+//            .join(" OR ") + ")"
+//        )
+//        .join(" AND ");
+
     let clauseStr =
-        Object.values(clauses).map(v =>
-            "(" + Object.keys(v)
-            .map(schemaId => "(schema_id=" + schemaId + " AND " + Object.values(v[schemaId]).join(" AND ") + ")")
-            .join(" OR ") + ")"
+        Object.keys(clauses).map(schemaId =>
+            "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")"
         )
-        .join(" AND ");
+        .join(" OR ");
 
     if (gisClause)
-        clauseStr = gisClause + (clauseStr ? " AND " + clauseStr : "");
+        clauseStr = gisClause + (clauseStr ? " AND (" + clauseStr + ")" : "");
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
     let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort) + 2) + " " + sortDir : "");
