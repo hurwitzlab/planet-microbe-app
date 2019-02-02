@@ -237,6 +237,7 @@ async function search(db, params) {
     console.log("params:", params);
 
     let limit, offset, sort;
+    let gisClause;
     let clauses = {};
     let selections = [];
 
@@ -251,7 +252,6 @@ async function search(db, params) {
         else if (param == 'sort')
             sort = val * 1; // convert to int
         else if (param == 'location') {
-            clauses[0] = [];
             if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // [lat, lng] exact match
                 //TODO
             }
@@ -260,7 +260,7 @@ async function search(db, params) {
                 //selections.push("ST_AsText(location::geometry)");
                 selections.push("ST_AsText(location::geography)");
                 //clauses[0].push("ST_Distance_Sphere(location::geometry, ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")) <= " + bounds[2]);
-                clauses[0].push("ST_DWithin(ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")::geography, location, " + bounds[2] + ")");
+                gisClause = "ST_DWithin(ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")::geography, location, " + bounds[2] + ")";
             }
         }
         else {
@@ -315,9 +315,11 @@ async function search(db, params) {
                     }
 
                     selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
-                    if (!clauses[schemaId])
-                        clauses[schemaId] = [];
-                    clauses[schemaId].push(clause);
+                    if (!clauses[term.id])
+                        clauses[term.id] = {}
+                    if (!clauses[term.id][schemaId])
+                        clauses[term.id][schemaId] = [];
+                    clauses[term.id][schemaId].push(clause);
                 }
             }
 
@@ -327,9 +329,16 @@ async function search(db, params) {
 //    console.log("selections:", selections);
 //    console.log("clauses:", clauses);
 
-    let clauseStr = Object.keys(clauses)
-        .map(schemaId => "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")")
-        .join(" OR ");
+    let clauseStr =
+        Object.values(clauses).map(v =>
+            "(" + Object.keys(v)
+            .map(schemaId => "(schema_id=" + schemaId + " AND " + Object.values(v[schemaId]).join(" AND ") + ")")
+            .join(" OR ") + ")"
+        )
+        .join(" AND ");
+
+    if (gisClause)
+        clauseStr = gisClause + (clauseStr ? " AND " + clauseStr : "");
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
     let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort) + 2) + " " + sortDir : "");
