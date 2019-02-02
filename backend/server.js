@@ -316,10 +316,8 @@ async function search(db, params) {
 
                     selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
                     if (!clauses[schemaId])
-                        clauses[schemaId] = {}
-                    if (!clauses[schemaId][term.id])
-                        clauses[schemaId][term.id] = [];
-                    clauses[schemaId][term.id].push(clause);
+                        clauses[schemaId] = []
+                    clauses[schemaId].push(clause);
                 }
             }
 
@@ -328,14 +326,6 @@ async function search(db, params) {
     }
 //    console.log("selections:", selections);
 //    console.log("clauses:", clauses);
-
-//    let clauseStr =
-//        Object.values(clauses).map(v =>
-//            "(" + Object.keys(v)
-//            .map(schemaId => "(schema_id=" + schemaId + " AND " + Object.values(v[schemaId]).join(" AND ") + ")")
-//            .join(" OR ") + ")"
-//        )
-//        .join(" AND ");
 
     let clauseStr =
         Object.keys(clauses).map(schemaId =>
