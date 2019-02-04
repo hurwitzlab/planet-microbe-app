@@ -281,7 +281,7 @@ async function search(db, params) {
                     let field, clause, bounds;
                     if (val === '') // empty - show in results
                         ;
-                    else if (!isNaN(val)) { // literal number match
+                    else if (!isNaN(val)) { // numeric exact match
                         field = "number_vals[" + arrIndex + "]";
                         clause = field + "=" + parseFloat(val);
                     }
@@ -298,20 +298,27 @@ async function search(db, params) {
                     else if (bounds = val.match(/\[([\d\-\ ]+)\,([\d\-\ ]+)\]/)) { // date/time range query
                         if (term.type == "datetime") {
                             field = "datetime_vals[" + arrIndex + "]";
-                            clause = field + " >= timestamp'" + bounds[1] + "' AND " + field + " <= timestamp'" + bounds[2] + "'";
+                            clause = field + ">=timestamp'" + bounds[1] + "' AND " + field + "<=timestamp'" + bounds[2] + "'";
                         }
                         else {
                             //TODO error
                         }
                     }
-                    else if (val.match(/\~\w+/)) { // partial string match
+                    else if (val.match(/^\d+[\d\-]+/)) { // date/time exact match
+                        field = "datetime_vals[" + arrIndex + "]";
+                        clause = field + "=timestamp'" + val + "'";
+                    }
+                    else if (val.match(/^\~\w+/)) { // partial string match
                         val = val.substr(1);
                         field = "string_vals[" + arrIndex + "]";
                         clause = field + " LIKE " + "'%" + val + "%'";
                     }
-                    else { // literal string match
+                    else if (val.match(/\w+/)) { // literal string match
                         field = "string_vals[" + arrIndex + "]";
                         clause = field + "=" + "'" + val + "'";
+                    }
+                    else {
+                        console.log("Error: invalid query");
                     }
 
                     selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
