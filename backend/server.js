@@ -370,7 +370,7 @@ async function search(db, params) {
 
     return {
         count: count.rows[0][0]*1,
-        results: results.rows
+        results: results.rows.map(r => { return { schemaId: r[0], sampleId: r[1], values: r.slice(2) } })
     };
 }
 
