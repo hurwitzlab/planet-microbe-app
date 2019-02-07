@@ -41,9 +41,10 @@ type alias Model =
     , allParams : List String
     , availableParams : List String
     , selectedParams : List String -- for maintaining order
-    , selectedVals : Dict String (Maybe SearchTermValues)
+    , selectedTerms : Dict String SearchTerm
+    , selectedVals : Dict String (Maybe SearchTermValue)
     , isSearching : Bool
-    , results : Maybe (List Sample)
+    , results : Maybe (List SearchResult) --(List Sample)
     , count : Int
     , errorMsg : Maybe String
     , tableState : Table.State
@@ -66,6 +67,7 @@ init flags =
         , allParams = []
         , availableParams = []
         , selectedParams = []
+        , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
         , isSearching = False
         , results = Nothing
@@ -98,6 +100,7 @@ type Msg
     | SetStartDate String
     | SetEndDate String
     | SelectParam String
+    | SetStringParam String String
     | Next
     | Previous
     | SetTableState Table.State
@@ -118,33 +121,41 @@ update msg model =
 
         GetSearchTermCompleted (Ok term) ->
             let
-                _ = Debug.log "foo" (toString term)
+--                terms =
+--                    case term.type_ of
+--                        "string" ->
+--                            Just (StringTermValue term.values)
+--
+--                        "number" ->
+--                            Just (NumberTermValue (term.min, term.max))
+--
+--                        _ ->
+--                            Nothing
 
-                vals =
+                selectedTerms =
+                    Dict.insert term.label term model.selectedTerms
+
+                val =
                     case term.type_ of
                         "string" ->
-                            Just (StringValues term.values)
+                            Just (StringTermValue "")
 
                         "number" ->
-                            Just (MinMax (term.min, term.max))
+                            Just (NumberTermValue (term.min, term.max))
 
-                        _ ->
+                        _ -> -- Error
                             Nothing
 
                 selectedVals =
-                    Dict.insert term.label vals model.selectedVals
+                    Dict.insert term.label val model.selectedVals
             in
-            ( { model | selectedVals = selectedVals }, Cmd.none )
+            ( { model | selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
 
         GetSearchTermCompleted (Err error) -> --TODO
             ( model, Cmd.none )
 
         Search ->
             let
---                doSearch =
---                    search model.lat model.lng model.radius model.minDepth model.maxDepth model.startDate model.endDate model.pageSize (model.pageNum * model.pageSize)
---                        |> Http.toTask
-
                 doSearch =
                     search model.selectedVals |> Http.toTask
             in
@@ -160,7 +171,7 @@ update msg model =
             ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
 
         Clear ->
-            ( { model | lat = "", lng = "", radius = "", minDepth = "", maxDepth = "", startDate = "", endDate = "", results = Nothing, errorMsg = Nothing }, Cmd.none )
+            ( { model | lat = "", lng = "", radius = "", minDepth = "", maxDepth = "", startDate = "", endDate = "", selectedParams = [], selectedVals = Dict.empty, selectedTerms = Dict.empty, results = Nothing, errorMsg = Nothing }, Cmd.none )
 
         SetExample lat lng radius minDepth maxDepth startDate endDate ->
             let
@@ -190,15 +201,37 @@ update msg model =
         SetEndDate val ->
             ( { model | endDate = val }, Cmd.none )
 
-        SelectParam val ->
+        SelectParam name ->
             let
                 params =
-                    (val :: model.selectedParams) |> Set.fromList |> Set.toList
+                    (name :: model.selectedParams) |> Set.fromList |> Set.toList
 
                 getTerm =
-                    getSearchTerm val |> Http.toTask
+                    getSearchTerm name |> Http.toTask
             in
             ( { model | selectedParams = params }, Task.attempt GetSearchTermCompleted getTerm )
+
+        SetStringParam name val ->
+            let
+                _ = Debug.log ("SetStringParam " ++ name) val
+
+                termVal =
+                    case Dict.get name model.selectedTerms of
+                        Nothing -> -- Error
+                            Nothing
+
+                        Just term ->
+                            case term.type_ of
+                                "string" ->
+                                    Just (StringTermValue val)
+
+                                _ -> -- Error
+                                    Nothing
+
+                vals =
+                    Dict.insert name termVal model.selectedVals
+            in
+            ( { model | selectedVals = vals }, Cmd.none )
 
         Next ->
             let
@@ -269,23 +302,27 @@ getSearchTerm term =
 --        |> HttpBuilder.toRequest
 
 
-search : Dict String (Maybe SearchTermValues) -> Http.Request SearchResponse
+search : Dict String (Maybe SearchTermValue) -> Http.Request SearchResponse
 search params =
     let
+        _ = Debug.log "" (toString params)
+
         url =
             apiBaseUrl ++ "/search"
 
         range min max = --TODO use encoder here instead
             "[" ++ (toString min) ++ "," ++ (toString max) ++ "]"
 
-        format name val =
+        format _ val =
             case val of
-                Nothing ->
+                Just (NumberTermValue (min, max)) ->
+                    range min max
+
+                Just (StringTermValue s) ->
+                    s
+
+                _ ->
                     ""
-
-                Just (MinMax (min, max)) -> range min max
-
-                _ -> ""
 
         queryParams =
             params |> Dict.map format |> Dict.toList
@@ -298,8 +335,20 @@ search params =
 
 type alias SearchResponse =
     { count : Int
-    , results : List (List Int) --List Sample
+    , results : List SearchResult --List Sample
     }
+
+
+type alias SearchResult =
+    { schemaId : Int
+    , sampleId : Int
+    , values : List SearchResultValue
+    }
+
+
+type SearchResultValue
+    = NumberResultValue Float
+    | StringResultValue String
 
 
 type alias Sample =
@@ -328,16 +377,32 @@ type alias SearchTerm =
     }
 
 
-type SearchTermValues
-    = StringValues (List String)
-    | MinMax (Float, Float)
+type SearchTermValue
+    = StringTermValue String
+    | NumberTermValue (Float, Float) -- min/max
 
 
 decodeSearchResponse : Decoder SearchResponse
 decodeSearchResponse =
     Decode.succeed SearchResponse
         |> required "count" Decode.int
-        |> required "results" (Decode.list (Decode.list Decode.int))--(Decode.list decodeSample)
+        |> required "results" (Decode.list decodeSearchResult)--(Decode.list decodeSample)
+
+
+decodeSearchResult : Decoder SearchResult
+decodeSearchResult =
+    Decode.succeed SearchResult
+        |> required "schemaId" Decode.int
+        |> required "sampleId" Decode.int
+        |> required "values" (Decode.list decodeSearchResultValue)
+
+
+decodeSearchResultValue : Decoder SearchResultValue
+decodeSearchResultValue =
+    Decode.oneOf
+        [ Decode.map NumberResultValue Decode.float
+        , Decode.map StringResultValue Decode.string
+        ]
 
 
 decodeSample : Decoder Sample
@@ -376,8 +441,7 @@ decodeSearchTerm =
 view : Model -> Html Msg
 view model =
     div [ style "margin" "2em" ]
-        [ h1 [] [ text "Planet Microbe Search Demo" ]
-        , viewInputs model
+        [ viewInputs model
         , viewExamples model
         , br [] []
         , br [] []
@@ -464,22 +528,28 @@ viewParams model =
         mkOpt val =
             option [] [ text val ]
 
-        mkRow term =
-            case Dict.get term model.selectedVals |> Maybe.withDefault Nothing of
-                Just (StringValues possibleVals) ->
-                    div []
-                        [ text term
-                        , select [] (List.map mkOpt possibleVals)
-                        ]
-
-                Just (MinMax (min, max)) ->
-                    div []
-                        [ text term
-                        , input [ size 8, value (toString min) ] []
-                        , input [ size 8, value (toString max) ] []
-                        ]
+        mkRow termName =
+            case Dict.get termName model.selectedTerms of
                 Nothing ->
                     div [] [ text "Loading..." ]
+
+                Just term ->
+                    case term.type_ of
+                        "string" ->
+                            div []
+                                [ text termName
+                                , select [ onInput (SetStringParam termName) ] (List.map mkOpt term.values)
+                                ]
+
+                        "number" ->
+                            div []
+                                [ text termName
+                                , input [ size 8, value (toString term.min) ] []
+                                , input [ size 8, value (toString term.max) ] []
+                                ]
+
+                        _ -> -- Error
+                            div [] []
     in
     div [] (List.map mkRow model.selectedParams)
 
@@ -510,7 +580,8 @@ viewResults model =
                                     , a [ onClick Next ] [ text "Next" ]
                                     , br [] []
                                     , br [] []
-                                    , Table.view resultTableConfig model.tableState results
+--                                    , Table.view resultTableConfig model.tableState results
+                                    , viewResultsTable results
                                     ]
 
                     Just msg ->
@@ -522,55 +593,75 @@ viewResults model =
     div [] [ content ]
 
 
-resultTableConfig : Table.Config Sample Msg
-resultTableConfig =
-    Table.customConfig
-        { toId = toString << .sampleName
-        , toMsg = SetTableState
-        , columns =
-            [ Table.stringColumn "Project" .projectName
-            , Table.stringColumn "Sample" .sampleName
-            , latColumn
-            , lngColumn
-            , Table.floatColumn "Depth" .depth
-            , Table.stringColumn "Date" .date
-            ]
-        , customizations =
-            { defaultCustomizations | tableAttrs = [ attribute "class" "table" ] }
-        }
+viewResultsTable : List SearchResult -> Html Msg
+viewResultsTable results =
+    table [ style "border-spacing" "5px", style "border-collapse" "separate" ] (List.map viewResultRow results)
 
 
-latColumn : Table.Column Sample Msg
-latColumn =
+viewResultRow : SearchResult -> Html Msg
+viewResultRow result =
     let
-        lat sample =
-            sample.location.coordinates |> List.Extra.getAt 1 |> Maybe.withDefault 0
+        mkCol val =
+            td [ style "border-left" "1px solid #000" ] [ text val ]
+
+        valToString val =
+            case val of
+                NumberResultValue num ->
+                    toString num
+
+                StringResultValue str ->
+                    str
+
+        cols =
+            mkCol (toString result.sampleId) :: (List.map (valToString >> mkCol) result.values)
     in
-    Table.veryCustomColumn
-        { name = "Latitude"
-        , viewData =
-            (\sample ->
-                Table.HtmlDetails []
-                    [ lat sample |> toString |> text
-                    ]
-            )
-        , sorter = Table.increasingOrDecreasingBy lat
-        }
+    tr [] cols
 
 
-lngColumn : Table.Column Sample Msg
-lngColumn =
-    let
-        lng sample =
-            sample.location.coordinates |> List.head |> Maybe.withDefault 0
-    in
-    Table.veryCustomColumn
-        { name = "Longitude"
-        , viewData =
-            (\sample ->
-                Table.HtmlDetails []
-                    [ lng sample |> toString |> text
-                    ]
-            )
-        , sorter = Table.increasingOrDecreasingBy lng
-        }
+--resultTableConfig : Table.Config SearchResult Msg
+--resultTableConfig =
+--    Table.customConfig
+--        { toId = toString << .sampleId
+--        , toMsg = SetTableState
+--        , columns =
+--            [ Table.intColumn "Sample ID" .sampleId
+--            ]
+--        , customizations =
+--            { defaultCustomizations | tableAttrs = [ attribute "class" "table" ] }
+--        }
+--
+--
+--latColumn : Table.Column Sample Msg
+--latColumn =
+--    let
+--        lat sample =
+--            sample.location.coordinates |> List.Extra.getAt 1 |> Maybe.withDefault 0
+--    in
+--    Table.veryCustomColumn
+--        { name = "Latitude"
+--        , viewData =
+--            (\sample ->
+--                Table.HtmlDetails []
+--                    [ lat sample |> toString |> text
+--                    ]
+--            )
+--        , sorter = Table.increasingOrDecreasingBy lat
+--        }
+--
+--
+--lngColumn : Table.Column Sample Msg
+--lngColumn =
+--    let
+--        lng sample =
+--            sample.location.coordinates |> List.head |> Maybe.withDefault 0
+--    in
+--    Table.veryCustomColumn
+--        { name = "Longitude"
+--        , viewData =
+--            (\sample ->
+--                Table.HtmlDetails []
+--                    [ lng sample |> toString |> text
+--                    ]
+--            )
+--        , sorter = Table.increasingOrDecreasingBy lng
+--        }
