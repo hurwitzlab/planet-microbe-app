@@ -8,7 +8,10 @@ import HttpBuilder
 import Json.Encode as Encode exposing (Value, string)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline as Pipeline exposing (optional, required)
+import FormatNumber exposing (format)
+import FormatNumber.Locales exposing (usLocale)
 import Task
+import Time
 import List.Extra
 import Set
 import Dict exposing (Dict)
@@ -23,7 +26,8 @@ main =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        []
+        [ Time.every 500 InputTimerTick -- 500 ms
+        ]
 
 
 
@@ -31,19 +35,17 @@ subscriptions model =
 
 
 type alias Model =
-    { lat : String
-    , lng : String
-    , radius : String
-    , minDepth : String
-    , maxDepth : String
-    , startDate : String
-    , endDate : String
+    { location : String
+    , depth : String
+    , date : String
     , allParams : List String
     , availableParams : List String
     , selectedParams : List String -- for maintaining order
     , selectedTerms : Dict String SearchTerm
     , selectedVals : Dict String (Maybe SearchTermValue)
+    , doSearch : Bool
     , isSearching : Bool
+    , searchStartTime : Int -- milliseconds
     , results : Maybe (List SearchResult) --(List Sample)
     , count : Int
     , errorMsg : Maybe String
@@ -57,19 +59,17 @@ type alias Model =
 init : Value -> ( Model, Cmd Msg )
 init flags =
     (
-        { lat = ""
-        , lng = ""
-        , radius = ""
-        , minDepth = ""
-        , maxDepth = ""
-        , startDate = ""
-        , endDate = ""
+        { location = ""
+        , depth = ""
+        , date = ""
         , allParams = []
         , availableParams = []
         , selectedParams = []
         , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
+        , doSearch = False
         , isSearching = False
+        , searchStartTime = 0
         , results = Nothing
         , count = 0
         , errorMsg = Nothing
@@ -77,7 +77,10 @@ init flags =
         , pageNum = 0
         , pageSize = 50
         }
-    , Http.toTask getSearchTerms |> Task.attempt GetSearchTermsCompleted
+    , Cmd.batch
+        [ getSearchTerms |> Http.toTask |> Task.attempt GetSearchTermsCompleted
+        , searchRequest Dict.empty |> Http.toTask |> Task.attempt SearchCompleted
+        ]
     )
 
 
@@ -88,22 +91,18 @@ init flags =
 type Msg
     = GetSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | GetSearchTermCompleted (Result Http.Error SearchTerm)
-    | Search
+--    | Search
     | SearchCompleted (Result Http.Error SearchResponse)
     | Clear
-    | SetExample String String String String String String String
-    | SetLatitude String
-    | SetLongitude String
-    | SetRadius String
-    | SetMinDepth String
-    | SetMaxDepth String
-    | SetStartDate String
-    | SetEndDate String
+    | SetLatLngRadius String
+    | SetDepth String
+    | SetDate String
     | SelectParam String
     | SetStringParam String String
-    | Next
-    | Previous
+--    | Next
+--    | Previous
     | SetTableState Table.State
+    | InputTimerTick Time.Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -154,52 +153,44 @@ update msg model =
         GetSearchTermCompleted (Err error) -> --TODO
             ( model, Cmd.none )
 
-        Search ->
-            let
-                doSearch =
-                    search model.selectedVals |> Http.toTask
-            in
-            ( { model | errorMsg = Nothing, results = Nothing, isSearching = True }, Task.attempt SearchCompleted doSearch)
-
-        SearchCompleted (Ok response) ->
-            ( { model | count = response.count, results = Just response.results, isSearching = False }, Cmd.none )
-
-        SearchCompleted (Err error) ->
-            let
-                _ = Debug.log "Error" (toString error)
-            in
-            ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
+--        Search ->
+--            let
+--                doSearch =
+--                    model.selectedVals |> search |> Http.toTask
+--            in
+--            ( { model | errorMsg = Nothing, results = Nothing, isSearching = True }, Task.attempt SearchCompleted doSearch)
 
         Clear ->
-            ( { model | lat = "", lng = "", radius = "", minDepth = "", maxDepth = "", startDate = "", endDate = "", selectedParams = [], selectedVals = Dict.empty, selectedTerms = Dict.empty, results = Nothing, errorMsg = Nothing }, Cmd.none )
+            ( { model | location = "", depth = "", date = "", selectedParams = [], selectedVals = Dict.empty, selectedTerms = Dict.empty, results = Nothing, errorMsg = Nothing }, Cmd.none )
 
-        SetExample lat lng radius minDepth maxDepth startDate endDate ->
+        SetLatLngRadius val ->
             let
-                (newModel, newCmd) =
-                    update Search { model | lat = lat, lng = lng, radius = radius, minDepth = minDepth, maxDepth = maxDepth, startDate = startDate, endDate = endDate }
+                params =
+                    ("location" :: model.selectedParams) |> Set.fromList |> Set.toList
+
+                term =
+                    "[" ++ val ++ "]" |> StringTermValue |> Just
+
+                vals =
+                    Dict.insert "location" term model.selectedVals
             in
-            ( newModel, newCmd )
+            ( { model | location = val, selectedParams = params, selectedVals = vals, doSearch = True }, Cmd.none )
 
-        SetLatitude val ->
-            ( { model | lat = val }, Cmd.none )
+        SetDepth val ->
+            ( { model | depth = val, doSearch = True }, Cmd.none )
 
-        SetLongitude val ->
-            ( { model | lng = val }, Cmd.none )
+        SetDate val ->
+            let
+                params =
+                    ("temporal" :: model.selectedParams) |> Set.fromList |> Set.toList
 
-        SetRadius val ->
-            ( { model | radius = val }, Cmd.none )
+                term =
+                    "[" ++ val ++ "]" |> StringTermValue |> Just
 
-        SetMinDepth val ->
-            ( { model | minDepth = val }, Cmd.none )
-
-        SetMaxDepth val ->
-            ( { model | maxDepth = val }, Cmd.none )
-
-        SetStartDate val ->
-            ( { model | startDate = val }, Cmd.none )
-
-        SetEndDate val ->
-            ( { model | endDate = val }, Cmd.none )
+                vals =
+                    Dict.insert "temporal" term model.selectedVals
+            in
+            ( { model | date = val, selectedParams = params, selectedVals = vals, doSearch = True }, Cmd.none )
 
         SelectParam name ->
             let
@@ -233,27 +224,54 @@ update msg model =
             in
             ( { model | selectedVals = vals }, Cmd.none )
 
-        Next ->
-            let
-                (newModel, newCmd) =
-                    update Search { model | pageNum = model.pageNum + 1 }
-            in
-            ( newModel, newCmd )
-
-        Previous ->
-            let
-                pageNum =
-                    model.pageNum - 1 |> Basics.max 0
-
-                (newModel, newCmd) =
-                    update Search { model | pageNum = pageNum }
-            in
-            ( newModel, newCmd )
+--        Next ->
+--            let
+--                (newModel, newCmd) =
+--                    update Search { model | pageNum = model.pageNum + 1 }
+--            in
+--            ( newModel, newCmd )
+--
+--        Previous ->
+--            let
+--                pageNum =
+--                    model.pageNum - 1 |> Basics.max 0
+--
+--                (newModel, newCmd) =
+--                    update Search { model | pageNum = pageNum }
+--            in
+--            ( newModel, newCmd )
 
         SetTableState newState ->
             ( { model | tableState = newState }
             , Cmd.none
             )
+
+        InputTimerTick time ->
+            if model.doSearch then
+                if model.selectedVals == Dict.empty then
+                    if model.results == Nothing then -- initial load of all samples
+                        ( { model | doSearch = False }, Cmd.none ) --Task.attempt UpdateSamples (Request.Sample.list session.token |> Http.toTask) )
+                    else
+                        ( { model | doSearch = False, isSearching = False, results = Nothing }, Cmd.none )
+                else if Time.posixToMillis time - model.searchStartTime >= 500 then -- 500 ms
+                    let
+                        searchTask =
+                            searchRequest model.selectedVals |> Http.toTask
+                    in
+                    ( { model | doSearch = False, isSearching = True }, Task.attempt SearchCompleted searchTask )
+                else
+                    ( model, Cmd.none )
+            else
+                ( model, Cmd.none )
+
+        SearchCompleted (Ok response) ->
+            ( { model | count = response.count, results = Just response.results, isSearching = False }, Cmd.none )
+
+        SearchCompleted (Err error) ->
+            let
+                _ = Debug.log "Error" (toString error)
+            in
+            ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
 
 
 getSearchTerms : Http.Request (List SearchTerm)
@@ -302,11 +320,9 @@ getSearchTerm term =
 --        |> HttpBuilder.toRequest
 
 
-search : Dict String (Maybe SearchTermValue) -> Http.Request SearchResponse
-search params =
+searchRequest : Dict String (Maybe SearchTermValue) -> Http.Request SearchResponse
+searchRequest params =
     let
-        _ = Debug.log "" (toString params)
-
         url =
             apiBaseUrl ++ "/search"
 
@@ -440,123 +456,259 @@ decodeSearchTerm =
 
 view : Model -> Html Msg
 view model =
-    div [ style "margin" "2em" ]
-        [ viewInputs model
-        , viewExamples model
-        , br [] []
-        , br [] []
-        , viewResults model
-        ]
-
-
-viewInputs : Model -> Html Msg
-viewInputs model =
-    let
-        options =
-            option [ disabled True, selected True ] [ text "Please select a parameter" ] :: (List.map (\label -> option [ value label ] [ text label ] ) model.allParams)
-    in
-    div [ class "panel panel-default" ]
-        [ div [ class "panel-body" ]
-            [ Html.form [ class "form-inline" ]
-                [ div [ class "form-group" ]
-                    [ label [ attribute "for" "name" ] [ text "Latitude (deg):" ]
-                    , text " "
-                    , input [ type_ "text", class "form-control", size 8, placeholder "", value model.lat, onInput SetLatitude ] []
-                    , text " "
-                    , label [ attribute "for" "name" ] [ text "Longitude (deg):" ]
-                    , text " "
-                    , input [ type_ "text", class "form-control", size 8, placeholder "", value model.lng, onInput SetLongitude ] []
-                    , text " "
-                    , label [ attribute "for" "name" ] [ text "Radius (m):" ]
-                    , text " "
-                    , input [ type_ "text", class "form-control", size 5, placeholder "", value model.radius, onInput SetRadius ] []
-                    ]
-                ]
+    div []
+        [ div [ style "float" "left", style "width" "26%" ]
+            [ viewSearchPanel model ]
+        , div [ style "float" "right", style "width" "74%", class "container-fluid" ]
+            [ viewSearchSummary model
             , br [] []
-            , Html.form [ class "form-inline" ]
-                [ div [ class "form-group" ]
-                    [ label [ attribute "for" "name" ] [ text "Depth (m):" ]
-                    , text " "
-                    , input [ type_ "text", class "form-control", size 5, placeholder "", value model.minDepth, onInput SetMinDepth ] []
-                    , text " to "
-                    , input [ type_ "text", class "form-control", size 5, placeholder "", value model.maxDepth, onInput SetMaxDepth ] []
-                    ]
-                ]
-            , br [] []
-            , Html.form [ class "form-inline" ]
-                [ div [ class "form-group" ]
-                    [ label [ attribute "for" "name" ] [ text "Date:" ]
-                    , text " "
-                    , input [ type_ "text", class "form-control", size 24, placeholder "", value model.startDate, onInput SetStartDate ] []
-                    , text " to "
-                    , input [ type_ "text", class "form-control", size 24, placeholder "", value model.endDate, onInput SetEndDate ] []
-                    , text " Can use YY-MM-DD or YY-MM-DDTHH:MM:SS"
-                    ]
-                ]
-            , br [] []
-            , Html.form [ class "form-inline" ]
-                [ div [ class "form-group" ]
-                    [ label [ attribute "for" "name" ] [ text "Attributes:" ]
-                    , text " "
-                    , select [ class "form-control", onInput SelectParam ] options
-                    ]
-                ]
-            , br [] []
-            , viewParams model
-            , br [] []
-            , button [ class "btn btn-default", onClick Clear ] [ text "Clear" ]
-            , text " "
-            , button [ class "btn btn-primary", onClick Search ] [ text "Search" ]
+            , viewResults model
             ]
         ]
 
 
-viewExamples : Model -> Html Msg
-viewExamples model =
+viewSearchPanel : Model -> Html Msg
+viewSearchPanel model =
     div []
-        [ a [ onClick (SetExample "22.7" "-158" "1000" "" "" "" "") ] [ text "Example 1" ]
-        , text ", "
-        , a [ onClick (SetExample "" "" "" "0" "1000" "" "") ] [ text "Example 2" ]
-        , text ", "
-        , a [ onClick (SetExample "" "" "" "" "" "1988-01-01" "1989-01-01") ] [ text "Example 3" ]
+        [ ul [ class "nav nav-tabs" ]
+            [ li [ class "nav-item" ]
+                [ a [ class "nav-link" ] [ text "Projects" ] ]
+            , li [ class "nav-item" ]
+                [ a [ class "nav-link active", href "#" ] [ text "Samples" ] ]
+            , li [ class "nav-item" ]
+                [ a [ class "nav-link" ] [ text "Files" ] ]
+            ]
+        , viewLocationPanel model
+        , viewProjectPanel model
+        , viewBiomePanel model
+        , viewAddAttributePanel model
         ]
 
 
-viewParams : Model -> Html Msg
-viewParams model =
+viewLocationPanel : Model -> Html Msg
+viewLocationPanel model =
+    div []
+        [ div [ class "card", style "font-size" "0.85em" ]
+            [ div [ class "card-body" ]
+                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " Time/Space" ]
+                , Html.form [ style "padding-top" "0.5em" ]
+                    [ div [ class "form-row" ]
+                        [ div [ class "input-group input-group-sm" ]
+                            [ input [ type_ "text", class "form-control", size 5, placeholder "Location", value model.location, onInput SetLatLngRadius ] []
+                            , div [ class "input-group-append" ]
+                                [ button [ class "btn btn-outline-secondary", type_ "button" ] [ text "Map" ]
+                                , button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+                                , div [ class "dropdown-menu" ]
+                                    [ a [ class "dropdown-item", href "#" ] [ text "Lat, Lng (deg), Radius (m)" ]
+                                    , a [ class "dropdown-item", href "#" ] [ text "Lat min, max, Lng min, max (deg)" ]
+                                    , a [ class "dropdown-item", href "#" ] [ text "Lat, Lng (deg)" ]
+                                    , a [ class "dropdown-item", href "#" ] [ text "Longhurst Province" ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    , br [] []
+                    , div [ class "form-row" ]
+                        [ div [ class "input-group input-group-sm" ]
+                            [ input [ type_ "text", class "form-control", size 5, placeholder "Depth", value model.depth, onInput SetDepth ] []
+                            , div [ class "input-group-append" ]
+                                [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+                                , div [ class "dropdown-menu" ]
+                                    [ a [ class "dropdown-item", href "#" ] [ text "Exact depth (m)" ]
+                                    , a [ class "dropdown-item", href "#" ] [ text "Depth, plus/minus (m)" ]
+                                    , a [ class "dropdown-item", href "#" ] [ text "Depth min, max (m)" ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    , br [] []
+                    , div [ class "form-row" ]
+                        [ div [ class "input-group input-group-sm" ]
+                            [ input [ type_ "text", class "form-control", size 5, placeholder "Date/Time", value model.date, onInput SetDate ] []
+                            , div [ class "input-group-append" ]
+                                [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+                                , div [ class "dropdown-menu" ]
+                                    [ a [ class "dropdown-item", href "#" ] [ text "Time YY-MM-DD HH:MM:SS" ]
+                                    , a [ class "dropdown-item", href "#" ] [ text "Day YY-MM-DD" ]
+                                    , a [ class "dropdown-item", href "#" ] [ text "Year YYYY" ]
+                                    , a [ class "dropdown-item", href "#" ] [ text "Range YY-MM-DD HH:MM:SS, YY-MM-DD HH:MM:SS" ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    , br [] []
+                    ]
+                ]
+            ]
+        ]
+
+
+viewProjectPanel : Model -> Html Msg
+viewProjectPanel model =
     let
-        mkOpt val =
-            option [] [ text val ]
+        myLocale =
+            { usLocale | decimals = 0 }
 
-        mkRow termName =
-            case Dict.get termName model.selectedTerms of
-                Nothing ->
-                    div [] [ text "Loading..." ]
-
-                Just term ->
-                    case term.type_ of
-                        "string" ->
-                            div []
-                                [ text termName
-                                , select [ onInput (SetStringParam termName) ] (List.map mkOpt term.values)
-                                ]
-
-                        "number" ->
-                            div []
-                                [ text termName
-                                , input [ size 8, value (toString term.min) ] []
-                                , input [ size 8, value (toString term.max) ] []
-                                ]
-
-                        _ -> -- Error
-                            div [] []
+        mkRow name count =
+            div []
+                [ div [ class "form-check form-check-inline" ]
+                    [ input [ class "form-check-input", type_ "checkbox" ] []
+                    , label [ class "form-check-label" ] [ text name ]
+                    ]
+                , div [ class "badge badge-secondary", style "float" "right" ] [ count |> format myLocale |> text ]
+                ]
     in
-    div [] (List.map mkRow model.selectedParams)
+    div []
+        [ div [ class "card", style "font-size" "0.85em" ]
+            [ div [ class "card-body" ]
+                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " Projects" ]
+                , mkRow "HOT - Hawaii Ocean Time Series" 1234
+                , mkRow "OSD - Ocean Science Data" 56789
+                , mkRow "TARA - Tara Oceans Expedition" 12345
+                , button [ class "btn btn-sm btn-link", style "float" "right" ] [ text "23 More ..."]
+                ]
+            ]
+        ]
+
+
+viewBiomePanel : Model -> Html Msg
+viewBiomePanel model =
+    let
+        myLocale =
+            { usLocale | decimals = 0 }
+
+        mkRow name count =
+            div []
+                [ div [ class "form-check form-check-inline" ]
+                    [ input [ class "form-check-input", type_ "checkbox" ] []
+                    , label [ class "form-check-label" ] [ text name ]
+                    ]
+                , div [ class "badge badge-secondary", style "float" "right" ] [ count |> format myLocale |> text ]
+                ]
+    in
+    div []
+        [ div [ class "card", style "font-size" "0.85em" ]
+            [ div [ class "card-body" ]
+                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " Biomes" ]
+                , mkRow "Marine biome (ENVO:447)" 1234
+                , mkRow "Marine pelagic biome (ENVO:1000023)" 56789
+                , mkRow "Marine reef biome (ENVO:1000029)" 12345
+                , button [ class "btn btn-sm btn-link", style "float" "right" ] [ text "23 More ..."]
+                ]
+            ]
+        ]
+
+
+viewAddAttributePanel : Model -> Html Msg
+viewAddAttributePanel model =
+    let
+        makeOption label =
+            a [ class "dropdown-item", href "#" ] [ text label ]
+
+        options =
+            List.map makeOption model.allParams
+    in
+    div [ class "card", style "font-size" "0.85em" ]
+        [ div [ class "card-body" ]
+            [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " Add Filter" ]
+            , div [ class "input-group input-group-sm" ]
+                [ input [ type_ "text", class "form-control", size 5, placeholder "Search parameters", value "" ] []
+                , div [ class "input-group-append" ]
+                    [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] []
+                    , div [ class "dropdown-menu" ] options
+                    ]
+                ]
+            ]
+        ]
+
+
+--viewParams : Model -> Html Msg
+--viewParams model =
+--    let
+--        mkOpt val =
+--            option [] [ text val ]
+--
+--        mkRow termName =
+--            case Dict.get termName model.selectedTerms of
+--                Nothing ->
+--                    div [] [ text "Loading..." ]
+--
+--                Just term ->
+--                    case term.type_ of
+--                        "string" ->
+--                            div []
+--                                [ text termName
+--                                , select [ onInput (SetStringParam termName) ] (List.map mkOpt term.values)
+--                                ]
+--
+--                        "number" ->
+--                            div []
+--                                [ text termName
+--                                , input [ size 8, value (toString term.min) ] []
+--                                , input [ size 8, value (toString term.max) ] []
+--                                ]
+--
+--                        _ -> -- Error
+--                            div [] []
+--    in
+--    div [] (List.map mkRow model.selectedParams)
+
+
+viewSearchSummary : Model -> Html Msg
+viewSearchSummary model =
+    let
+        format param =
+            case Dict.get param model.selectedVals |> Maybe.withDefault Nothing of
+                Nothing ->
+                    "<error>"
+
+                Just (StringTermValue s) ->
+                    param ++ " = " ++ s
+
+                Just (NumberTermValue (min, max)) ->
+                    param ++ " between [" ++ (toString min) ++ "," ++ (toString max) ++ "]"
+
+        searchStr =
+            model.selectedParams |> List.map format |> String.join " AND "
+
+        content =
+            if model.selectedParams == [] then
+                div []
+                    [ text "Begin by selecting filters on the left or try the "
+                    , a [ class "alert-link", href "#" ] [ text "Advanced Search" ]
+                    ]
+            else
+                text searchStr
+    in
+    div [ class "card" ]
+        [ div [ class "card-body" ]
+            [ content ]
+        ]
 
 
 viewResults : Model -> Html Msg
 viewResults model =
     let
+        mkTh label =
+            th [] [ text label ]
+
+        columns =
+            mkTh "Sample ID" :: (model.selectedParams |> List.map mkTh)
+
+        mkTd label =
+            td [] [ text label ]
+
+        formatVal val =
+            case val of
+                StringResultValue s ->
+                    s
+
+                NumberResultValue n ->
+                    toString n
+
+        mkRow result =
+            tr [] (mkTd (toString result.sampleId) :: (List.map (formatVal >> mkTd) result.values))
+
         content =
             if model.isSearching then
                 text "Searching ..."
@@ -568,21 +720,27 @@ viewResults model =
                                 text "No results"
 
                             Just results ->
-                                div []
-                                    [ model.count |> toString |> text
-                                    , text " total results. Showing "
-                                    , model.pageSize |> toString |> text
-                                    , text " results starting at result #"
-                                    , (model.pageNum * model.pageSize) |> Basics.max 1 |> toString |> text
-                                    , text ". "
-                                    , a [ onClick Previous ] [ text "Prev" ]
-                                    , text " / "
-                                    , a [ onClick Next ] [ text "Next" ]
-                                    , br [] []
-                                    , br [] []
---                                    , Table.view resultTableConfig model.tableState results
-                                    , viewResultsTable results
-                                    ]
+                                if results == [] then
+                                    text "No results"
+                                else
+                                    table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
+                                        [ thead [] [ tr [] columns ]
+                                        , tbody [] (List.map mkRow results)
+                                        ]
+    --                                    [ model.count |> toString |> text
+    --                                    , text " total results. Showing "
+    --                                    , model.pageSize |> toString |> text
+    --                                    , text " results starting at result #"
+    --                                    , (model.pageNum * model.pageSize) |> Basics.max 1 |> toString |> text
+    --                                    , text ". "
+    ----                                    , a [ onClick Previous ] [ text "Prev" ]
+    ----                                    , text " / "
+    ----                                    , a [ onClick Next ] [ text "Next" ]
+    --                                    , br [] []
+    --                                    , br [] []
+    ----                                    , Table.view resultTableConfig model.tableState results
+    --                                    , viewResultsTable results
+    --                                    ]
 
                     Just msg ->
                         div []
@@ -590,32 +748,32 @@ viewResults model =
                             , p [] [ text msg ]
                             ]
     in
-    div [] [ content ]
+    content
 
-
-viewResultsTable : List SearchResult -> Html Msg
-viewResultsTable results =
-    table [ style "border-spacing" "5px", style "border-collapse" "separate" ] (List.map viewResultRow results)
-
-
-viewResultRow : SearchResult -> Html Msg
-viewResultRow result =
-    let
-        mkCol val =
-            td [ style "border-left" "1px solid #000" ] [ text val ]
-
-        valToString val =
-            case val of
-                NumberResultValue num ->
-                    toString num
-
-                StringResultValue str ->
-                    str
-
-        cols =
-            mkCol (toString result.sampleId) :: (List.map (valToString >> mkCol) result.values)
-    in
-    tr [] cols
+--
+--viewResultsTable : List SearchResult -> Html Msg
+--viewResultsTable results =
+--    table [ style "border-spacing" "5px", style "border-collapse" "separate" ] (List.map viewResultRow results)
+--
+--
+--viewResultRow : SearchResult -> Html Msg
+--viewResultRow result =
+--    let
+--        mkCol val =
+--            td [ style "border-left" "1px solid #000" ] [ text val ]
+--
+--        valToString val =
+--            case val of
+--                NumberResultValue num ->
+--                    toString num
+--
+--                StringResultValue str ->
+--                    str
+--
+--        cols =
+--            mkCol (toString result.sampleId) :: (List.map (valToString >> mkCol) result.values)
+--    in
+--    tr [] cols
 
 
 --resultTableConfig : Table.Config SearchResult Msg
