@@ -236,7 +236,7 @@ async function generateTermIndex(db, ontologies) {
 async function search(db, params) {
     console.log("params:", params);
 
-    let limit, offset, sort;
+    let limit = 20, offset, sort;
     let gisClause;
     let clauses = {};
     let selections = [];
@@ -343,18 +343,20 @@ async function search(db, params) {
     if (gisClause)
         clauseStr = gisClause + (clauseStr ? " AND (" + clauseStr + ")" : "");
 
+    if (clauseStr)
+        clauseStr = "WHERE " + clauseStr;
+
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
     let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort) + 2) + " " + sortDir : "");
 
-    let countQueryStr = "SELECT count(*) FROM sample WHERE " + clauseStr;
+    let countQueryStr = "SELECT count(*) FROM sample " + clauseStr;
 
     if (!limit)
         limit = 50;
     let limitStr = (limit ? " LIMIT " + limit : "");
     let offsetStr = (offset ? " OFFSET " + offset : "");
 
-    let selectStr = selections.join(",");
-    let queryStr = "SELECT schema_id,sample_id," + selectStr + " FROM sample WHERE " + clauseStr + sortStr + offsetStr + limitStr;
+    let queryStr = "SELECT " + ["schema_id", "sample_id"].concat(selections).join(",") + " FROM sample " + clauseStr + sortStr + offsetStr + limitStr;
 
     let count = await query({
         text: countQueryStr,
