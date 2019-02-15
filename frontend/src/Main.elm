@@ -30,6 +30,14 @@ subscriptions model =
         ]
 
 
+myLocale =
+    { usLocale | decimals = 0 }
+
+
+defaultPageSize =
+    20
+
+
 
 -- MODEL
 
@@ -75,11 +83,11 @@ init flags =
         , errorMsg = Nothing
         , tableState = Table.initialSort "Sample"
         , pageNum = 0
-        , pageSize = 50
+        , pageSize = defaultPageSize
         }
     , Cmd.batch
         [ getSearchTerms |> Http.toTask |> Task.attempt GetSearchTermsCompleted
-        , searchRequest Dict.empty |> Http.toTask |> Task.attempt SearchCompleted
+        , searchRequest Dict.empty defaultPageSize |> Http.toTask |> Task.attempt SearchCompleted
         ]
     )
 
@@ -97,7 +105,7 @@ type Msg
     | SetLatLngRadius String
     | SetDepth String
     | SetDate String
-    | SelectParam String
+    | AddFilter String
     | SetStringParam String String
 --    | Next
 --    | Previous
@@ -192,7 +200,7 @@ update msg model =
             in
             ( { model | date = val, selectedParams = params, selectedVals = vals, doSearch = True }, Cmd.none )
 
-        SelectParam name ->
+        AddFilter name ->
             let
                 params =
                     (name :: model.selectedParams) |> Set.fromList |> Set.toList
@@ -256,7 +264,7 @@ update msg model =
                 else if Time.posixToMillis time - model.searchStartTime >= 500 then -- 500 ms
                     let
                         searchTask =
-                            searchRequest model.selectedVals |> Http.toTask
+                            searchRequest model.selectedVals model.pageSize |> Http.toTask
                     in
                     ( { model | doSearch = False, isSearching = True }, Task.attempt SearchCompleted searchTask )
                 else
@@ -320,8 +328,8 @@ getSearchTerm term =
 --        |> HttpBuilder.toRequest
 
 
-searchRequest : Dict String (Maybe SearchTermValue) -> Http.Request SearchResponse
-searchRequest params =
+searchRequest : Dict String (Maybe SearchTermValue) -> Int -> Http.Request SearchResponse
+searchRequest params pageSize =
     let
         url =
             apiBaseUrl ++ "/search"
@@ -341,7 +349,7 @@ searchRequest params =
                     ""
 
         queryParams =
-            params |> Dict.map format |> Dict.toList
+            params |> Dict.map format |> Dict.toList |> List.append [ ("limit", toString pageSize) ]
     in
     HttpBuilder.get url
         |> HttpBuilder.withQueryParams queryParams
@@ -460,9 +468,9 @@ view model =
         [ div [ style "float" "left", style "width" "26%" ]
             [ viewSearchPanel model ]
         , div [ style "float" "right", style "width" "74%", class "container-fluid" ]
-            [ viewSearchSummary model
-            , br [] []
-            , viewResults model
+--            [ viewSearchSummary model
+--            , br [] []
+            [ viewResults model
             ]
         ]
 
@@ -470,18 +478,26 @@ view model =
 viewSearchPanel : Model -> Html Msg
 viewSearchPanel model =
     div []
-        [ ul [ class "nav nav-tabs" ]
-            [ li [ class "nav-item" ]
-                [ a [ class "nav-link" ] [ text "Projects" ] ]
-            , li [ class "nav-item" ]
-                [ a [ class "nav-link active", href "#" ] [ text "Samples" ] ]
-            , li [ class "nav-item" ]
-                [ a [ class "nav-link" ] [ text "Files" ] ]
+        [ h4 [ style "margin" "3px", style "display" "inline" ]
+            [ text "Filters" ]
+        , a [ class "alert-link", href "#", style "float" "right", style "font-size" "0.85em" ] [ text "Advanced Search" ]
+        , div [ style "border" "1px solid lightgray" ]
+            [ ul [ class "nav nav-tabs" ]
+                [ li [ class "nav-item" ]
+                    [ a [ class "nav-link" ] [ text "Projects" ] ]
+                , li [ class "nav-item" ]
+                    [ a [ class "nav-link active", href "#", style "font-weight" "bold" ] [ text "Samples" ] ]
+                , li [ class "nav-item" ]
+                    [ a [ class "nav-link" ] [ text "Files" ] ]
+                ]
+            , div []
+                [ viewAddFilterPanel model
+                , viewAddedFiltersPanel model
+                , viewLocationPanel model
+                , viewProjectPanel model
+                , viewBiomePanel model
+                ]
             ]
-        , viewLocationPanel model
-        , viewProjectPanel model
-        , viewBiomePanel model
-        , viewAddAttributePanel model
         ]
 
 
@@ -490,14 +506,17 @@ viewLocationPanel model =
     div []
         [ div [ class "card", style "font-size" "0.85em" ]
             [ div [ class "card-body" ]
-                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " Time/Space" ]
+                [ h6 [ style "color" "darkblue"]
+                    [ text (String.fromChar (Char.fromCode 9660))
+                    , text " Time/Space"
+                    , small [] [ a [ class "alert-link", href "#", style "float" "right" ] [ text "Map View" ] ]
+                    ]
                 , Html.form [ style "padding-top" "0.5em" ]
                     [ div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
                             [ input [ type_ "text", class "form-control", size 5, placeholder "Location", value model.location, onInput SetLatLngRadius ] []
                             , div [ class "input-group-append" ]
-                                [ button [ class "btn btn-outline-secondary", type_ "button" ] [ text "Map" ]
-                                , button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+                                [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
                                 , div [ class "dropdown-menu" ]
                                     [ a [ class "dropdown-item", href "#" ] [ text "Lat, Lng (deg), Radius (m)" ]
                                     , a [ class "dropdown-item", href "#" ] [ text "Lat min, max, Lng min, max (deg)" ]
@@ -546,9 +565,6 @@ viewLocationPanel model =
 viewProjectPanel : Model -> Html Msg
 viewProjectPanel model =
     let
-        myLocale =
-            { usLocale | decimals = 0 }
-
         mkRow name count =
             div []
                 [ div [ class "form-check form-check-inline" ]
@@ -574,9 +590,6 @@ viewProjectPanel model =
 viewBiomePanel : Model -> Html Msg
 viewBiomePanel model =
     let
-        myLocale =
-            { usLocale | decimals = 0 }
-
         mkRow name count =
             div []
                 [ div [ class "form-check form-check-inline" ]
@@ -599,14 +612,17 @@ viewBiomePanel model =
         ]
 
 
-viewAddAttributePanel : Model -> Html Msg
-viewAddAttributePanel model =
+viewAddFilterPanel : Model -> Html Msg
+viewAddFilterPanel model =
     let
         makeOption label =
-            a [ class "dropdown-item", href "#" ] [ text label ]
+            a [ class "dropdown-item", href "#", onClick (AddFilter label) ] [ text label ]
+
+        hideOptions =
+            [ "biome", "latitude coordinate measurement datum", "longitude coordinate measurement datum", "zero-dimensional temporal region" ]
 
         options =
-            List.map makeOption model.allParams
+            model.allParams |> List.Extra.dropWhile (\p -> List.member p hideOptions) |> List.map makeOption
     in
     div [ class "card", style "font-size" "0.85em" ]
         [ div [ class "card-body" ]
@@ -620,6 +636,11 @@ viewAddAttributePanel model =
                 ]
             ]
         ]
+
+
+viewAddedFiltersPanel : Model -> Html Msg
+viewAddedFiltersPanel model =
+    text ""
 
 
 --viewParams : Model -> Html Msg
@@ -693,7 +714,13 @@ viewResults model =
             th [] [ text label ]
 
         columns =
-            mkTh "Sample ID" :: (model.selectedParams |> List.map mkTh)
+            List.concat
+                [ [ mkTh ("Sample ID " ++ (String.fromChar (Char.fromCode 9660))) ] --FIXME hardcoded sort arrow for demo
+                , [ mkTh "Sample Name" ]
+                , [ mkTh "Project Name" ]
+                , model.selectedParams |> List.map mkTh
+                , [ mkTh ("Cart") ]
+                ]
 
         mkTd label =
             td [] [ text label ]
@@ -706,8 +733,18 @@ viewResults model =
                 NumberResultValue n ->
                     toString n
 
+        addToCartButton =
+            button [ class "btn btn-sm btn-outline-dark", style "font-size" "0.5em" ] [ text "Add" ]
+
         mkRow result =
-            tr [] (mkTd (toString result.sampleId) :: (List.map (formatVal >> mkTd) result.values))
+            tr []
+                (List.concat
+                    [ [ mkTd (toString result.sampleId) ]
+                    , [ mkTd "" ]
+                    , [ mkTd "" ]
+                    , List.map (formatVal >> mkTd) result.values
+                    , [ td [] [ addToCartButton ] ]
+                    ])
 
         content =
             if model.isSearching then
@@ -723,24 +760,63 @@ viewResults model =
                                 if results == [] then
                                     text "No results"
                                 else
-                                    table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
-                                        [ thead [] [ tr [] columns ]
-                                        , tbody [] (List.map mkRow results)
+                                    div []
+                                        [ div []
+                                            [ h4 [ style "margin" "3px", style "display" "inline" ]
+                                                [ text "Results" ]
+                                            , div [ style "float" "right", style "font-size" "0.9em" ]
+                                                [ text "Showing "
+                                                , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> toString |> text
+                                                , text " - "
+                                                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> toString |> text
+                                                , text " of "
+                                                , model.count |> toFloat |> format myLocale |> text
+                                                , text " samples"
+                                                ]
+                                            ]
+                                        , div [ style "border" "1px solid lightgray" ]
+                                            [ ul [ class "nav nav-tabs" ]
+                                                [ li [ class "nav-item" ]
+                                                    [ a [ class "nav-link" ] [ text "Summary" ] ]
+                                                , li [ class "nav-item" ]
+                                                    [ a [ class "nav-link" ] [ text "Projects" ] ]
+                                                , li [ class "nav-item" ]
+                                                    [ a [ class "nav-link active", href "#", style "font-weight" "bold" ] [ text "Samples" ] ]
+                                                , li [ class "nav-item" ]
+                                                    [ a [ class "nav-link" ] [ text "Files" ] ]
+                                                ]
+                                            , table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
+                                                [ thead [] [ tr [] columns ]
+                                                , tbody [] (List.map mkRow results)
+                                                ]
+                                            ]
+                                        , div [ style "padding" "0.5em", style "border" "1px solid lightgray" ]
+                                            [ text "Show "
+                                            , div [ class "dropup", style "display" "inline" ]
+                                                [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (toString model.pageSize) ]
+                                                , div [ class "dropdown-menu" ]
+                                                    [ a [ class "dropdown-item", href "#" ] [ text "20" ]
+                                                    , a [ class "dropdown-item", href "#" ] [ text "40" ]
+                                                    , a [ class "dropdown-item", href "#" ] [ text "60" ]
+                                                    , a [ class "dropdown-item", href "#" ] [ text "80" ]
+                                                    , a [ class "dropdown-item", href "#" ] [ text "100" ]
+                                                    ]
+                                                ]
+                                            , text " results"
+                                            , nav [ style "float" "right" ]
+                                                [ ul [ class "pagination" ]
+                                                    [ li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Previous" ] ]
+                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "1" ] ]
+                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "2" ] ]
+                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "3" ] ]
+                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "..." ] ]
+                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Last" ] ]
+                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Next" ] ]
+                                                    ]
+                                                ]
+                                            ]
                                         ]
-    --                                    [ model.count |> toString |> text
-    --                                    , text " total results. Showing "
-    --                                    , model.pageSize |> toString |> text
-    --                                    , text " results starting at result #"
-    --                                    , (model.pageNum * model.pageSize) |> Basics.max 1 |> toString |> text
-    --                                    , text ". "
-    ----                                    , a [ onClick Previous ] [ text "Prev" ]
-    ----                                    , text " / "
-    ----                                    , a [ onClick Next ] [ text "Next" ]
-    --                                    , br [] []
-    --                                    , br [] []
-    ----                                    , Table.view resultTableConfig model.tableState results
-    --                                    , viewResultsTable results
-    --                                    ]
+
 
                     Just msg ->
                         div []
