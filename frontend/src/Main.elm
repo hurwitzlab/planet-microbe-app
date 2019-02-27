@@ -38,19 +38,32 @@ defaultPageSize =
     20
 
 
+maxNumPanelOptions =
+    4
+
+
+facets =
+    [ "http://purl.obolibrary.org/obo/ENVO_00000428" -- biome
+    ]
+
+
 
 -- MODEL
+
+
+type alias PURL =
+    String
 
 
 type alias Model =
     { location : String
     , depth : String
     , date : String
-    , allParams : List String
-    , availableParams : List String
-    , selectedParams : List String -- for maintaining order
-    , selectedTerms : Dict String SearchTerm
-    , selectedVals : Dict String (Maybe SearchTermValue)
+    , allParams : List SearchTerm
+--    , availableParams : List String -- based on params already selected
+    , selectedParams : List PURL -- for maintaining order
+    , selectedTerms : Dict PURL SearchTerm
+    , selectedVals : Dict PURL (Maybe SearchTermValue)
     , doSearch : Bool
     , isSearching : Bool
     , searchStartTime : Int -- milliseconds
@@ -71,7 +84,7 @@ init flags =
         , depth = ""
         , date = ""
         , allParams = []
-        , availableParams = []
+--        , availableParams = []
         , selectedParams = []
         , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
@@ -86,7 +99,8 @@ init flags =
         , pageSize = defaultPageSize
         }
     , Cmd.batch
-        [ getSearchTerms |> Http.toTask |> Task.attempt GetSearchTermsCompleted
+        [ getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
+        , getSearchTerm "ENVO_00000428" |> Http.toTask |> Task.attempt GetSearchTermCompleted
         , searchRequest Dict.empty defaultPageSize |> Http.toTask |> Task.attempt SearchCompleted
         ]
     )
@@ -97,7 +111,7 @@ init flags =
 
 
 type Msg
-    = GetSearchTermsCompleted (Result Http.Error (List SearchTerm))
+    = GetAllSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | GetSearchTermCompleted (Result Http.Error SearchTerm)
 --    | Search
     | SearchCompleted (Result Http.Error SearchResponse)
@@ -105,8 +119,8 @@ type Msg
     | SetLatLngRadius String
     | SetDepth String
     | SetDate String
-    | AddFilter String
-    | SetStringParam String String
+    | AddFilter PURL
+    | SetStringParam PURL String
 --    | Next
 --    | Previous
     | SetTableState Table.State
@@ -116,49 +130,40 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GetSearchTermsCompleted (Ok terms) ->
-            let
-                params =
-                    List.map .label terms
-            in
-            ( { model | allParams = params }, Cmd.none )
+        GetAllSearchTermsCompleted (Ok terms) ->
+            ( { model | allParams = terms }, Cmd.none )
 
-        GetSearchTermsCompleted (Err error) -> --TODO
+        GetAllSearchTermsCompleted (Err error) -> --TODO
+            let
+                _ = Debug.log "GetAllSearchTermsCompleted" (toString error)
+            in
             ( model, Cmd.none )
 
         GetSearchTermCompleted (Ok term) ->
             let
---                terms =
---                    case term.type_ of
---                        "string" ->
---                            Just (StringTermValue term.values)
---
---                        "number" ->
---                            Just (NumberTermValue (term.min, term.max))
---
---                        _ ->
---                            Nothing
-
                 selectedTerms =
-                    Dict.insert term.label term model.selectedTerms
+                    Dict.insert term.id term model.selectedTerms
 
                 val =
                     case term.type_ of
-                        "string" ->
-                            Just (StringTermValue "")
-
                         "number" ->
                             Just (NumberTermValue (term.min, term.max))
+
+--                        "string" ->
+--                            Just (StringTermValue "")
 
                         _ -> -- Error
                             Nothing
 
                 selectedVals =
-                    Dict.insert term.label val model.selectedVals
+                    Dict.insert term.id val model.selectedVals
             in
             ( { model | selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
 
         GetSearchTermCompleted (Err error) -> --TODO
+            let
+                _ = Debug.log "GetSearchTermCompleted" (toString error)
+            in
             ( model, Cmd.none )
 
 --        Search ->
@@ -174,7 +179,7 @@ update msg model =
         SetLatLngRadius val ->
             let
                 params =
-                    ("location" :: model.selectedParams) |> Set.fromList |> Set.toList
+                    model.selectedParams |> Set.fromList |> Set.toList
 
                 term =
                     "[" ++ val ++ "]" |> StringTermValue |> Just
@@ -190,7 +195,7 @@ update msg model =
         SetDate val ->
             let
                 params =
-                    ("temporal" :: model.selectedParams) |> Set.fromList |> Set.toList
+                    model.selectedParams |> Set.fromList |> Set.toList
 
                 term =
                     "[" ++ val ++ "]" |> StringTermValue |> Just
@@ -200,22 +205,22 @@ update msg model =
             in
             ( { model | date = val, selectedParams = params, selectedVals = vals, doSearch = True }, Cmd.none )
 
-        AddFilter name ->
+        AddFilter id ->
             let
                 params =
-                    (name :: model.selectedParams) |> Set.fromList |> Set.toList
+                    (id :: model.selectedParams) |> Set.fromList |> Set.toList
 
                 getTerm =
-                    getSearchTerm name |> Http.toTask
+                    getSearchTerm id |> Http.toTask
             in
             ( { model | selectedParams = params }, Task.attempt GetSearchTermCompleted getTerm )
 
-        SetStringParam name val ->
+        SetStringParam id val ->
             let
-                _ = Debug.log ("SetStringParam " ++ name) val
+                _ = Debug.log ("SetStringParam " ++ id) val
 
                 termVal =
-                    case Dict.get name model.selectedTerms of
+                    case Dict.get id model.selectedTerms of
                         Nothing -> -- Error
                             Nothing
 
@@ -228,7 +233,7 @@ update msg model =
                                     Nothing
 
                 vals =
-                    Dict.insert name termVal model.selectedVals
+                    Dict.insert id termVal model.selectedVals
             in
             ( { model | selectedVals = vals }, Cmd.none )
 
@@ -277,7 +282,7 @@ update msg model =
 
         SearchCompleted (Err error) ->
             let
-                _ = Debug.log "Error" (toString error)
+                _ = Debug.log "SearchCompleted" (toString error)
             in
             ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
 
@@ -293,39 +298,15 @@ getSearchTerms =
         |> HttpBuilder.toRequest
 
 
-getSearchTerm : String -> Http.Request SearchTerm
-getSearchTerm term =
+getSearchTerm : PURL -> Http.Request SearchTerm
+getSearchTerm id =
     let
         url =
-            apiBaseUrl ++ "/searchTerms/" ++ term
+            apiBaseUrl ++ "/searchTerms/" ++ id
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson decodeSearchTerm)
         |> HttpBuilder.toRequest
-
-
---search : String -> String -> String -> String -> String -> String -> String -> Int -> Int -> Http.Request SearchResponse
---search lat lng radius minDepth maxDepth startDate endDate limit skip =
---    let
---        url =
---            apiBaseUrl ++ "/search"
---
---        queryParams =
---            [ ("lat", lat)
---            , ("lng", lng)
---            , ("radius", radius)
---            , ("minDepth", minDepth)
---            , ("maxDepth", maxDepth)
---            , ("startDate", startDate)
---            , ("endDate", endDate)
---            , ("limit", toString limit)
---            , ("skip", toString skip)
---            ]
---    in
---    HttpBuilder.get url
---        |> HttpBuilder.withQueryParams queryParams
---        |> HttpBuilder.withExpect (Http.expectJson decodeSearchResponse)
---        |> HttpBuilder.toRequest
 
 
 searchRequest : Dict String (Maybe SearchTermValue) -> Int -> Http.Request SearchResponse
@@ -589,40 +570,22 @@ viewProjectPanel model =
 
 viewBiomePanel : Model -> Html Msg
 viewBiomePanel model =
-    let
-        mkRow name count =
-            div []
-                [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox" ] []
-                    , label [ class "form-check-label" ] [ text name ]
-                    ]
-                , div [ class "badge badge-secondary", style "float" "right" ] [ count |> format myLocale |> text ]
-                ]
-    in
-    div []
-        [ div [ class "card", style "font-size" "0.85em" ]
-            [ div [ class "card-body" ]
-                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " Biomes" ]
-                , mkRow "Marine biome (ENVO:447)" 1234
-                , mkRow "Marine pelagic biome (ENVO:1000023)" 56789
-                , mkRow "Marine reef biome (ENVO:1000029)" 12345
-                , button [ class "btn btn-sm btn-link", style "float" "right" ] [ text "23 More ..."]
-                ]
-            ]
-        ]
+    viewStringFilterPanel "Biomes"
+        [ "Marine biome (ENVO:447)", "Marine pelagic biome (ENVO:1000023)", "Marine reef biome (ENVO:1000029)" ]
+        --[ ("Marine biome (ENVO:447)", 1234), ("Marine pelagic biome (ENVO:1000023)", 56789), ("Marine reef biome (ENVO:1000029)", 12345) ]
 
 
 viewAddFilterPanel : Model -> Html Msg
 viewAddFilterPanel model =
     let
-        makeOption label =
-            a [ class "dropdown-item", href "#", onClick (AddFilter label) ] [ text label ]
+        makeOption term =
+            a [ class "dropdown-item", href "#", onClick (AddFilter term.id) ] [ text term.label ]
 
         hideOptions =
             [ "biome", "latitude coordinate measurement datum", "longitude coordinate measurement datum", "zero-dimensional temporal region" ]
 
         options =
-            model.allParams |> List.Extra.dropWhile (\p -> List.member p hideOptions) |> List.map makeOption
+            model.allParams |> List.Extra.dropWhile (\term -> List.member term.label hideOptions) |> List.map makeOption -- FIXME why isn't this working?
     in
     div [ class "card", style "font-size" "0.85em" ]
         [ div [ class "card-body" ]
@@ -640,7 +603,68 @@ viewAddFilterPanel model =
 
 viewAddedFiltersPanel : Model -> Html Msg
 viewAddedFiltersPanel model =
-    text ""
+    let
+        errorDiv =
+            div [] [ text "<error>" ]
+    in
+    div []
+        (model.selectedParams
+            |> List.map
+                (\param ->
+                    case Dict.get param model.selectedTerms of
+                        Nothing ->
+                            errorDiv
+
+                        Just term ->
+                            case term.type_ of
+                                "string" ->
+                                    viewStringFilterPanel term.label term.values
+
+                                "number" ->
+                                    viewNumberFilterPanel term.label
+
+                                _ ->
+                                    errorDiv
+
+                )
+        )
+
+
+viewStringFilterPanel : String -> List String -> Html Msg
+viewStringFilterPanel title options =
+    let
+        numOptions =
+            List.length options
+
+        truncatedOptions =
+            List.take maxNumPanelOptions options
+
+        viewRow name =
+            div []
+                [ div [ class "form-check form-check-inline" ]
+                    [ input [ class "form-check-input", type_ "checkbox" ] []
+                    , label [ class "form-check-label" ] [ text name ]
+                    ]
+                , div [ class "badge badge-secondary", style "float" "right" ] [ text "123" ] --[ count |> toFloat |> format myLocale |> text ]
+                ]
+    in
+    div []
+        [ div [ class "card", style "font-size" "0.85em" ]
+            [ div [ class "card-body" ]
+                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " ", text title ]
+                , div [] (List.map viewRow truncatedOptions)
+                , if numOptions > maxNumPanelOptions then
+                    button [ class "btn btn-sm btn-link", style "float" "right" ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
+                  else
+                    text ""
+                ]
+            ]
+        ]
+
+
+viewNumberFilterPanel : String -> Html Msg
+viewNumberFilterPanel title =
+    div [] [ text "number" ]
 
 
 --viewParams : Model -> Html Msg
