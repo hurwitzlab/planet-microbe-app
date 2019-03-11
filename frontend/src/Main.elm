@@ -13,6 +13,7 @@ import FormatNumber.Locales exposing (usLocale)
 import Task
 import Time
 import List.Extra
+import String.Extra
 import Set
 import Dict exposing (Dict)
 import Debug exposing (toString)
@@ -42,8 +43,12 @@ maxNumPanelOptions =
     4
 
 
+minNumPanelOptionsForSearchBar =
+    50
+
+
 facets =
-    [ "http://purl.obolibrary.org/obo/ENVO_00000428" -- biome
+    [ ("Biomes", "http://purl.obolibrary.org/obo/ENVO_00000428")
     ]
 
 
@@ -120,7 +125,9 @@ type Msg
     | SetDepth String
     | SetDate String
     | AddFilter PURL
-    | SetStringParam PURL String
+    | SetFilterFormat PURL String
+    | SetFilterStringValue PURL String
+    | AddFilterStringValue PURL String
 --    | Next
 --    | Previous
     | SetTableState Table.State
@@ -147,10 +154,10 @@ update msg model =
                 val =
                     case term.type_ of
                         "number" ->
-                            Just (NumberTermValue (term.min, term.max))
+                            Just (NumberValue (term.min, term.max))
 
 --                        "string" ->
---                            Just (StringTermValue "")
+--                            Just (StringValue "")
 
                         _ -> -- Error
                             Nothing
@@ -182,7 +189,7 @@ update msg model =
                     model.selectedParams |> Set.fromList |> Set.toList
 
                 term =
-                    "[" ++ val ++ "]" |> StringTermValue |> Just
+                    "[" ++ val ++ "]" |> StringValue |> Just
 
                 vals =
                     Dict.insert "location" term model.selectedVals
@@ -198,7 +205,7 @@ update msg model =
                     model.selectedParams |> Set.fromList |> Set.toList
 
                 term =
-                    "[" ++ val ++ "]" |> StringTermValue |> Just
+                    "[" ++ val ++ "]" |> StringValue |> Just
 
                 vals =
                     Dict.insert "temporal" term model.selectedVals
@@ -215,9 +222,21 @@ update msg model =
             in
             ( { model | selectedParams = params }, Task.attempt GetSearchTermCompleted getTerm )
 
-        SetStringParam id val ->
+        SetFilterFormat id val ->
             let
-                _ = Debug.log ("SetStringParam " ++ id) val
+                _ = Debug.log "SetFilterFormat" (toString (id, val))
+
+                updateViewType =
+                    Maybe.map (\term -> { term | viewType = val} )
+
+                terms =
+                    Dict.update id updateViewType model.selectedTerms
+            in
+            ( { model | selectedTerms = terms }, Cmd.none )
+
+        SetFilterStringValue id val ->
+            let
+                _ = Debug.log "SetFilterStringValue" (toString (id, val))
 
                 termVal =
                     case Dict.get id model.selectedTerms of
@@ -227,7 +246,7 @@ update msg model =
                         Just term ->
                             case term.type_ of
                                 "string" ->
-                                    Just (StringTermValue val)
+                                    Just (StringValue val)
 
                                 _ -> -- Error
                                     Nothing
@@ -236,6 +255,35 @@ update msg model =
                     Dict.insert id termVal model.selectedVals
             in
             ( { model | selectedVals = vals }, Cmd.none )
+
+        AddFilterStringValue id val ->
+            let
+                _ = Debug.log "AddFilterStringValue" (toString (id, val))
+
+                newVal =
+                    case Dict.get id model.selectedVals of
+                        Nothing -> -- Error
+                            Nothing
+
+                        Just termVal ->
+                            case termVal of
+                                Nothing ->
+                                    Just (MultipleStringValues (List.singleton val))
+
+                                Just (MultipleStringValues vals) ->
+                                    let
+                                        vals2 =
+                                            vals |> Set.fromList |> Set.insert val |> Set.toList
+                                    in
+                                    Just (MultipleStringValues vals2)
+
+                                _ -> -- error
+                                    Nothing
+
+                newVals =
+                    Dict.insert id newVal model.selectedVals
+            in
+            ( { model | doSearch = True, selectedVals = newVals }, Cmd.none )
 
 --        Next ->
 --            let
@@ -320,11 +368,14 @@ searchRequest params pageSize =
 
         format _ val =
             case val of
-                Just (NumberTermValue (min, max)) ->
+                Just (NumberValue (min, max)) ->
                     range min max
 
-                Just (StringTermValue s) ->
+                Just (StringValue s) ->
                     s
+
+                Just (MultipleStringValues vals) ->
+                    List.head vals |> Maybe.withDefault "foo" --FIXME
 
                 _ ->
                     ""
@@ -378,13 +429,15 @@ type alias SearchTerm =
     , aliases : List String
     , min : Float
     , max : Float
-    , values : List String
+    , values : Dict String Int --FIXME change to List (String, Int)
+    , viewType : String -- "range", "offset", "exact"
     }
 
 
 type SearchTermValue
-    = StringTermValue String
-    | NumberTermValue (Float, Float) -- min/max
+    = StringValue String
+    | MultipleStringValues (List String)
+    | NumberValue (Float, Float) -- min/max
 
 
 decodeSearchResponse : Decoder SearchResponse
@@ -436,7 +489,8 @@ decodeSearchTerm =
         |> optional "aliases" (Decode.list Decode.string) []
         |> optional "min" Decode.float 0
         |> optional "max" Decode.float 0
-        |> optional "values" (Decode.list Decode.string) []
+        |> optional "values" (Decode.dict Decode.int) Dict.empty
+        |> optional "viewType" Decode.string ""
 
 
 
@@ -458,6 +512,10 @@ view model =
 
 viewSearchPanel : Model -> Html Msg
 viewSearchPanel model =
+    let
+        biomeTerm =
+            Dict.get "http://purl.obolibrary.org/obo/ENVO_00000428" model.selectedTerms
+    in
     div []
         [ h4 [ style "margin" "3px", style "display" "inline" ]
             [ text "Filters" ]
@@ -476,7 +534,12 @@ viewSearchPanel model =
                 , viewAddedFiltersPanel model
                 , viewLocationPanel model
                 , viewProjectPanel model
-                , viewBiomePanel model
+                , case biomeTerm of
+                    Nothing ->
+                        text ""
+
+                    Just term ->
+                        viewStringFilterPanel term
                 ]
             ]
         ]
@@ -495,12 +558,13 @@ viewLocationPanel model =
                 , Html.form [ style "padding-top" "0.5em" ]
                     [ div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
-                            [ input [ type_ "text", class "form-control", size 5, placeholder "Location", value model.location, onInput SetLatLngRadius ] []
+                            [ div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Location"] ]
+                            , input [ type_ "text", class "form-control", size 5, placeholder "", value model.location, onInput SetLatLngRadius ] []
                             , div [ class "input-group-append" ]
                                 [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
                                 , div [ class "dropdown-menu" ]
                                     [ a [ class "dropdown-item", href "#" ] [ text "Lat, Lng (deg), Radius (m)" ]
-                                    , a [ class "dropdown-item", href "#" ] [ text "Lat min, max, Lng min, max (deg)" ]
+                                    , a [ class "dropdown-item", href "#" ] [ text "Lat min/max, Lng min/max (deg)" ]
                                     , a [ class "dropdown-item", href "#" ] [ text "Lat, Lng (deg)" ]
                                     , a [ class "dropdown-item", href "#" ] [ text "Longhurst Province" ]
                                     ]
@@ -510,13 +574,14 @@ viewLocationPanel model =
                     , br [] []
                     , div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
-                            [ input [ type_ "text", class "form-control", size 5, placeholder "Depth", value model.depth, onInput SetDepth ] []
+                            [ div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Depth"] ]
+                            , input [ type_ "text", class "form-control", size 5, placeholder "", value model.depth, onInput SetDepth ] []
                             , div [ class "input-group-append" ]
                                 [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
                                 , div [ class "dropdown-menu" ]
                                     [ a [ class "dropdown-item", href "#" ] [ text "Exact depth (m)" ]
                                     , a [ class "dropdown-item", href "#" ] [ text "Depth, plus/minus (m)" ]
-                                    , a [ class "dropdown-item", href "#" ] [ text "Depth min, max (m)" ]
+                                    , a [ class "dropdown-item", href "#" ] [ text "Depth min/max (m)" ]
                                     ]
                                 ]
                             ]
@@ -524,7 +589,8 @@ viewLocationPanel model =
                     , br [] []
                     , div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
-                            [ input [ type_ "text", class "form-control", size 5, placeholder "Date/Time", value model.date, onInput SetDate ] []
+                            [ div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Date/Time"] ]
+                            , input [ type_ "text", class "form-control", size 5, placeholder "", value model.date, onInput SetDate ] []
                             , div [ class "input-group-append" ]
                                 [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
                                 , div [ class "dropdown-menu" ]
@@ -558,7 +624,7 @@ viewProjectPanel model =
     div []
         [ div [ class "card", style "font-size" "0.85em" ]
             [ div [ class "card-body" ]
-                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " Projects" ]
+                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " Project" ]
                 , mkRow "HOT - Hawaii Ocean Time Series" 1234
                 , mkRow "OSD - Ocean Science Data" 56789
                 , mkRow "TARA - Tara Oceans Expedition" 12345
@@ -568,18 +634,11 @@ viewProjectPanel model =
         ]
 
 
-viewBiomePanel : Model -> Html Msg
-viewBiomePanel model =
-    viewStringFilterPanel "Biomes"
-        [ "Marine biome (ENVO:447)", "Marine pelagic biome (ENVO:1000023)", "Marine reef biome (ENVO:1000029)" ]
-        --[ ("Marine biome (ENVO:447)", 1234), ("Marine pelagic biome (ENVO:1000023)", 56789), ("Marine reef biome (ENVO:1000029)", 12345) ]
-
-
 viewAddFilterPanel : Model -> Html Msg
 viewAddFilterPanel model =
     let
         makeOption term =
-            a [ class "dropdown-item", href "#", onClick (AddFilter term.id) ] [ text term.label ]
+            a [ class "dropdown-item", href "#", onClick (AddFilter term.id) ] [ term.label |> String.Extra.toSentenceCase |> text ]
 
         hideOptions =
             [ "biome", "latitude coordinate measurement datum", "longitude coordinate measurement datum", "zero-dimensional temporal region" ]
@@ -591,7 +650,7 @@ viewAddFilterPanel model =
         [ div [ class "card-body" ]
             [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " Add Filter" ]
             , div [ class "input-group input-group-sm" ]
-                [ input [ type_ "text", class "form-control", size 5, placeholder "Search parameters", value "" ] []
+                [ input [ type_ "text", class "form-control", placeholder "Search parameters", value "" ] []
                 , div [ class "input-group-append" ]
                     [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] []
                     , div [ class "dropdown-menu" ] options
@@ -603,55 +662,71 @@ viewAddFilterPanel model =
 
 viewAddedFiltersPanel : Model -> Html Msg
 viewAddedFiltersPanel model =
-    let
-        errorDiv =
-            div [] [ text "<error>" ]
-    in
     div []
         (model.selectedParams
             |> List.map
                 (\param ->
                     case Dict.get param model.selectedTerms of
                         Nothing ->
-                            errorDiv
+                            text ""
 
                         Just term ->
                             case term.type_ of
                                 "string" ->
-                                    viewStringFilterPanel term.label term.values
+                                    if Dict.size term.values >= minNumPanelOptionsForSearchBar then
+                                        viewSearchFilterPanel term.label
+                                    else
+                                        viewStringFilterPanel term
 
                                 "number" ->
-                                    viewNumberFilterPanel term.label
+                                    viewNumberFilterPanel term
 
                                 _ ->
-                                    errorDiv
+                                    text "Error"
 
                 )
         )
 
 
-viewStringFilterPanel : String -> List String -> Html Msg
-viewStringFilterPanel title options =
+viewSearchFilterPanel : String -> Html Msg
+viewSearchFilterPanel title =
+    div [ class "card", style "font-size" "0.85em" ]
+        [ div [ class "card-body" ]
+            [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " ", text (String.Extra.toTitleCase title) ]
+            , div [ class "input-group input-group-sm" ]
+                [ input [ type_ "text", class "form-control", placeholder "Search ...", value "" ] [] ]
+            ]
+        ]
+
+
+viewStringFilterPanel : SearchTerm -> Html Msg
+viewStringFilterPanel term =
     let
         numOptions =
-            List.length options
+            Dict.size term.values
+
+        sortByCount a b =
+            case compare (Tuple.second a) (Tuple.second b) of
+                LT -> GT
+                EQ -> EQ
+                GT -> LT
 
         truncatedOptions =
-            List.take maxNumPanelOptions options
+            Dict.toList term.values |> List.sortWith sortByCount |> List.take maxNumPanelOptions
 
-        viewRow name =
+        viewRow (name, count) =
             div []
                 [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox" ] []
-                    , label [ class "form-check-label" ] [ text name ]
+                    [ input [ class "form-check-input", type_ "checkbox", onClick (AddFilterStringValue term.id name) ] []
+                    , label [ class "form-check-label" ] [ name |> String.Extra.toSentenceCase |> text]
                     ]
-                , div [ class "badge badge-secondary", style "float" "right" ] [ text "123" ] --[ count |> toFloat |> format myLocale |> text ]
+                , div [ class "badge badge-secondary", style "float" "right" ] [ count |> toFloat |> format myLocale |> text ]
                 ]
     in
     div []
         [ div [ class "card", style "font-size" "0.85em" ]
             [ div [ class "card-body" ]
-                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " ", text title ]
+                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " ", text (String.Extra.toTitleCase term.label) ]
                 , div [] (List.map viewRow truncatedOptions)
                 , if numOptions > maxNumPanelOptions then
                     button [ class "btn btn-sm btn-link", style "float" "right" ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
@@ -662,73 +737,80 @@ viewStringFilterPanel title options =
         ]
 
 
-viewNumberFilterPanel : String -> Html Msg
-viewNumberFilterPanel title =
-    div [] [ text "number" ]
-
-
---viewParams : Model -> Html Msg
---viewParams model =
---    let
---        mkOpt val =
---            option [] [ text val ]
---
---        mkRow termName =
---            case Dict.get termName model.selectedTerms of
---                Nothing ->
---                    div [] [ text "Loading..." ]
---
---                Just term ->
---                    case term.type_ of
---                        "string" ->
---                            div []
---                                [ text termName
---                                , select [ onInput (SetStringParam termName) ] (List.map mkOpt term.values)
---                                ]
---
---                        "number" ->
---                            div []
---                                [ text termName
---                                , input [ size 8, value (toString term.min) ] []
---                                , input [ size 8, value (toString term.max) ] []
---                                ]
---
---                        _ -> -- Error
---                            div [] []
---    in
---    div [] (List.map mkRow model.selectedParams)
-
-
-viewSearchSummary : Model -> Html Msg
-viewSearchSummary model =
+viewNumberFilterPanel : SearchTerm -> Html Msg
+viewNumberFilterPanel term =
     let
-        format param =
-            case Dict.get param model.selectedVals |> Maybe.withDefault Nothing of
-                Nothing ->
-                    "<error>"
-
-                Just (StringTermValue s) ->
-                    param ++ " = " ++ s
-
-                Just (NumberTermValue (min, max)) ->
-                    param ++ " between [" ++ (toString min) ++ "," ++ (toString max) ++ "]"
-
-        searchStr =
-            model.selectedParams |> List.map format |> String.join " AND "
-
-        content =
-            if model.selectedParams == [] then
-                div []
-                    [ text "Begin by selecting filters on the left or try the "
-                    , a [ class "alert-link", href "#" ] [ text "Advanced Search" ]
+        inputs =
+            case term.viewType of
+                "exact" ->
+                    [ input [ type_ "text", class "form-control", placeholder "value", value "" ] []
                     ]
-            else
-                text searchStr
+
+                "offset" ->
+                    [ input [ type_ "text", class "form-control", placeholder "value", value "" ] []
+                    , input [ type_ "text", class "form-control", placeholder "+/-", value "" ] []
+                    ]
+
+                _ ->
+                    [ input [ type_ "text", class "form-control", placeholder "min", value (toString term.min) ] []
+                    , input [ type_ "text", class "form-control", placeholder "max", value (toString term.max) ] []
+                    ]
+
+        viewOption label =
+            a [ class "dropdown-item", href "#", onClick (SetFilterFormat term.id label) ] [ label |> String.Extra.toSentenceCase |> text ]
+
+        options =
+            [ "exact", "range", "offset" ] --TODO move into type
     in
-    div [ class "card" ]
+    div [ class "card", style "font-size" "0.85em" ]
         [ div [ class "card-body" ]
-            [ content ]
+            [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " ", text (String.Extra.toTitleCase term.label) ]
+            , div [ class "input-group input-group-sm" ]
+                (List.append inputs
+                    [ div [ class "input-group-append" ]
+                        [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+                        , div [ class "dropdown-menu" ]
+                            (List.map viewOption options)
+                        ]
+                    ]
+                )
+            ]
         ]
+
+
+--viewSearchSummary : Model -> Html Msg
+--viewSearchSummary model =
+--    let
+--        format param =
+--            case Dict.get param model.selectedVals |> Maybe.withDefault Nothing of
+--                Nothing ->
+--                    "<error>"
+--
+--                Just (StringValue s) ->
+--                    param ++ " = " ++ s
+--
+--                Just (MultipleStringValues list) ->
+--                    String.join "," list
+--
+--                Just (NumberValue (min, max)) ->
+--                    param ++ " between [" ++ (toString min) ++ "," ++ (toString max) ++ "]"
+--
+--        searchStr =
+--            model.selectedParams |> List.map format |> String.join " AND "
+--
+--        content =
+--            if model.selectedParams == [] then
+--                div []
+--                    [ text "Begin by selecting filters on the left or try the "
+--                    , a [ class "alert-link", href "#" ] [ text "Advanced Search" ]
+--                    ]
+--            else
+--                text searchStr
+--    in
+--    div [ class "card" ]
+--        [ div [ class "card-body" ]
+--            [ content ]
+--        ]
 
 
 viewResults : Model -> Html Msg
@@ -923,3 +1005,8 @@ viewResults model =
 --            )
 --        , sorter = Table.increasingOrDecreasingBy lng
 --        }
+
+
+viewSpinner : Html Msg
+viewSpinner =
+    div [ class "spinner-border" ] [ span [ class "sr-only" ] [ text "Loading..." ] ]
