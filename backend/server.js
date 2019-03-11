@@ -88,9 +88,12 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
             console.log("schemaId:", schemaId);
             for (let alias in term.schemas[schemaId]) {
                 let arrIndex = term.schemas[schemaId][alias];
-                let vals = await query({ text: "SELECT DISTINCT(string_vals[$1]) FROM sample WHERE schema_id=$2", values: [arrIndex,schemaId*1], rowMode: 'array'});
+                let vals = await query({ text: "SELECT string_vals[$1],count(string_vals[$1]) FROM sample WHERE schema_id=$2 GROUP BY string_vals[$1]", values: [arrIndex,schemaId*1], rowMode: 'array'});
                 vals.rows.forEach(row => {
-                    uniqueVals[row[0]] = 1;
+                    let val = row[0];
+                    if (!uniqueVals[val])
+                        uniqueVals[val] = 0;
+                    uniqueVals[val] += 1*row[1];
                 });
             }
         }
@@ -100,7 +103,7 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
             label: term.label,
             type: term.type,
             aliases: aliases,
-            values: Object.keys(uniqueVals).sort()
+            values: uniqueVals
         });
 // TODO
 //        })
