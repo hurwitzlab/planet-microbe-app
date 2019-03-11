@@ -38,7 +38,7 @@ var db;
 app.use(logger('dev'));
 app.use(cors());
 
-app.get('/index', (req, res) => {
+app.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog of terms
     res.json(rdfTermIndex);
 });
 
@@ -206,8 +206,16 @@ async function generateTermIndex(db, ontologies) {
 
     ontologies.forEach( ontology => {
         console.log("Indexing ontology", ontology.name);
-        ontology.terms.forEach( term => {
-            index[term.id] = term;
+        ontology.graphs.forEach( g => {
+            g.nodes.forEach(n => {
+                if (n.id in index)
+                    throw("Error: duplicate PURL");
+
+                index[n.id] = {
+                    id: n.id,
+                    label: n.lbl
+                };
+            })
         });
     });
 
