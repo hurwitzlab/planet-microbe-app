@@ -291,7 +291,7 @@ async function search(db, params) {
                     // FIXME should use query substitution here -- SQL injection risk
                     let field, clause, bounds;
                     if (val === '') // empty - show in results
-                        ;
+                        continue;
                     else if (!isNaN(val)) { // numeric exact match
                         field = "number_vals[" + arrIndex + "]";
                         clause = field + "=" + parseFloat(val);
@@ -330,6 +330,7 @@ async function search(db, params) {
                     }
                     else {
                         console.log("Error: invalid query");
+                        //TODO
                     }
 
                     selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
@@ -339,11 +340,12 @@ async function search(db, params) {
                 }
             }
 
-            selections.push("CASE" + selectStr + " END");
+            if (selectStr)
+                selections.push("CASE" + selectStr + " END");
         }
     }
-//    console.log("selections:", selections);
-//    console.log("clauses:", clauses);
+    console.log("selections:", selections);
+    console.log("clauses:", clauses);
 
     let clauseStr =
         Object.keys(clauses).map(schemaId =>
