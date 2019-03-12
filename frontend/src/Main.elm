@@ -1,7 +1,7 @@
 import Browser
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick, onInput)
+import Html.Events exposing (onClick, onInput, onCheck)
 import Table exposing (defaultCustomizations)
 import Http
 import HttpBuilder
@@ -125,9 +125,10 @@ type Msg
     | SetDepth String
     | SetDate String
     | AddFilter PURL
+    | RemoveFilter PURL
     | SetFilterFormat PURL String
-    | SetFilterStringValue PURL String
-    | AddFilterStringValue PURL String
+    | SetSearchFilterValue PURL String
+    | SetFilterStringValue PURL String Bool
 --    | Next
 --    | Previous
     | SetTableState Table.State
@@ -156,16 +157,13 @@ update msg model =
                         "number" ->
                             Just (NumberValue (term.min, term.max))
 
---                        "string" ->
---                            Just (StringValue "")
-
-                        _ -> -- Error
+                        _ ->
                             Nothing
 
                 selectedVals =
                     Dict.insert term.id val model.selectedVals
             in
-            ( { model | selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
+            ( { model | doSearch = True, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
 
         GetSearchTermCompleted (Err error) -> --TODO
             let
@@ -215,12 +213,25 @@ update msg model =
         AddFilter id ->
             let
                 params =
-                    (id :: model.selectedParams) |> Set.fromList |> Set.toList
+                    model.selectedParams |> Set.fromList |> Set.insert id |> Set.toList
 
                 getTerm =
                     getSearchTerm id |> Http.toTask
             in
             ( { model | selectedParams = params }, Task.attempt GetSearchTermCompleted getTerm )
+
+        RemoveFilter id ->
+            let
+                newParams =
+                    model.selectedParams |> Set.fromList |> Set.remove id |> Set.toList
+
+                newTerms =
+                    Dict.remove id model.selectedTerms
+
+                newVals =
+                    Dict.remove id model.selectedVals
+            in
+            ( { model | doSearch = True, selectedParams = newParams, selectedTerms = newTerms, selectedVals = newVals }, Cmd.none )
 
         SetFilterFormat id val ->
             let
@@ -234,31 +245,25 @@ update msg model =
             in
             ( { model | selectedTerms = terms }, Cmd.none )
 
-        SetFilterStringValue id val ->
+        SetSearchFilterValue id val ->
             let
-                _ = Debug.log "SetFilterStringValue" (toString (id, val))
+                doSearch =
+                    val == "" || String.length val > 2
 
-                termVal =
-                    case Dict.get id model.selectedTerms of
-                        Nothing -> -- Error
-                            Nothing
+                newVal =
+                    if val == "" then
+                        Nothing
+                    else
+                        Just (StringValue val)
 
-                        Just term ->
-                            case term.type_ of
-                                "string" ->
-                                    Just (StringValue val)
-
-                                _ -> -- Error
-                                    Nothing
-
-                vals =
-                    Dict.insert id termVal model.selectedVals
+                newVals =
+                    Dict.insert id newVal model.selectedVals
             in
-            ( { model | selectedVals = vals }, Cmd.none )
+            ( { model | doSearch = doSearch, selectedVals = newVals }, Cmd.none )
 
-        AddFilterStringValue id val ->
+        SetFilterStringValue id val enable ->
             let
-                _ = Debug.log "AddFilterStringValue" (toString (id, val))
+                _ = Debug.log "SetFilterStringValue" (toString (id, val, enable))
 
                 newVal =
                     case Dict.get id model.selectedVals of
@@ -268,14 +273,24 @@ update msg model =
                         Just termVal ->
                             case termVal of
                                 Nothing ->
-                                    Just (MultipleStringValues (List.singleton val))
+                                    if enable then
+                                        Just (StringValue val)
+                                    else
+                                        Nothing
+
+                                Just (StringValue val1) -> --FIXME merge into MultipleStringValues case
+                                    if enable then
+                                        Just (MultipleStringValues [val1, val])
+                                    else
+                                        Nothing
 
                                 Just (MultipleStringValues vals) ->
-                                    let
-                                        vals2 =
-                                            vals |> Set.fromList |> Set.insert val |> Set.toList
-                                    in
-                                    Just (MultipleStringValues vals2)
+                                    vals
+                                        |> Set.fromList
+                                        |> (if enable then Set.insert val else Set.remove val)
+                                        |> Set.toList
+                                        |> MultipleStringValues
+                                        |> Just
 
                                 _ -> -- error
                                     Nothing
@@ -372,7 +387,7 @@ searchRequest params pageSize =
                     range min max
 
                 Just (StringValue s) ->
-                    s
+                    "~" ++ s
 
                 Just (MultipleStringValues vals) ->
                     List.head vals |> Maybe.withDefault "foo" --FIXME
@@ -621,16 +636,11 @@ viewProjectPanel model =
                 , div [ class "badge badge-secondary", style "float" "right" ] [ count |> format myLocale |> text ]
                 ]
     in
-    div []
-        [ div [ class "card", style "font-size" "0.85em" ]
-            [ div [ class "card-body" ]
-                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " Project" ]
-                , mkRow "HOT - Hawaii Ocean Time Series" 1234
-                , mkRow "OSD - Ocean Science Data" 56789
-                , mkRow "TARA - Tara Oceans Expedition" 12345
-                , button [ class "btn btn-sm btn-link", style "float" "right" ] [ text "23 More ..."]
-                ]
-            ]
+    viewPanel "" "Project" False
+        [ mkRow "HOT - Hawaii Ocean Time Series" 1234
+        , mkRow "OSD - Ocean Science Data" 56789
+        , mkRow "TARA - Tara Oceans Expedition" 12345
+        , button [ class "btn btn-sm btn-link", style "float" "right" ] [ text "23 More ..."]
         ]
 
 
@@ -646,15 +656,12 @@ viewAddFilterPanel model =
         options =
             model.allParams |> List.Extra.dropWhile (\term -> List.member term.label hideOptions) |> List.map makeOption -- FIXME why isn't this working?
     in
-    div [ class "card", style "font-size" "0.85em" ]
-        [ div [ class "card-body" ]
-            [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " Add Filter" ]
-            , div [ class "input-group input-group-sm" ]
-                [ input [ type_ "text", class "form-control", placeholder "Search parameters", value "" ] []
-                , div [ class "input-group-append" ]
-                    [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] []
-                    , div [ class "dropdown-menu" ] options
-                    ]
+    viewPanel "" "Add Filter" False
+        [ div [ class "input-group input-group-sm" ]
+            [ input [ type_ "text", class "form-control", placeholder "Search parameters", value "" ] []
+            , div [ class "input-group-append" ]
+                [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] []
+                , div [ class "dropdown-menu" ] options
                 ]
             ]
         ]
@@ -674,7 +681,7 @@ viewAddedFiltersPanel model =
                             case term.type_ of
                                 "string" ->
                                     if Dict.size term.values >= minNumPanelOptionsForSearchBar then
-                                        viewSearchFilterPanel term.label
+                                        viewSearchFilterPanel term (Dict.get param model.selectedVals |> Maybe.withDefault Nothing)
                                     else
                                         viewStringFilterPanel term
 
@@ -688,14 +695,24 @@ viewAddedFiltersPanel model =
         )
 
 
-viewSearchFilterPanel : String -> Html Msg
-viewSearchFilterPanel title =
-    div [ class "card", style "font-size" "0.85em" ]
-        [ div [ class "card-body" ]
-            [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " ", text (String.Extra.toTitleCase title) ]
-            , div [ class "input-group input-group-sm" ]
-                [ input [ type_ "text", class "form-control", placeholder "Search ...", value "" ] [] ]
-            ]
+viewSearchFilterPanel : SearchTerm -> Maybe SearchTermValue -> Html Msg
+viewSearchFilterPanel term maybeVal =
+    let
+        numValues =
+            Dict.size term.values
+
+        val =
+            case maybeVal of
+                Just (StringValue s) ->
+                    s
+
+                _ ->
+                    ""
+    in
+    viewTermPanel term
+        [ label [] [ numValues |> toFloat |> format myLocale |> text, text " unique values" ]
+        , div [ class "input-group input-group-sm" ]
+            [ input [ type_ "text", class "form-control", placeholder "Search ...", value val, onInput (SetSearchFilterValue term.id) ] [] ]
         ]
 
 
@@ -717,23 +734,18 @@ viewStringFilterPanel term =
         viewRow (name, count) =
             div []
                 [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", onClick (AddFilterStringValue term.id name) ] []
+                    [ input [ class "form-check-input", type_ "checkbox", onCheck (SetFilterStringValue term.id name) ] []
                     , label [ class "form-check-label" ] [ name |> String.Extra.toSentenceCase |> text]
                     ]
                 , div [ class "badge badge-secondary", style "float" "right" ] [ count |> toFloat |> format myLocale |> text ]
                 ]
     in
-    div []
-        [ div [ class "card", style "font-size" "0.85em" ]
-            [ div [ class "card-body" ]
-                [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " ", text (String.Extra.toTitleCase term.label) ]
-                , div [] (List.map viewRow truncatedOptions)
-                , if numOptions > maxNumPanelOptions then
-                    button [ class "btn btn-sm btn-link", style "float" "right" ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
-                  else
-                    text ""
-                ]
-            ]
+    viewTermPanel term
+        [ div [] (List.map viewRow truncatedOptions)
+        , if numOptions > maxNumPanelOptions then
+            button [ class "btn btn-sm btn-link", style "float" "right" ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
+          else
+            text ""
         ]
 
 
@@ -760,21 +772,43 @@ viewNumberFilterPanel term =
             a [ class "dropdown-item", href "#", onClick (SetFilterFormat term.id label) ] [ label |> String.Extra.toSentenceCase |> text ]
 
         options =
-            [ "exact", "range", "offset" ] --TODO move into type
+            [ "exact", "range", "offset" ] --TODO move into new type
+    in
+    viewTermPanel term
+        [ div [ class "input-group input-group-sm" ]
+            (List.append inputs
+                [ div [ class "input-group-append" ]
+                    [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+                    , div [ class "dropdown-menu" ]
+                        (List.map viewOption options)
+                    ]
+                ]
+            )
+        ]
+
+
+viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
+viewTermPanel term nodes =
+    viewPanel term.id term.label True nodes
+
+
+viewPanel : PURL -> String -> Bool -> List (Html Msg) -> Html Msg
+viewPanel id title removable nodes =
+    let
+        header =
+            h6 [ style "color" "darkblue"]
+                [ text (String.fromChar (Char.fromCode 9660))
+                , text " "
+                , text (String.Extra.toTitleCase title)
+                , if removable then
+                    span [ class "float-right", style "cursor" "pointer", onClick (RemoveFilter id) ] [ text (String.fromChar (Char.fromCode 10005)) ]
+                  else
+                    text ""
+                ]
     in
     div [ class "card", style "font-size" "0.85em" ]
         [ div [ class "card-body" ]
-            [ h6 [ style "color" "darkblue"] [ text (String.fromChar (Char.fromCode 9660)), text " ", text (String.Extra.toTitleCase term.label) ]
-            , div [ class "input-group input-group-sm" ]
-                (List.append inputs
-                    [ div [ class "input-group-append" ]
-                        [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
-                        , div [ class "dropdown-menu" ]
-                            (List.map viewOption options)
-                        ]
-                    ]
-                )
-            ]
+            (header :: nodes)
         ]
 
 
@@ -877,7 +911,8 @@ viewResults model =
                                                 , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> toString |> text
                                                 , text " of "
                                                 , model.count |> toFloat |> format myLocale |> text
-                                                , text " samples"
+                                                , text " sample"
+                                                , (if model.count /= 1 then "s" else "") |> text
                                                 ]
                                             ]
                                         , div [ style "border" "1px solid lightgray" ]
