@@ -322,7 +322,7 @@ async function search(db, params) {
                     else if (val.match(/^\~\w+/)) { // partial string match
                         val = val.substr(1);
                         field = "string_vals[" + arrIndex + "]";
-                        clause = field + " LIKE " + "'%" + val + "%'";
+                        clause = "LOWER(" + field + ") LIKE " + "'%" + val.toLowerCase() + "%'";
                     }
                     else if (val.match(/\w+/)) { // literal string match
                         field = "string_vals[" + arrIndex + "]";
