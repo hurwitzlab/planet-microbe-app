@@ -68,7 +68,7 @@ type alias Model =
 --    , availableParams : List String -- based on params already selected
     , selectedParams : List PURL -- for maintaining order
     , selectedTerms : Dict PURL SearchTerm
-    , selectedVals : Dict PURL (Maybe SearchTermValue)
+    , selectedVals : Dict PURL FilterValue
     , doSearch : Bool
     , isSearching : Bool
     , searchStartTime : Int -- milliseconds
@@ -106,7 +106,7 @@ init flags =
     , Cmd.batch
         [ getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , getSearchTerm "ENVO_00000428" |> Http.toTask |> Task.attempt GetSearchTermCompleted
-        , searchRequest Dict.empty defaultPageSize |> Http.toTask |> Task.attempt SearchCompleted
+        , searchRequest [] defaultPageSize |> Http.toTask |> Task.attempt SearchCompleted
         ]
     )
 
@@ -128,7 +128,8 @@ type Msg
     | RemoveFilter PURL
     | SetFilterFormat PURL String
     | SetSearchFilterValue PURL String
-    | SetFilterStringValue PURL String Bool
+    | SetStringFilterValue PURL String Bool
+    | SetFilterValue PURL FilterValue
 --    | Next
 --    | Previous
     | SetTableState Table.State
@@ -155,10 +156,10 @@ update msg model =
                 val =
                     case term.type_ of
                         "number" ->
-                            Just (NumberValue (term.min, term.max))
+                            RangeValue (toString term.min, toString term.max)
 
                         _ ->
-                            Nothing
+                            NoValue
 
                 selectedVals =
                     Dict.insert term.id val model.selectedVals
@@ -187,7 +188,7 @@ update msg model =
                     model.selectedParams |> Set.fromList |> Set.toList
 
                 term =
-                    "[" ++ val ++ "]" |> StringValue |> Just
+                    SingleValue ("[" ++ val ++ "]")
 
                 vals =
                     Dict.insert "location" term model.selectedVals
@@ -203,7 +204,7 @@ update msg model =
                     model.selectedParams |> Set.fromList |> Set.toList
 
                 term =
-                    "[" ++ val ++ "]" |> StringValue |> Just
+                    "[" ++ val ++ "]" |> SingleValue
 
                 vals =
                     Dict.insert "temporal" term model.selectedVals
@@ -235,7 +236,7 @@ update msg model =
 
         SetFilterFormat id val ->
             let
-                _ = Debug.log "SetFilterFormat" (toString (id, val))
+                _ = Debug.log "SetFilterFormat" (toString (id, val) ++ toString model.selectedVals)
 
                 updateViewType =
                     Maybe.map (\term -> { term | viewType = val} )
@@ -252,51 +253,57 @@ update msg model =
 
                 newVal =
                     if val == "" then
-                        Nothing
+                        NoValue
                     else
-                        Just (StringValue val)
+                        SearchValue val
 
                 newVals =
                     Dict.insert id newVal model.selectedVals
             in
             ( { model | doSearch = doSearch, selectedVals = newVals }, Cmd.none )
 
-        SetFilterStringValue id val enable ->
+        SetStringFilterValue id val enable ->
             let
-                _ = Debug.log "SetFilterStringValue" (toString (id, val, enable))
+                _ = Debug.log "SetStringFilterValue" (toString (id, val, enable))
 
                 newVal =
                     case Dict.get id model.selectedVals of
                         Nothing -> -- Error
-                            Nothing
+                            NoValue
 
                         Just termVal ->
                             case termVal of
-                                Nothing ->
+                                NoValue ->
                                     if enable then
-                                        Just (StringValue val)
+                                        SingleValue val
                                     else
-                                        Nothing
+                                        NoValue
 
-                                Just (StringValue val1) -> --FIXME merge into MultipleStringValues case
+                                SingleValue val1 -> --FIXME merge into MultipleValues case?258
                                     if enable then
-                                        Just (MultipleStringValues [val1, val])
+                                        MultipleValues [val1, val]
                                     else
-                                        Nothing
+                                        NoValue
 
-                                Just (MultipleStringValues vals) ->
+                                MultipleValues vals ->
                                     vals
                                         |> Set.fromList
                                         |> (if enable then Set.insert val else Set.remove val)
                                         |> Set.toList
-                                        |> MultipleStringValues
-                                        |> Just
+                                        |> MultipleValues
 
                                 _ -> -- error
-                                    Nothing
+                                    NoValue
 
                 newVals =
                     Dict.insert id newVal model.selectedVals
+            in
+            ( { model | doSearch = True, selectedVals = newVals }, Cmd.none )
+
+        SetFilterValue id val ->
+            let
+                newVals =
+                    Dict.insert id val model.selectedVals
             in
             ( { model | doSearch = True, selectedVals = newVals }, Cmd.none )
 
@@ -330,11 +337,19 @@ update msg model =
                     else
                         ( { model | doSearch = False, isSearching = False, results = Nothing }, Cmd.none )
                 else if Time.posixToMillis time - model.searchStartTime >= 500 then -- 500 ms
-                    let
-                        searchTask =
-                            searchRequest model.selectedVals model.pageSize |> Http.toTask
-                    in
-                    ( { model | doSearch = False, isSearching = True }, Task.attempt SearchCompleted searchTask )
+                    case generateQueryParams model.selectedVals of
+                        Ok queryParams ->
+                            let
+                                searchTask =
+                                    searchRequest queryParams model.pageSize |> Http.toTask
+                            in
+                            ( { model | doSearch = False, isSearching = True }, Task.attempt SearchCompleted searchTask )
+
+                        Err error ->
+                            let
+                                _ = Debug.log "InputTimerTick" (toString error)
+                            in
+                            ( model, Cmd.none )
                 else
                     ( model, Cmd.none )
             else
@@ -372,34 +387,77 @@ getSearchTerm id =
         |> HttpBuilder.toRequest
 
 
-searchRequest : Dict String (Maybe SearchTermValue) -> Int -> Http.Request SearchResponse
-searchRequest params pageSize =
+generateQueryParams : Dict String FilterValue -> Result String (List (String, String))
+generateQueryParams params =
+    let
+        defined s =
+            s /= ""
+
+        validate val =
+           case val of
+                RangeValue (min, max) ->
+                    defined min && defined max -- TODO check for valid number
+
+                OffsetValue (value, ofs) ->
+                    defined value && defined ofs -- TODO check for valid number
+
+                SearchValue s ->
+                    defined s
+
+                SingleValue s ->
+                    defined s
+
+                MultipleValues vals ->
+                    List.all defined vals
+
+                NoValue ->
+                    True
+
+        range min max = --TODO use encoder here instead
+            "[" ++ min ++ "," ++ max ++ "]"
+
+        offset val ofs = --TODO use encoder here instead
+            "{" ++ val ++ "," ++ ofs ++ "}"
+
+        format _ val =
+            case val of
+                RangeValue (min, max) ->
+                    range min max
+
+                OffsetValue (value, ofs) ->
+                    offset value ofs --FIXME
+
+                SearchValue s ->
+                    "~" ++ s
+
+                SingleValue s ->
+                    s
+
+                MultipleValues vals ->
+                    String.join "," vals
+
+                NoValue ->
+                    ""
+    in
+    if Dict.isEmpty params then
+        Ok []
+    else if params |> Dict.toList |> List.map Tuple.second |> List.all validate then
+        params |> Dict.map format |> Dict.toList |> Ok
+    else
+        Err "Invalid query parameter"
+
+
+searchRequest : List (String, String) -> Int -> Http.Request SearchResponse
+searchRequest queryParams pageSize =
     let
         url =
             apiBaseUrl ++ "/search"
 
-        range min max = --TODO use encoder here instead
-            "[" ++ (toString min) ++ "," ++ (toString max) ++ "]"
-
-        format _ val =
-            case val of
-                Just (NumberValue (min, max)) ->
-                    range min max
-
-                Just (StringValue s) ->
-                    "~" ++ s
-
-                Just (MultipleStringValues vals) ->
-                    List.head vals |> Maybe.withDefault "foo" --FIXME
-
-                _ ->
-                    ""
-
-        queryParams =
-            params |> Dict.map format |> Dict.toList |> List.append [ ("limit", toString pageSize) ]
+        queryParams2 =
+            queryParams |> List.append [ ("limit", toString pageSize) ]
     in
     HttpBuilder.get url
-        |> HttpBuilder.withQueryParams queryParams
+        |> HttpBuilder.withQueryParams queryParams2
         |> HttpBuilder.withExpect (Http.expectJson decodeSearchResponse)
         |> HttpBuilder.toRequest
 
@@ -449,10 +507,13 @@ type alias SearchTerm =
     }
 
 
-type SearchTermValue
-    = StringValue String
-    | MultipleStringValues (List String)
-    | NumberValue (Float, Float) -- min/max
+type FilterValue
+    = NoValue
+    | SingleValue String
+    | MultipleValues (List String)
+    | SearchValue String
+    | RangeValue (String, String) -- min/max
+    | OffsetValue (String, String) -- +/-
 
 
 decodeSearchResponse : Decoder SearchResponse
@@ -678,32 +739,35 @@ viewAddedFiltersPanel model =
                             text ""
 
                         Just term ->
+                            let
+                                termVal =
+                                    Dict.get param model.selectedVals |> Maybe.withDefault NoValue
+                            in
                             case term.type_ of
                                 "string" ->
                                     if Dict.size term.values >= minNumPanelOptionsForSearchBar then
-                                        viewSearchFilterPanel term (Dict.get param model.selectedVals |> Maybe.withDefault Nothing)
+                                        viewSearchFilterPanel term termVal
                                     else
                                         viewStringFilterPanel term
 
                                 "number" ->
-                                    viewNumberFilterPanel term
+                                    viewNumberFilterPanel term termVal
 
                                 _ ->
                                     text "Error"
-
                 )
         )
 
 
-viewSearchFilterPanel : SearchTerm -> Maybe SearchTermValue -> Html Msg
-viewSearchFilterPanel term maybeVal =
+viewSearchFilterPanel : SearchTerm -> FilterValue -> Html Msg
+viewSearchFilterPanel term val =
     let
         numValues =
             Dict.size term.values
 
-        val =
-            case maybeVal of
-                Just (StringValue s) ->
+        val2 =
+            case val of
+                SearchValue s ->
                     s
 
                 _ ->
@@ -712,7 +776,7 @@ viewSearchFilterPanel term maybeVal =
     viewTermPanel term
         [ label [] [ numValues |> toFloat |> format myLocale |> text, text " unique values" ]
         , div [ class "input-group input-group-sm" ]
-            [ input [ type_ "text", class "form-control", placeholder "Search ...", value val, onInput (SetSearchFilterValue term.id) ] [] ]
+            [ input [ type_ "text", class "form-control", placeholder "Search ...", value val2, onInput (SetSearchFilterValue term.id) ] [] ]
         ]
 
 
@@ -734,7 +798,7 @@ viewStringFilterPanel term =
         viewRow (name, count) =
             div []
                 [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", onCheck (SetFilterStringValue term.id name) ] []
+                    [ input [ class "form-check-input", type_ "checkbox", onCheck (SetStringFilterValue term.id name) ] []
                     , label [ class "form-check-label" ] [ name |> String.Extra.toSentenceCase |> text]
                     ]
                 , div [ class "badge badge-secondary", style "float" "right" ] [ count |> toFloat |> format myLocale |> text ]
@@ -749,23 +813,37 @@ viewStringFilterPanel term =
         ]
 
 
-viewNumberFilterPanel : SearchTerm -> Html Msg
-viewNumberFilterPanel term =
+viewNumberFilterPanel : SearchTerm -> FilterValue -> Html Msg
+viewNumberFilterPanel term val =
     let
+        (val1, val2) =
+            case val of
+                SingleValue x ->
+                    (x, "")
+
+                RangeValue (min, max) ->
+                    (min, max)
+
+                OffsetValue (x, offset) ->
+                    (x, offset)
+
+                _ ->
+                    ("", "")
+
         inputs =
             case term.viewType of
                 "exact" ->
-                    [ input [ type_ "text", class "form-control", placeholder "value", value "" ] []
+                    [ input [ type_ "text", class "form-control", placeholder "value", value val1, onInput (\p -> SetFilterValue term.id (SingleValue p)) ] []
                     ]
 
                 "offset" ->
-                    [ input [ type_ "text", class "form-control", placeholder "value", value "" ] []
-                    , input [ type_ "text", class "form-control", placeholder "+/-", value "" ] []
+                    [ input [ type_ "text", class "form-control", placeholder "value", value val1, onInput (\p -> SetFilterValue term.id (OffsetValue (p,val2))) ] []
+                    , input [ type_ "text", class "form-control", placeholder "+/-", value val2, onInput (\p -> SetFilterValue term.id (OffsetValue (val1,p))) ] []
                     ]
 
                 _ ->
-                    [ input [ type_ "text", class "form-control", placeholder "min", value (toString term.min) ] []
-                    , input [ type_ "text", class "form-control", placeholder "max", value (toString term.max) ] []
+                    [ input [ type_ "text", class "form-control", placeholder "min", value val1, onInput (\p -> SetFilterValue term.id (RangeValue (p,val2))) ] []
+                    , input [ type_ "text", class "form-control", placeholder "max", value val2, onInput (\p -> SetFilterValue term.id (RangeValue (val1,p))) ] []
                     ]
 
         viewOption label =
