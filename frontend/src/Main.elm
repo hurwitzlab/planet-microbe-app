@@ -403,28 +403,19 @@ generateQueryParams locationVal params =
                 MultipleValues vals ->
                     List.all defined vals
 
---                LatLngValue lat lng ->
---                    defined lat && defined lng
---
---                LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
---                    defined lat1 && defined lng1 && defined lat2 && defined lng2
---
---                LatLngRadiusValue (lat,lng) radius ->
---                    defined lat && defined lng && defined radius
-
                 NoValue ->
                     True
 
         validLocationParam val =
             case val of
-                LatLngValue lat lng ->
-                    defined lat && defined lng
+--                LatLngValue lat lng ->
+--                    defined lat && defined lng
 
-                LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
-                    defined lat1 && defined lng1 && defined lat2 && defined lng2
+--                LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
+--                    defined lat1 && defined lng1 && defined lat2 && defined lng2
 
                 LatLngRadiusValue (lat,lng) radius ->
-                    defined lat && defined lng && defined radius
+                    defined lat && defined lng
 
                 LonghurstValue s ->
                     defined s
@@ -460,14 +451,21 @@ generateQueryParams locationVal params =
 
         formatLocationParam val =
             case val of
-                LatLngValue lat lng ->
-                    range lat lng
+--                LatLngValue lat lng ->
+--                    range lat lng
 
-                LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
-                    "[" ++ lat1 ++ "," ++ lng1 ++ "-" ++ lat2 ++ "," ++ lng2 ++ "]" --TODO use encoder here instead
+--                LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
+--                    "[" ++ lat1 ++ "," ++ lng1 ++ "-" ++ lat2 ++ "," ++ lng2 ++ "]" --TODO use encoder here instead
 
                 LatLngRadiusValue (lat,lng) radius ->
-                    "[" ++ lat ++ "," ++ lng ++ "," ++ radius ++ "]" --TODO use encoder here instead
+                    let
+                        r =
+                            if radius == "" then
+                                "0"
+                            else
+                                radius
+                    in
+                    "[" ++ lat ++ "," ++ lng ++ "," ++ r ++ "]" --TODO use encoder here instead
 
                 LonghurstValue s ->
                     s
@@ -564,8 +562,8 @@ type FilterValue
 
 type LocationFilterValue
     = NoLocationValue
-    | LatLngValue String String -- latitude/longitude
-    | LatLngRangeValue (String, String) (String, String) -- latitude/longitude to latitude/longitude
+--    | LatLngValue String String -- latitude/longitude
+--    | LatLngRangeValue (String, String) (String, String) -- latitude/longitude to latitude/longitude
     | LatLngRadiusValue (String, String) String -- latitude/longitude with radius
     | LonghurstValue String -- Longhurst province
 
@@ -694,9 +692,9 @@ viewLocationPanel model =
                                     [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
                                     , div [ class "dropdown-menu" ]
                                         [ a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (m)" ]
-                                        , a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (LatLngRangeValue ("","") ("",""))) ] [ text "Lat min/max, Lng min/max (deg)" ]
-                                        , a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (LatLngValue "" "")) ] [ text "Lat, Lng (deg)" ]
-                                        , a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (LonghurstValue "")) ] [ text "Longhurst Province" ]
+--                                        , a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (  ("","") ("",""))) ] [ text "Lat min/max, Lng min/max (deg)" ]
+--                                        , a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (LatLngValue "" "")) ] [ text "Lat, Lng (deg)" ]
+                                        , a [ class "dropdown-item disabled", href "#", disabled True, onClick (SetLocationFilterValue (LonghurstValue "")) ] [ text "Longhurst Province - coming soon" ]
                                         ]
                                     ]
                                 ]
@@ -914,18 +912,18 @@ viewFilterInput id val =
 viewLocationFilterInput : LocationFilterValue -> List (Html Msg)
 viewLocationFilterInput val =
     case val of
-        LatLngValue lat lng ->
-            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetLocationFilterValue (LatLngValue p lng)) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> SetLocationFilterValue (LatLngValue lat p)) ] []
-            ]
+--        LatLngValue lat lng ->
+--            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetLocationFilterValue (LatLngValue p lng)) ] []
+--            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> SetLocationFilterValue (LatLngValue lat p)) ] []
+--            ]
 
-        LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
-            [ input [ type_ "text", class "form-control", placeholder "lat1", value lat1, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (p,lng1) (lat2,lng2))) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng1", value lng1, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,p) (lat2,lng2))) ] []
-            , text " "
-            , input [ type_ "text", class "form-control", placeholder "lat2", value lat2, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,lng2) (p,lng2))) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng2", value lng2, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,lng2) (lat2,p))) ] []
-            ]
+--        LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
+--            [ input [ type_ "text", class "form-control", placeholder "lat1", value lat1, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (p,lng1) (lat2,lng2))) ] []
+--            , input [ type_ "text", class "form-control", placeholder "lng1", value lng1, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,p) (lat2,lng2))) ] []
+--            , text " "
+--            , input [ type_ "text", class "form-control", placeholder "lat2", value lat2, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,lng2) (p,lng2))) ] []
+--            , input [ type_ "text", class "form-control", placeholder "lng2", value lng2, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,lng2) (lat2,p))) ] []
+--            ]
 
         LatLngRadiusValue (lat,lng) radius ->
             [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (p,lng) radius)) ] []
@@ -1074,7 +1072,7 @@ viewResults model =
                                                 [ text "Showing "
                                                 , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> toString |> text
                                                 , text " - "
-                                                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> toString |> text
+                                                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.count |> toString |> text
                                                 , text " of "
                                                 , model.count |> toFloat |> format myLocale |> text
                                                 , text " sample"
