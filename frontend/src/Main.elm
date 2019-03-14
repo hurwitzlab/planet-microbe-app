@@ -64,11 +64,12 @@ type alias Model =
     { location : String
     , depth : String
     , date : String
-    , allParams : List SearchTerm
+    , allParams : List SearchTerm -- list of available params to add
 --    , availableParams : List String -- based on params already selected
-    , selectedParams : List PURL -- for maintaining order
+    , selectedParams : List PURL -- added params, for maintaining order
     , selectedTerms : Dict PURL SearchTerm
     , selectedVals : Dict PURL FilterValue
+    , locationVal : LocationFilterValue
     , doSearch : Bool
     , isSearching : Bool
     , searchStartTime : Int -- milliseconds
@@ -93,6 +94,7 @@ init flags =
         , selectedParams = []
         , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
+        , locationVal = LatLngRadiusValue ("", "") ""
         , doSearch = False
         , isSearching = False
         , searchStartTime = 0
@@ -126,10 +128,10 @@ type Msg
     | SetDate String
     | AddFilter PURL
     | RemoveFilter PURL
-    | SetFilterFormat PURL FilterValue
     | SetSearchFilterValue PURL String
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
+    | SetLocationFilterValue LocationFilterValue
 --    | Next
 --    | Previous
     | SetTableState Table.State
@@ -234,28 +236,6 @@ update msg model =
             in
             ( { model | doSearch = True, selectedParams = newParams, selectedTerms = newTerms, selectedVals = newVals }, Cmd.none )
 
-        SetFilterFormat id val ->
-            let
-                _ = Debug.log "SetFilterFormat" (toString (id, val) ++ toString model.selectedVals)
-
---                newVal =
---                    case Dict.get id model.selectedTerms of
---                        Nothing ->
---                            NoValue
---
---                        Just term ->
---                            case Dict.get id model.selectedVals of
---                                Nothing ->
---                                    NoValue
---
---                                Just termVal ->
-
-
-                newVals =
-                    Dict.insert id val model.selectedVals
-            in
-            ( { model | selectedVals = newVals }, Cmd.none )
-
         SetSearchFilterValue id val ->
             let
                 doSearch =
@@ -317,6 +297,9 @@ update msg model =
             in
             ( { model | doSearch = True, selectedVals = newVals }, Cmd.none )
 
+        SetLocationFilterValue val ->
+            ( { model | doSearch = True, locationVal = val }, Cmd.none )
+
 --        Next ->
 --            let
 --                (newModel, newCmd) =
@@ -347,7 +330,7 @@ update msg model =
                     else
                         ( { model | doSearch = False, isSearching = False, results = Nothing }, Cmd.none )
                 else if Time.posixToMillis time - model.searchStartTime >= 500 then -- 500 ms
-                    case generateQueryParams model.selectedVals of
+                    case generateQueryParams model.locationVal model.selectedVals of
                         Ok queryParams ->
                             let
                                 searchTask =
@@ -397,13 +380,13 @@ getSearchTerm id =
         |> HttpBuilder.toRequest
 
 
-generateQueryParams : Dict String FilterValue -> Result String (List (String, String))
-generateQueryParams params =
+generateQueryParams : LocationFilterValue -> Dict String FilterValue -> Result String (List (String, String))
+generateQueryParams locationVal params =
     let
         defined s =
             s /= ""
 
-        validate val =
+        validParam val =
            case val of
                 RangeValue min max ->
                     defined min && defined max -- TODO check for valid number
@@ -420,6 +403,20 @@ generateQueryParams params =
                 MultipleValues vals ->
                     List.all defined vals
 
+--                LatLngValue lat lng ->
+--                    defined lat && defined lng
+--
+--                LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
+--                    defined lat1 && defined lng1 && defined lat2 && defined lng2
+--
+--                LatLngRadiusValue (lat,lng) radius ->
+--                    defined lat && defined lng && defined radius
+
+                NoValue ->
+                    True
+
+        validLocationParam val =
+            case val of
                 LatLngValue lat lng ->
                     defined lat && defined lng
 
@@ -429,7 +426,10 @@ generateQueryParams params =
                 LatLngRadiusValue (lat,lng) radius ->
                     defined lat && defined lng && defined radius
 
-                NoValue ->
+                LonghurstValue s ->
+                    defined s
+
+                NoLocationValue ->
                     True
 
         range min max = --TODO use encoder here instead
@@ -438,7 +438,7 @@ generateQueryParams params =
         offset val ofs = --TODO use encoder here instead
             "{" ++ val ++ "," ++ ofs ++ "}"
 
-        format _ val =
+        formatParam _ val =
             case val of
                 RangeValue min max ->
                     range min max
@@ -455,6 +455,11 @@ generateQueryParams params =
                 MultipleValues vals ->
                     String.join "," vals
 
+                NoValue ->
+                    ""
+
+        formatLocationParam val =
+            case val of
                 LatLngValue lat lng ->
                     range lat lng
 
@@ -464,13 +469,26 @@ generateQueryParams params =
                 LatLngRadiusValue (lat,lng) radius ->
                     "[" ++ lat ++ "," ++ lng ++ "," ++ radius ++ "]" --TODO use encoder here instead
 
-                NoValue ->
+                LonghurstValue s ->
+                    s
+
+                NoLocationValue ->
                     ""
     in
     if Dict.isEmpty params then
         Ok []
-    else if params |> Dict.toList |> List.map Tuple.second |> List.all validate then
-        params |> Dict.map format |> Dict.toList |> Ok
+    else if params |> Dict.toList |> List.map Tuple.second |> List.all validParam then
+        let
+            queryParams =
+                params |> Dict.map formatParam |> Dict.toList
+
+            allQueryParams =
+                if validLocationParam locationVal then
+                    ("location", formatLocationParam locationVal) :: queryParams
+                else
+                    queryParams
+        in
+        allQueryParams |> Ok
     else
         Err "Invalid query parameter"
 
@@ -542,9 +560,14 @@ type FilterValue
     | SearchValue String
     | RangeValue String String -- numeric min/max
     | OffsetValue String String -- numeric +/-
+
+
+type LocationFilterValue
+    = NoLocationValue
     | LatLngValue String String -- latitude/longitude
     | LatLngRangeValue (String, String) (String, String) -- latitude/longitude to latitude/longitude
     | LatLngRadiusValue (String, String) String -- latitude/longitude with radius
+    | LonghurstValue String -- Longhurst province
 
 
 decodeSearchResponse : Decoder SearchResponse
@@ -665,18 +688,19 @@ viewLocationPanel model =
                 , Html.form [ style "padding-top" "0.5em" ]
                     [ div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
-                            [ div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Location"] ]
-                            , input [ type_ "text", class "form-control", size 5, placeholder "", value model.location, onInput SetLatLngRadius ] []
-                            , div [ class "input-group-append" ]
-                                [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
-                                , div [ class "dropdown-menu" ]
-                                    [ a [ class "dropdown-item", href "#", onClick (SetFilterFormat "http://purl.obolibrary.org/obo/ENVO_3100031" (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (m)" ]
-                                    , a [ class "dropdown-item", href "#", onClick (SetFilterFormat "http://purl.obolibrary.org/obo/ENVO_3100031" (LatLngRangeValue ("","") ("",""))) ] [ text "Lat min/max, Lng min/max (deg)" ]
-                                    , a [ class "dropdown-item", href "#", onClick (SetFilterFormat "http://purl.obolibrary.org/obo/ENVO_3100031" (LatLngValue "" "")) ] [ text "Lat, Lng (deg)" ]
-                                    , a [ class "dropdown-item", href "#", onClick (SetFilterFormat "http://purl.obolibrary.org/obo/ENVO_3100031" (SingleValue "")) ] [ text "Longhurst Province" ]
+                            ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Location"] ])
+                                :: (viewLocationFilterInput model.locationVal)
+                                ++ [ div [ class "input-group-append" ]
+                                    [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+                                    , div [ class "dropdown-menu" ]
+                                        [ a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (m)" ]
+                                        , a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (LatLngRangeValue ("","") ("",""))) ] [ text "Lat min/max, Lng min/max (deg)" ]
+                                        , a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (LatLngValue "" "")) ] [ text "Lat, Lng (deg)" ]
+                                        , a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (LonghurstValue "")) ] [ text "Longhurst Province" ]
+                                        ]
                                     ]
                                 ]
-                            ]
+                            )
                         ]
                     , br [] []
                     , div [ class "form-row" ]
@@ -848,14 +872,14 @@ viewNumberFilterPanel : SearchTerm -> FilterValue -> Html Msg
 viewNumberFilterPanel term val =
     let
         viewOption (label, filterVal) =
-            a [ class "dropdown-item", href "#", onClick (SetFilterFormat term.id filterVal) ] [ label |> String.Extra.toSentenceCase |> text ]
+            a [ class "dropdown-item", href "#", onClick (SetFilterValue term.id filterVal) ] [ label |> String.Extra.toSentenceCase |> text ]
 
         options =
             [ ("exact", SingleValue ""), ("range", RangeValue "" ""), ("offset", OffsetValue "" "") ]
     in
     viewTermPanel term
         [ div [ class "input-group input-group-sm" ]
-            (List.append (viewFilterInput term val)
+            (List.append (viewFilterInput term.id val)
                 [ div [ class "input-group-append" ]
                     [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
                     , div [ class "dropdown-menu" ]
@@ -866,100 +890,56 @@ viewNumberFilterPanel term val =
         ]
 
 
-viewFilterInput : SearchTerm -> FilterValue -> List (Html Msg)
-viewFilterInput term termVal =
---    let
---        val1, val2, val3, val4 =
---            case val of
---                SingleValue x ->
---                    [x, "", "", ""]
---
---                SearchValue x ->
---                    [x, ""]
---
---                MultipleValues vals ->
---                    [""]
---
---                RangeValue min max ->
---                    [min, max]
---
---                OffsetValue x offset ->
---                    [x, offset]
---
---                LatLngValue lat lng ->
---                    [lat, lng]
---
---                LatLngRangeValue (lat1, lng1) (lat2, lng2) ->
---                    ["", ""]
---
---                LatLngRadiusValue (lat, lng) radius ->
---                    ["", ""]
---
---                NoValue ->
---                    [""]
---    in
-    case termVal of
-        SingleValue val ->
-            [ input [ type_ "text", class "form-control", placeholder "value", value val, onInput (\p -> SetFilterValue term.id (SingleValue p)) ] []
+viewFilterInput : PURL -> FilterValue -> List (Html Msg)
+viewFilterInput id val =
+    case val of
+        SingleValue s ->
+            [ input [ type_ "text", class "form-control", placeholder "value", value s, onInput (\p -> SetFilterValue id (SingleValue p)) ] []
             ]
 
         RangeValue min max ->
-            [ input [ type_ "text", class "form-control", placeholder "min", value min, onInput (\p -> SetFilterValue term.id (RangeValue p max)) ] []
-            , input [ type_ "text", class "form-control", placeholder "max", value max, onInput (\p -> SetFilterValue term.id (RangeValue min p)) ] []
+            [ input [ type_ "text", class "form-control", placeholder "min", value min, onInput (\p -> SetFilterValue id (RangeValue p max)) ] []
+            , input [ type_ "text", class "form-control", placeholder "max", value max, onInput (\p -> SetFilterValue id (RangeValue min p)) ] []
             ]
 
-        OffsetValue val offset ->
-            [ input [ type_ "text", class "form-control", placeholder "value", value val, onInput (\p -> SetFilterValue term.id (OffsetValue p offset)) ] []
-            , input [ type_ "text", class "form-control", placeholder "+/-", value offset, onInput (\p -> SetFilterValue term.id (OffsetValue val p)) ] []
-            ]
-
-        LatLngValue lat lng ->
-            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetFilterValue term.id (LatLngValue p lng)) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> SetFilterValue term.id (LatLngValue lat p)) ] []
-            ]
-
-        LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
-            [ input [ type_ "text", class "form-control", placeholder "lat1", value lat1, onInput (\p -> SetFilterValue term.id (LatLngRangeValue (p,lng1) (lat2,lng2))) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng1", value lng1, onInput (\p -> SetFilterValue term.id (LatLngRangeValue (lat1,p) (lat2,lng2))) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng1", value lat2, onInput (\p -> SetFilterValue term.id (LatLngRangeValue (lat1,lng2) (p,lng2))) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng1", value lng2, onInput (\p -> SetFilterValue term.id (LatLngRangeValue (lat1,lng2) (lat2,p))) ] []
-            ]
-
-        LatLngRadiusValue (lat,lng) radius ->
-            [ input [ type_ "text", class "form-control", placeholder "lat1", value lat, onInput (\p -> SetFilterValue term.id (LatLngRadiusValue (p,lng) radius)) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng1", value lng, onInput (\p -> SetFilterValue term.id (LatLngRadiusValue (lat,p) radius)) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng1", value radius, onInput (\p -> SetFilterValue term.id (LatLngRadiusValue (lat,lng) radius)) ] []
+        OffsetValue n offset ->
+            [ input [ type_ "text", class "form-control", placeholder "value", value n, onInput (\p -> SetFilterValue id (OffsetValue p offset)) ] []
+            , input [ type_ "text", class "form-control", placeholder "+/-", value offset, onInput (\p -> SetFilterValue id (OffsetValue n p)) ] []
             ]
 
         _ ->
             []
 
---    case term.viewType of
---        "exact" ->
---            [ input [ type_ "text", class "form-control", placeholder "value", value val1, onInput (\p -> SetFilterValue term.id (SingleValue p)) ] []
---            ]
---
---        "offset" -> -- value, radius
---            [ input [ type_ "text", class "form-control", placeholder "value", value val1, onInput (\p -> SetFilterValue term.id (OffsetValue p val2)) ] []
---            , input [ type_ "text", class "form-control", placeholder "+/-", value val2, onInput (\p -> SetFilterValue term.id (OffsetValue val1 p)) ] []
---            ]
---
---        "location" ->
---            [ input [ type_ "text", class "form-control", placeholder "lat", value val1, onInput (\p -> SetFilterValue term.id (LatLngValue p val2)) ] []
---            , input [ type_ "text", class "form-control", placeholder "lng", value val2, onInput (\p -> SetFilterValue term.id (LatLngValue val1 p)) ] []
---            ]
---
---        "locationRange" ->
---            [ input [ type_ "text", class "form-control", placeholder "lat1", value val1, onInput (\p -> SetFilterValue term.id (LatLngRangeValue (p,val2) (val3,val4))) ] []
---            , input [ type_ "text", class "form-control", placeholder "lng1", value val2, onInput (\p -> SetFilterValue term.id (LatLngRangeValue (val1,p) (val3,val4))) ] []
---            , input [ type_ "text", class "form-control", placeholder "lng1", value val2, onInput (\p -> SetFilterValue term.id (LatLngRangeValue (val1,val2) (p,val4))) ] []
---            , input [ type_ "text", class "form-control", placeholder "lng1", value val2, onInput (\p -> SetFilterValue term.id (LatLngRangeValue (val1,val2) (val3,p))) ] []
---            ]
---
---        _ -> -- range (min, max)
---            [ input [ type_ "text", class "form-control", placeholder "min", value val1, onInput (\p -> SetFilterValue term.id (RangeValue p val2)) ] []
---            , input [ type_ "text", class "form-control", placeholder "max", value val2, onInput (\p -> SetFilterValue term.id (RangeValue val1 p)) ] []
---            ]
+
+viewLocationFilterInput : LocationFilterValue -> List (Html Msg)
+viewLocationFilterInput val =
+    case val of
+        LatLngValue lat lng ->
+            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetLocationFilterValue (LatLngValue p lng)) ] []
+            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> SetLocationFilterValue (LatLngValue lat p)) ] []
+            ]
+
+        LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
+            [ input [ type_ "text", class "form-control", placeholder "lat1", value lat1, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (p,lng1) (lat2,lng2))) ] []
+            , input [ type_ "text", class "form-control", placeholder "lng1", value lng1, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,p) (lat2,lng2))) ] []
+            , text " "
+            , input [ type_ "text", class "form-control", placeholder "lat2", value lat2, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,lng2) (p,lng2))) ] []
+            , input [ type_ "text", class "form-control", placeholder "lng2", value lng2, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,lng2) (lat2,p))) ] []
+            ]
+
+        LatLngRadiusValue (lat,lng) radius ->
+            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (p,lng) radius)) ] []
+            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (lat,p) radius)) ] []
+            , input [ type_ "text", class "form-control", placeholder "radius", value radius, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (lat,lng) p)) ] []
+            ]
+
+        LonghurstValue s ->
+            [ input [ type_ "text", class "form-control", placeholder "Longhurst province", value s, onInput (SetLocationFilterValue << LonghurstValue) ] []
+            ]
+
+        NoLocationValue ->
+            []
+
 
 viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
 viewTermPanel term nodes =
