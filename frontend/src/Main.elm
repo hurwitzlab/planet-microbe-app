@@ -750,11 +750,16 @@ viewAddFilterPanel terms =
         makeOption term =
             a [ class "dropdown-item", href "#", onClick (AddFilter term.id) ] [ term.label |> String.Extra.toSentenceCase |> text ]
 
-        hideOptions =
-            [ "biome", "latitude coordinate measurement datum", "longitude coordinate measurement datum", "zero-dimensional temporal region" ]
+        filter term =
+            [ "latitude coordinate measurement datum", "longitude coordinate measurement datum", "zero-dimensional temporal region" ]
+                |> List.member (String.toLower term.label)
+                |> not
 
         options =
-            terms |> List.Extra.dropWhile (\term -> List.member term.label hideOptions) |> List.map makeOption -- FIXME why isn't dropWhile working?
+            terms
+                |> List.filter filter
+                |> List.sortWith (\a b -> compare a.label b.label )
+                |> List.map makeOption
     in
     viewPanel "" "Add Filter" False
         [ div [ class "input-group input-group-sm" ]

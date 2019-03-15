@@ -209,17 +209,31 @@ async function generateTermIndex(db, ontologies) {
 
     ontologies.forEach( ontology => {
         console.log("Indexing ontology", ontology.name);
-        ontology.graphs.forEach( g => {
-            g.nodes.forEach(n => {
-                if (n.id in index)
-                    throw("Error: duplicate PURL");
+//        ontology.graphs.forEach( g => {
+//            g.nodes.forEach(node => {
+//                if (node.id in index)
+//                    throw("Error: duplicate PURL");
+//
+//                index[node.id] = {
+//                    id: node.id,
+//                    label: node.lbl
+//                };
+//            })
+//        });
+        ontology.classAttribute.forEach(node => {
+            let label = "<unknown>";
+            if (node["label"]) {
+                if (node["label"]["en"])
+                    label = node["label"]["en"];
+                else if (node["label"]["undefined"])
+                    label = node["label"]["undefined"];
+            }
 
-                index[n.id] = {
-                    id: n.id,
-                    label: n.lbl
-                };
-            })
-        });
+            index[node.iri] = {
+                id: node.iri,
+                label: label
+            }
+        })
     });
 
     schemas.rows.forEach( schema => {
@@ -229,7 +243,7 @@ async function generateTermIndex(db, ontologies) {
             let field = schema.fields.fields[i];
             let rdf = field.rdfType;
             if (!rdf)
-                rdf = 'http://planetmicrobe.org/temppurl/PM_'+ shortid.generate(); //FIXME hardcoded URL
+                continue;//rdf = 'http://planetmicrobe.org/temppurl/PM_'+ shortid.generate(); //FIXME hardcoded URL
             if (!(rdf in index))
                 index[rdf] = {};
             if (!('schemas' in index[rdf]))
