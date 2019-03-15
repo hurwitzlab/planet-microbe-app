@@ -180,7 +180,11 @@ update msg model =
             ( model, Cmd.none )
 
         ClearFilters ->
-            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = Dict.empty }, Cmd.none )
+            let
+                newVals =
+                    Dict.map (\k v -> NoValue) model.selectedVals
+            in
+            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = newVals }, Cmd.none )
 
         AddFilter id ->
             let
@@ -458,7 +462,7 @@ generateQueryParams locationVal params =
                 NoLocationValue ->
                     ""
     in
-    if Dict.isEmpty params then
+    if locationVal == NoLocationValue && Dict.isEmpty params then
         Ok []
     else if params |> Dict.toList |> List.map Tuple.second |> List.all validParam then
         let
@@ -996,7 +1000,7 @@ viewResults model =
             let
                 pos =
                     index + 1
-                    
+
                 dirSymbol =
                     if model.sortPos > 0 then
                         String.fromChar (Char.fromCode 9660)
@@ -1100,7 +1104,7 @@ viewResults model =
                 div []
                     [ div [ style "border" "1px solid lightgray" ]
                         [ div [ style "display" "inline" ]
-                            [ button [ class "btn btn-sm btn-link float-right", style "margin" "4px" ] [ text "Columns" ]
+                            [ button [ class "btn btn-sm btn-link alert-link float-right", style "margin" "4px" ] [ text "Columns" ]
                             , ul [ class "nav nav-tabs" ]
                                 [ li [ class "nav-item" ]
                                     [ a [ class "nav-link" ] [ text "Summary" ] ]
