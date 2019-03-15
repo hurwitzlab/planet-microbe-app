@@ -263,15 +263,14 @@ async function search(db, params) {
         else if (param == 'sort')
             sort = val * 1; // convert to int
         else if (param == 'location') {
-            if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // [lat, lng] exact match
-                //TODO
-            }
-            else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // [lat, lng, radius] in meters
+//            if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // [lat, lng] exact match
+//                //TODO
+//            }
+            if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // [lat, lng, radius] in meters
                 let bounds = JSON.parse(val);
-                //selections.push("ST_AsText(location::geometry)");
-                selections.push("ST_AsText(location::geography)");
-                //clauses[0].push("ST_Distance_Sphere(location::geometry, ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")) <= " + bounds[2]);
-                gisClause = "ST_DWithin(ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")::geography, location, " + bounds[2] + ")";
+                console.log("location:", bounds);
+                selections.push("ST_AsText(locations::geography)");
+                gisClause = "ST_DWithin(ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")::geography, locations, " + bounds[2] + ")";
             }
         }
         else {
@@ -290,8 +289,14 @@ async function search(db, params) {
 
                     // FIXME should use query substitution here -- SQL injection risk
                     let field, clause, bounds;
-                    if (val === '') // empty - show in results
-                        continue;
+                    if (val === '') { // empty - show in results
+                        if (term.type == "string")
+                            field = "string_vals[" + arrIndex + "]";
+                        else if (term.type == "number")
+                            field = "number_vals[" + arrIndex + "]";
+                        else if (term.type == "datetime")
+                            field = "datetime_vals[" + arrIndex + "]";
+                    }
                     else if (!isNaN(val)) { // numeric exact match
                         field = "number_vals[" + arrIndex + "]";
                         clause = field + "=" + parseFloat(val);
@@ -334,9 +339,11 @@ async function search(db, params) {
                     }
 
                     selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
-                    if (!clauses[schemaId])
-                        clauses[schemaId] = []
-                    clauses[schemaId].push(clause);
+                    if (clause) {
+                        if (!clauses[schemaId])
+                            clauses[schemaId] = []
+                        clauses[schemaId].push(clause);
+                    }
                 }
             }
 
@@ -360,7 +367,7 @@ async function search(db, params) {
         clauseStr = "WHERE " + clauseStr;
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-    let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort) + 2) + " " + sortDir : "");
+    let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+1) + " " + sortDir : "");
 
     let countQueryStr = "SELECT count(*) FROM sample " + clauseStr;
 

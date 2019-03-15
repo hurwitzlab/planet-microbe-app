@@ -70,6 +70,7 @@ type alias Model =
     , selectedTerms : Dict PURL SearchTerm
     , selectedVals : Dict PURL FilterValue
     , locationVal : LocationFilterValue
+    , sortPos : Int
     , doSearch : Bool
     , isSearching : Bool
     , searchStartTime : Int -- milliseconds
@@ -82,6 +83,11 @@ type alias Model =
     }
 
 
+initialParams =
+    [ "http://purl.obolibrary.org/obo/ENVO_00000428"
+    ]
+
+
 -- lat/lon (constrained to -180/180, -90/90, respectively), date, depth.
 init : Value -> ( Model, Cmd Msg )
 init flags =
@@ -91,10 +97,11 @@ init flags =
         , date = ""
         , allParams = []
 --        , availableParams = []
-        , selectedParams = []
+        , selectedParams = [ "http://purl.obolibrary.org/obo/ENVO_00000428" ]
         , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
-        , locationVal = LatLngRadiusValue ("", "") ""
+        , locationVal = NoLocationValue
+        , sortPos = 1
         , doSearch = False
         , isSearching = False
         , searchStartTime = 0
@@ -107,8 +114,8 @@ init flags =
         }
     , Cmd.batch
         [ getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
-        , getSearchTerm "ENVO_00000428" |> Http.toTask |> Task.attempt GetSearchTermCompleted
-        , searchRequest [] defaultPageSize |> Http.toTask |> Task.attempt SearchCompleted
+        , initialParams |> List.map getSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
+        , searchRequest [] 0 defaultPageSize |> Http.toTask |> Task.attempt SearchCompleted
         ]
     )
 
@@ -122,20 +129,18 @@ type Msg
     | GetSearchTermCompleted (Result Http.Error SearchTerm)
 --    | Search
     | SearchCompleted (Result Http.Error SearchResponse)
-    | Clear
-    | SetLatLngRadius String
-    | SetDepth String
-    | SetDate String
+    | ClearFilters
     | AddFilter PURL
     | RemoveFilter PURL
     | SetSearchFilterValue PURL String
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
     | SetLocationFilterValue LocationFilterValue
+    | SetSortPos Int
+    | InputTimerTick Time.Posix
 --    | Next
 --    | Previous
     | SetTableState Table.State
-    | InputTimerTick Time.Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -174,44 +179,8 @@ update msg model =
             in
             ( model, Cmd.none )
 
---        Search ->
---            let
---                doSearch =
---                    model.selectedVals |> search |> Http.toTask
---            in
---            ( { model | errorMsg = Nothing, results = Nothing, isSearching = True }, Task.attempt SearchCompleted doSearch)
-
-        Clear ->
-            ( { model | location = "", depth = "", date = "", selectedParams = [], selectedVals = Dict.empty, selectedTerms = Dict.empty, results = Nothing, errorMsg = Nothing }, Cmd.none )
-
-        SetLatLngRadius val ->
-            let
-                params =
-                    model.selectedParams |> Set.fromList |> Set.toList
-
-                term =
-                    SingleValue ("[" ++ val ++ "]")
-
-                vals =
-                    Dict.insert "location" term model.selectedVals
-            in
-            ( { model | location = val, selectedParams = params, selectedVals = vals, doSearch = True }, Cmd.none )
-
-        SetDepth val ->
-            ( { model | depth = val, doSearch = True }, Cmd.none )
-
-        SetDate val ->
-            let
-                params =
-                    model.selectedParams |> Set.fromList |> Set.toList
-
-                term =
-                    "[" ++ val ++ "]" |> SingleValue
-
-                vals =
-                    Dict.insert "temporal" term model.selectedVals
-            in
-            ( { model | date = val, selectedParams = params, selectedVals = vals, doSearch = True }, Cmd.none )
+        ClearFilters ->
+            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = Dict.empty }, Cmd.none )
 
         AddFilter id ->
             let
@@ -300,6 +269,51 @@ update msg model =
         SetLocationFilterValue val ->
             ( { model | doSearch = True, locationVal = val }, Cmd.none )
 
+        SetSortPos pos ->
+            let
+                newPos =
+                    if pos == model.sortPos then
+                        pos * -1
+                    else
+                        pos
+            in
+            ( { model | doSearch = True, sortPos = newPos }, Cmd.none )
+
+        InputTimerTick time ->
+            if model.doSearch then
+--                if model.selectedVals == Dict.empty then
+--                    if model.results == Nothing then -- initial load of all samples
+--                        ( { model | doSearch = False }, Cmd.none ) --Task.attempt UpdateSamples (Request.Sample.list session.token |> Http.toTask) )
+--                    else
+--                        ( { model | doSearch = False, isSearching = False, results = Nothing }, Cmd.none )
+                if Time.posixToMillis time - model.searchStartTime >= 1000 then -- 1 second
+                    case generateQueryParams model.locationVal model.selectedVals of
+                        Ok queryParams ->
+                            let
+                                searchTask =
+                                    searchRequest queryParams model.sortPos model.pageSize |> Http.toTask
+                            in
+                            ( { model | doSearch = False, isSearching = True }, Task.attempt SearchCompleted searchTask )
+
+                        Err error ->
+                            let
+                                _ = Debug.log "Error generating query params:" (toString error)
+                            in
+                            ( model, Cmd.none )
+                else
+                    ( model, Cmd.none )
+            else
+                ( model, Cmd.none )
+
+        SearchCompleted (Ok response) ->
+            ( { model | count = response.count, results = Just response.results, isSearching = False }, Cmd.none )
+
+        SearchCompleted (Err error) ->
+            let
+                _ = Debug.log "SearchCompleted" (toString error)
+            in
+            ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
+
 --        Next ->
 --            let
 --                (newModel, newCmd) =
@@ -321,41 +335,6 @@ update msg model =
             ( { model | tableState = newState }
             , Cmd.none
             )
-
-        InputTimerTick time ->
-            if model.doSearch then
-                if model.selectedVals == Dict.empty then
-                    if model.results == Nothing then -- initial load of all samples
-                        ( { model | doSearch = False }, Cmd.none ) --Task.attempt UpdateSamples (Request.Sample.list session.token |> Http.toTask) )
-                    else
-                        ( { model | doSearch = False, isSearching = False, results = Nothing }, Cmd.none )
-                else if Time.posixToMillis time - model.searchStartTime >= 500 then -- 500 ms
-                    case generateQueryParams model.locationVal model.selectedVals of
-                        Ok queryParams ->
-                            let
-                                searchTask =
-                                    searchRequest queryParams model.pageSize |> Http.toTask
-                            in
-                            ( { model | doSearch = False, isSearching = True }, Task.attempt SearchCompleted searchTask )
-
-                        Err error ->
-                            let
-                                _ = Debug.log "InputTimerTick" (toString error)
-                            in
-                            ( model, Cmd.none )
-                else
-                    ( model, Cmd.none )
-            else
-                ( model, Cmd.none )
-
-        SearchCompleted (Ok response) ->
-            ( { model | count = response.count, results = Just response.results, isSearching = False }, Cmd.none )
-
-        SearchCompleted (Err error) ->
-            let
-                _ = Debug.log "SearchCompleted" (toString error)
-            in
-            ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
 
 
 getSearchTerms : Http.Request (List SearchTerm)
@@ -380,56 +359,62 @@ getSearchTerm id =
         |> HttpBuilder.toRequest
 
 
+defined : String -> Bool
+defined s =
+    s /= ""
+
+
+validParam : FilterValue -> Bool
+validParam val =
+   case val of
+        RangeValue min max ->
+            defined min && defined max -- TODO check for valid number
+
+        OffsetValue value ofs ->
+            defined value && defined ofs -- TODO check for valid number
+
+        SearchValue s ->
+            defined s
+
+        SingleValue s ->
+            defined s
+
+        MultipleValues vals ->
+            List.all defined vals
+
+        NoValue ->
+            True
+
+
+validLocationParam : LocationFilterValue -> Bool
+validLocationParam val =
+    case val of
+--        LatLngValue lat lng ->
+--            defined lat && defined lng
+--
+--        LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
+--            defined lat1 && defined lng1 && defined lat2 && defined lng2
+
+        LatLngRadiusValue (lat,lng) radius ->
+            defined lat && defined lng
+
+        LonghurstValue s ->
+            defined s
+
+        NoLocationValue ->
+            True
+
+
 generateQueryParams : LocationFilterValue -> Dict String FilterValue -> Result String (List (String, String))
 generateQueryParams locationVal params =
     let
-        defined s =
-            s /= ""
-
-        validParam val =
-           case val of
-                RangeValue min max ->
-                    defined min && defined max -- TODO check for valid number
-
-                OffsetValue value ofs ->
-                    defined value && defined ofs -- TODO check for valid number
-
-                SearchValue s ->
-                    defined s
-
-                SingleValue s ->
-                    defined s
-
-                MultipleValues vals ->
-                    List.all defined vals
-
-                NoValue ->
-                    True
-
-        validLocationParam val =
-            case val of
---                LatLngValue lat lng ->
---                    defined lat && defined lng
-
---                LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
---                    defined lat1 && defined lng1 && defined lat2 && defined lng2
-
-                LatLngRadiusValue (lat,lng) radius ->
-                    defined lat && defined lng
-
-                LonghurstValue s ->
-                    defined s
-
-                NoLocationValue ->
-                    True
-
-        range min max = --TODO use encoder here instead
+        range min max =
             "[" ++ min ++ "," ++ max ++ "]"
 
-        offset val ofs = --TODO use encoder here instead
+        offset val ofs =
             "{" ++ val ++ "," ++ ofs ++ "}"
 
-        formatParam _ val =
+        formatParam _ val = --TODO use encoder instead
             case val of
                 RangeValue min max ->
                     range min max
@@ -449,13 +434,13 @@ generateQueryParams locationVal params =
                 NoValue ->
                     ""
 
-        formatLocationParam val =
+        formatLocationParam val = --TODO use encoder instead
             case val of
 --                LatLngValue lat lng ->
 --                    range lat lng
-
+--
 --                LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
---                    "[" ++ lat1 ++ "," ++ lng1 ++ "-" ++ lat2 ++ "," ++ lng2 ++ "]" --TODO use encoder here instead
+--                    "[" ++ lat1 ++ "," ++ lng1 ++ "-" ++ lat2 ++ "," ++ lng2 ++ "]"
 
                 LatLngRadiusValue (lat,lng) radius ->
                     let
@@ -465,7 +450,7 @@ generateQueryParams locationVal params =
                             else
                                 radius
                     in
-                    "[" ++ lat ++ "," ++ lng ++ "," ++ r ++ "]" --TODO use encoder here instead
+                    "[" ++ lat ++ "," ++ lng ++ "," ++ r ++ "]"
 
                 LonghurstValue s ->
                     s
@@ -491,14 +476,16 @@ generateQueryParams locationVal params =
         Err "Invalid query parameter"
 
 
-searchRequest : List (String, String) -> Int -> Http.Request SearchResponse
-searchRequest queryParams pageSize =
+searchRequest : List (String, String) -> Int -> Int -> Http.Request SearchResponse
+searchRequest queryParams sortPos pageSize =
     let
         url =
             apiBaseUrl ++ "/search"
 
         queryParams2 =
-            queryParams |> List.append [ ("limit", toString pageSize) ]
+            queryParams
+                |> List.append [ ("sort", toString sortPos) ]
+                |> List.append [ ("limit", toString pageSize) ]
     in
     HttpBuilder.get url
         |> HttpBuilder.withQueryParams queryParams2
@@ -520,7 +507,8 @@ type alias SearchResult =
 
 
 type SearchResultValue
-    = NumberResultValue Float
+    = NoResultValue
+    | NumberResultValue Float
     | StringResultValue String
 
 
@@ -640,14 +628,14 @@ view model =
 
 viewSearchPanel : Model -> Html Msg
 viewSearchPanel model =
-    let
-        biomeTerm =
-            Dict.get "http://purl.obolibrary.org/obo/ENVO_00000428" model.selectedTerms
-    in
     div []
         [ h4 [ style "margin" "3px", style "display" "inline" ]
             [ text "Filters" ]
-        , a [ class "alert-link", href "#", style "float" "right", style "font-size" "0.85em" ] [ text "Advanced Search" ]
+        , span [ class "float-right small", style "padding-top" "5px" ]
+            [ a [ class "alert-link", href "#", onClick ClearFilters ] [ text "Reset" ]
+            , text " | "
+            , a [ class "alert-link", href "#"] [ text "Advanced Search" ]
+        ]
         , div [ style "border" "1px solid lightgray" ]
             [ ul [ class "nav nav-tabs" ]
                 [ li [ class "nav-item" ]
@@ -658,16 +646,10 @@ viewSearchPanel model =
                     [ a [ class "nav-link" ] [ text "Files" ] ]
                 ]
             , div []
-                [ viewAddFilterPanel model
-                , viewAddedFiltersPanel model
-                , viewLocationPanel model
+                [ viewLocationPanel model
                 , viewProjectPanel model
-                , case biomeTerm of
-                    Nothing ->
-                        text ""
-
-                    Just term ->
-                        viewStringFilterPanel term
+                , viewAddedFiltersPanel model.selectedParams model.selectedTerms model.selectedVals
+                , viewAddFilterPanel model.allParams
                 ]
             ]
         ]
@@ -704,7 +686,7 @@ viewLocationPanel model =
                     , div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
                             [ div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Depth"] ]
-                            , input [ type_ "text", class "form-control", size 5, placeholder "", value model.depth, onInput SetDepth ] []
+                            , input [ type_ "text", class "form-control", size 5, placeholder "", value model.depth ] []
                             , div [ class "input-group-append" ]
                                 [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
                                 , div [ class "dropdown-menu" ]
@@ -719,7 +701,7 @@ viewLocationPanel model =
                     , div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
                             [ div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Date/Time"] ]
-                            , input [ type_ "text", class "form-control", size 5, placeholder "", value model.date, onInput SetDate ] []
+                            , input [ type_ "text", class "form-control", size 5, placeholder "", value model.date ] []
                             , div [ class "input-group-append" ]
                                 [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
                                 , div [ class "dropdown-menu" ]
@@ -758,8 +740,8 @@ viewProjectPanel model =
         ]
 
 
-viewAddFilterPanel : Model -> Html Msg
-viewAddFilterPanel model =
+viewAddFilterPanel : List SearchTerm  -> Html Msg
+viewAddFilterPanel terms =
     let
         makeOption term =
             a [ class "dropdown-item", href "#", onClick (AddFilter term.id) ] [ term.label |> String.Extra.toSentenceCase |> text ]
@@ -768,7 +750,7 @@ viewAddFilterPanel model =
             [ "biome", "latitude coordinate measurement datum", "longitude coordinate measurement datum", "zero-dimensional temporal region" ]
 
         options =
-            model.allParams |> List.Extra.dropWhile (\term -> List.member term.label hideOptions) |> List.map makeOption -- FIXME why isn't this working?
+            terms |> List.Extra.dropWhile (\term -> List.member term.label hideOptions) |> List.map makeOption -- FIXME why isn't dropWhile working?
     in
     viewPanel "" "Add Filter" False
         [ div [ class "input-group input-group-sm" ]
@@ -781,20 +763,20 @@ viewAddFilterPanel model =
         ]
 
 
-viewAddedFiltersPanel : Model -> Html Msg
-viewAddedFiltersPanel model =
+viewAddedFiltersPanel : List PURL -> Dict PURL SearchTerm -> Dict PURL FilterValue -> Html Msg
+viewAddedFiltersPanel params terms vals  =
     div []
-        (model.selectedParams
+        (params
             |> List.map
                 (\param ->
-                    case Dict.get param model.selectedTerms of
+                    case Dict.get param terms of
                         Nothing ->
-                            text ""
+                            viewBlank
 
                         Just term ->
                             let
                                 termVal =
-                                    Dict.get param model.selectedVals |> Maybe.withDefault NoValue
+                                    Dict.get param vals |> Maybe.withDefault NoValue
                             in
                             case term.type_ of
                                 "string" ->
@@ -862,7 +844,7 @@ viewStringFilterPanel term =
         , if numOptions > maxNumPanelOptions then
             button [ class "btn btn-sm btn-link", style "float" "right" ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
           else
-            text ""
+            viewBlank
         ]
 
 
@@ -890,15 +872,19 @@ viewNumberFilterPanel term val =
 
 viewFilterInput : PURL -> FilterValue -> List (Html Msg)
 viewFilterInput id val =
+    let
+        rangeInput min max =
+            [ input [ type_ "text", class "form-control", placeholder "min", value min, onInput (\p -> SetFilterValue id (RangeValue p max)) ] []
+            , input [ type_ "text", class "form-control", placeholder "max", value max, onInput (\p -> SetFilterValue id (RangeValue min p)) ] []
+            ]
+    in
     case val of
         SingleValue s ->
             [ input [ type_ "text", class "form-control", placeholder "value", value s, onInput (\p -> SetFilterValue id (SingleValue p)) ] []
             ]
 
         RangeValue min max ->
-            [ input [ type_ "text", class "form-control", placeholder "min", value min, onInput (\p -> SetFilterValue id (RangeValue p max)) ] []
-            , input [ type_ "text", class "form-control", placeholder "max", value max, onInput (\p -> SetFilterValue id (RangeValue min p)) ] []
-            ]
+            rangeInput min max
 
         OffsetValue n offset ->
             [ input [ type_ "text", class "form-control", placeholder "value", value n, onInput (\p -> SetFilterValue id (OffsetValue p offset)) ] []
@@ -906,11 +892,18 @@ viewFilterInput id val =
             ]
 
         _ ->
-            []
+            rangeInput "" ""
 
 
 viewLocationFilterInput : LocationFilterValue -> List (Html Msg)
 viewLocationFilterInput val =
+    let
+        latLngRadiusInput lat lng radius =
+            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (p,lng) radius)) ] []
+            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (lat,p) radius)) ] []
+            , input [ type_ "text", class "form-control", placeholder "radius", value radius, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (lat,lng) p)) ] []
+            ]
+    in
     case val of
 --        LatLngValue lat lng ->
 --            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetLocationFilterValue (LatLngValue p lng)) ] []
@@ -926,17 +919,14 @@ viewLocationFilterInput val =
 --            ]
 
         LatLngRadiusValue (lat,lng) radius ->
-            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (p,lng) radius)) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (lat,p) radius)) ] []
-            , input [ type_ "text", class "form-control", placeholder "radius", value radius, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (lat,lng) p)) ] []
-            ]
+            latLngRadiusInput lat lng radius
 
         LonghurstValue s ->
             [ input [ type_ "text", class "form-control", placeholder "Longhurst province", value s, onInput (SetLocationFilterValue << LonghurstValue) ] []
             ]
 
         NoLocationValue ->
-            []
+            latLngRadiusInput "" "" ""
 
 
 viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
@@ -955,7 +945,7 @@ viewPanel id title removable nodes =
                 , if removable then
                     span [ class "float-right", style "cursor" "pointer", onClick (RemoveFilter id) ] [ text (String.fromChar (Char.fromCode 10005)) ]
                   else
-                    text ""
+                    viewBlank
                 ]
     in
     div [ class "card", style "font-size" "0.85em" ]
@@ -1002,29 +992,57 @@ viewPanel id title removable nodes =
 viewResults : Model -> Html Msg
 viewResults model =
     let
-        mkTh label =
-            th [] [ text (String.Extra.toSentenceCase label) ]
+        mkTh index label =
+            let
+                pos =
+                    index + 1
+                    
+                dirSymbol =
+                    if model.sortPos > 0 then
+                        String.fromChar (Char.fromCode 9660)
+                    else
+                        String.fromChar (Char.fromCode 9650)
+
+                lbl =
+                    String.Extra.toSentenceCase
+                        (if pos == abs model.sortPos then
+                            label ++ " " ++ dirSymbol
+                        else
+                            label
+                        )
+            in
+            th [ style "cursor" "pointer", onClick (SetSortPos pos) ] [ text lbl ]
+
+        timeSpaceParamNames =
+            if model.locationVal /= NoLocationValue && validLocationParam model.locationVal then
+                [ "Location" ]
+            else
+                []
 
         paramNames =
-            model.selectedParams
-                |> List.filterMap
-                    (\param ->
-                        case Dict.get param model.selectedTerms of
-                            Nothing ->
-                                Nothing
+            List.concat
+                [ [ "Sample ID"
+                  --, "Sample Name"
+                  --, "Project Name"
+                  ]
+                , timeSpaceParamNames
+                , (model.selectedParams
+                        |> List.filterMap
+                            (\param ->
+                                case Dict.get param model.selectedTerms of
+                                    Nothing ->
+                                        Nothing
 
-                            Just term ->
-                                Just term.label
+                                    Just term ->
+                                        Just term.label
+                            )
+
                     )
+                , [ "Cart "]
+                ]
 
         columns =
-            List.concat
-                [ [ mkTh ("Sample ID " ++ (String.fromChar (Char.fromCode 9660))) ] --FIXME hardcoded sort arrow for demo
-                , [ mkTh "Sample Name" ]
-                , [ mkTh "Project Name" ]
-                , paramNames |> List.map mkTh
-                , [ mkTh ("Cart") ]
-                ]
+            List.indexedMap mkTh paramNames
 
         mkTd label =
             td [] [ text label ]
@@ -1037,6 +1055,9 @@ viewResults model =
                 NumberResultValue n ->
                     toString n
 
+                NoResultValue ->
+                    ""
+
         addToCartButton =
             button [ class "btn btn-sm btn-outline-dark", style "font-size" "0.5em" ] [ text "Add" ]
 
@@ -1044,166 +1065,95 @@ viewResults model =
             tr []
                 (List.concat
                     [ [ mkTd (toString result.sampleId) ]
-                    , [ mkTd "" ]
-                    , [ mkTd "" ]
+                    --, [ mkTd "" ] -- sample name
+                    --, [ mkTd "" ] -- project name
                     , List.map (formatVal >> mkTd) result.values
                     , [ td [] [ addToCartButton ] ]
                     ])
 
+        count =
+            model.results |> Maybe.withDefault [] |> List.length
+
+        pageInfo =
+            div [ class "float-right", style "font-size" "0.9em" ]
+                [ text "Showing "
+                , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> toString |> text
+                , text " - "
+                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.count |> toString |> text
+                , text " of "
+                , model.count |> toFloat |> format myLocale |> text
+                , text " sample"
+                , (if model.count /= 1 then "s" else "") |> text
+                ]
+
         content =
             if model.isSearching then
                 text "Searching ..."
+            else if count == 0 then
+                text "No Results"
+            else if model.errorMsg /= Nothing then
+                div []
+                    [ p [] [ text "An error occurred:" ]
+                    , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
+                    ]
             else
-                case model.errorMsg of
-                    Nothing ->
-                        case model.results of
-                            Nothing ->
-                                text "No results"
-
-                            Just results ->
-                                if results == [] then
-                                    text "No results"
-                                else
-                                    div []
-                                        [ div []
-                                            [ h4 [ style "margin" "3px", style "display" "inline" ]
-                                                [ text "Results" ]
-                                            , div [ style "float" "right", style "font-size" "0.9em" ]
-                                                [ text "Showing "
-                                                , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> toString |> text
-                                                , text " - "
-                                                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.count |> toString |> text
-                                                , text " of "
-                                                , model.count |> toFloat |> format myLocale |> text
-                                                , text " sample"
-                                                , (if model.count /= 1 then "s" else "") |> text
-                                                ]
-                                            ]
-                                        , div [ style "border" "1px solid lightgray" ]
-                                            [ ul [ class "nav nav-tabs" ]
-                                                [ li [ class "nav-item" ]
-                                                    [ a [ class "nav-link" ] [ text "Summary" ] ]
-                                                , li [ class "nav-item" ]
-                                                    [ a [ class "nav-link" ] [ text "Projects" ] ]
-                                                , li [ class "nav-item" ]
-                                                    [ a [ class "nav-link active", href "#", style "font-weight" "bold" ] [ text "Samples" ] ]
-                                                , li [ class "nav-item" ]
-                                                    [ a [ class "nav-link" ] [ text "Files" ] ]
-                                                ]
-                                            , table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
-                                                [ thead [] [ tr [] columns ]
-                                                , tbody [] (List.map mkRow results)
-                                                ]
-                                            ]
-                                        , div [ style "padding" "0.5em", style "border" "1px solid lightgray" ]
-                                            [ text "Show "
-                                            , div [ class "dropup", style "display" "inline" ]
-                                                [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (toString model.pageSize) ]
-                                                , div [ class "dropdown-menu" ]
-                                                    [ a [ class "dropdown-item", href "#" ] [ text "20" ]
-                                                    , a [ class "dropdown-item", href "#" ] [ text "40" ]
-                                                    , a [ class "dropdown-item", href "#" ] [ text "60" ]
-                                                    , a [ class "dropdown-item", href "#" ] [ text "80" ]
-                                                    , a [ class "dropdown-item", href "#" ] [ text "100" ]
-                                                    ]
-                                                ]
-                                            , text " results"
-                                            , nav [ style "float" "right" ]
-                                                [ ul [ class "pagination" ]
-                                                    [ li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Previous" ] ]
-                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "1" ] ]
-                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "2" ] ]
-                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "3" ] ]
-                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "..." ] ]
-                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Last" ] ]
-                                                    , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Next" ] ]
-                                                    ]
-                                                ]
-                                            ]
-                                        ]
-
-
-                    Just msg ->
-                        div []
-                            [ p [] [ text "An error occurred:" ]
-                            , p [] [ text msg ]
+                div []
+                    [ div [ style "border" "1px solid lightgray" ]
+                        [ div [ style "display" "inline" ]
+                            [ button [ class "btn btn-sm btn-link float-right", style "margin" "4px" ] [ text "Columns" ]
+                            , ul [ class "nav nav-tabs" ]
+                                [ li [ class "nav-item" ]
+                                    [ a [ class "nav-link" ] [ text "Summary" ] ]
+                                , li [ class "nav-item" ]
+                                    [ a [ class "nav-link" ] [ text "Projects" ] ]
+                                , li [ class "nav-item" ]
+                                    [ a [ class "nav-link active", href "#", style "font-weight" "bold" ] [ text "Samples" ] ]
+                                , li [ class "nav-item" ]
+                                    [ a [ class "nav-link" ] [ text "Files" ] ]
+                                ]
                             ]
+                        , table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
+                            [ thead [] [ tr [] columns ]
+                            , tbody [] (model.results |> Maybe.withDefault [] |> List.map mkRow)
+                            ]
+                        ]
+                    , div [ style "padding" "0.5em", style "border" "1px solid lightgray" ]
+                        [ text "Show "
+                        , div [ class "dropup", style "display" "inline" ]
+                            [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (toString model.pageSize) ]
+                            , div [ class "dropdown-menu" ]
+                                [ a [ class "dropdown-item", href "#" ] [ text "20" ]
+                                , a [ class "dropdown-item", href "#" ] [ text "40" ]
+                                , a [ class "dropdown-item", href "#" ] [ text "60" ]
+                                , a [ class "dropdown-item", href "#" ] [ text "80" ]
+                                , a [ class "dropdown-item", href "#" ] [ text "100" ]
+                                ]
+                            ]
+                        , text " results"
+                        , nav [ style "float" "right" ]
+                            [ ul [ class "pagination" ]
+                                [ li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Previous" ] ]
+                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "1" ] ]
+                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "2" ] ]
+                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "3" ] ]
+                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "..." ] ]
+                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Last" ] ]
+                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Next" ] ]
+                                ]
+                            ]
+                        ]
+                    ]
     in
-    content
-
---
---viewResultsTable : List SearchResult -> Html Msg
---viewResultsTable results =
---    table [ style "border-spacing" "5px", style "border-collapse" "separate" ] (List.map viewResultRow results)
---
---
---viewResultRow : SearchResult -> Html Msg
---viewResultRow result =
---    let
---        mkCol val =
---            td [ style "border-left" "1px solid #000" ] [ text val ]
---
---        valToString val =
---            case val of
---                NumberResultValue num ->
---                    toString num
---
---                StringResultValue str ->
---                    str
---
---        cols =
---            mkCol (toString result.sampleId) :: (List.map (valToString >> mkCol) result.values)
---    in
---    tr [] cols
+    div []
+        [ h4 [ style "margin" "3px", style "display" "inline" ] [ text "Results" ]
+        , if model.results /= Nothing then pageInfo else viewBlank
+        , div [] [ content ]
+        ]
 
 
---resultTableConfig : Table.Config SearchResult Msg
---resultTableConfig =
---    Table.customConfig
---        { toId = toString << .sampleId
---        , toMsg = SetTableState
---        , columns =
---            [ Table.intColumn "Sample ID" .sampleId
---            ]
---        , customizations =
---            { defaultCustomizations | tableAttrs = [ attribute "class" "table" ] }
---        }
---
---
---latColumn : Table.Column Sample Msg
---latColumn =
---    let
---        lat sample =
---            sample.location.coordinates |> List.Extra.getAt 1 |> Maybe.withDefault 0
---    in
---    Table.veryCustomColumn
---        { name = "Latitude"
---        , viewData =
---            (\sample ->
---                Table.HtmlDetails []
---                    [ lat sample |> toString |> text
---                    ]
---            )
---        , sorter = Table.increasingOrDecreasingBy lat
---        }
---
---
---lngColumn : Table.Column Sample Msg
---lngColumn =
---    let
---        lng sample =
---            sample.location.coordinates |> List.head |> Maybe.withDefault 0
---    in
---    Table.veryCustomColumn
---        { name = "Longitude"
---        , viewData =
---            (\sample ->
---                Table.HtmlDetails []
---                    [ lng sample |> toString |> text
---                    ]
---            )
---        , sorter = Table.increasingOrDecreasingBy lng
---        }
+viewBlank : Html Msg
+viewBlank =
+    text ""
 
 
 viewSpinner : Html Msg
