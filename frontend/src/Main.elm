@@ -12,7 +12,6 @@ import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (usLocale)
 import Task
 import Time
-import List.Extra
 import String.Extra
 import Set
 import Dict exposing (Dict)
@@ -416,7 +415,7 @@ generateQueryParams locationVal params =
             "[" ++ min ++ "," ++ max ++ "]"
 
         offset val ofs =
-            "{" ++ val ++ "," ++ ofs ++ "}"
+            val ++ "," ++ ofs
 
         formatParam _ val = --TODO use encoder instead
             case val of

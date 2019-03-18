@@ -312,14 +312,29 @@ async function search(db, params) {
                             field = "datetime_vals[" + arrIndex + "]";
                     }
                     else if (!isNaN(val)) { // numeric exact match
-                        field = "number_vals[" + arrIndex + "]";
-                        clause = field + "=" + parseFloat(val);
+                        if (term.type == "number") {
+                            field = "number_vals[" + arrIndex + "]";
+                            clause = field + "=" + parseFloat(val);
+                        }
+                        else {
+                            //TODO error
+                        }
+                    }
+                    else if (val.match(/-?\d*(\.\d+)?\,-?\d*(\.\d+)?/)) { // numeric offset query
+                        if (term.type == "number") {
+                            bounds = val.split(",");
+                            field = "number_vals[" + arrIndex + "]";
+                            clause = field + " BETWEEN " + (1*bounds[0] - 1*bounds[1]) + " AND " + (1*bounds[0] + 1*bounds[1]);
+                        }
+                        else {
+                            //TODO error
+                        }
                     }
                     else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // numeric range query
                         if (term.type == "number") {
                             bounds = JSON.parse(val);
                             field = "number_vals[" + arrIndex + "]";
-                            clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1]; //field + ">" + bounds[0] + " AND " + field + "<" + bounds[1];
+                            clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1];
                         }
                         else {
                             //TODO error
@@ -335,17 +350,32 @@ async function search(db, params) {
                         }
                     }
                     else if (val.match(/^\d+[\d\-]+/)) { // date/time exact match
-                        field = "datetime_vals[" + arrIndex + "]";
-                        clause = field + "=timestamp'" + val + "'";
+                        if (term.type == "datetime") {
+                            field = "datetime_vals[" + arrIndex + "]";
+                            clause = field + "=timestamp'" + val + "'";
+                        }
+                        else {
+                            //TODO error
+                        }
                     }
                     else if (val.match(/^\~\w+/)) { // partial string match
-                        val = val.substr(1);
-                        field = "string_vals[" + arrIndex + "]";
-                        clause = "LOWER(" + field + ") LIKE " + "'%" + val.toLowerCase() + "%'";
+                        if (term.type == "string") {
+                            let val2 = val.substr(1);
+                            field = "string_vals[" + arrIndex + "]";
+                            clause = "LOWER(" + field + ") LIKE " + "'%" + val2.toLowerCase() + "%'";
+                        }
+                        else {
+                            //TODO error
+                        }
                     }
                     else if (val.match(/\w+/)) { // literal string match
-                        field = "string_vals[" + arrIndex + "]";
-                        clause = field + "=" + "'" + val + "'";
+                        if (term.type == "string") {
+                            field = "string_vals[" + arrIndex + "]";
+                            clause = field + "=" + "'" + val + "'";
+                        }
+                        else {
+                            //TODO error
+                        }
                     }
                     else {
                         console.log("Error: invalid query");
