@@ -432,7 +432,7 @@ generateQueryParams locationVal params =
                     s
 
                 MultipleValues vals ->
-                    String.join "," vals
+                    String.join "|" vals
 
                 NoValue ->
                     ""

@@ -303,7 +303,7 @@ async function search(db, params) {
 
                     // FIXME should use query substitution here -- SQL injection risk
                     let field, clause, bounds;
-                    if (val === '') { // empty - show in results
+                    if (val === '') { // empty - don't query just show in results
                         if (term.type == "string")
                             field = "string_vals[" + arrIndex + "]";
                         else if (term.type == "number")
@@ -311,70 +311,92 @@ async function search(db, params) {
                         else if (term.type == "datetime")
                             field = "datetime_vals[" + arrIndex + "]";
                     }
+                    else if (val.match(/^\~(\w+)(\|\w+)*/)) { // partial string match on one or more values
+                        if (term.type == "string") {
+                            let vals = val.substr(1).split("|");
+                            console.log("partial string match on multiple values", vals);
+                            field = "string_vals[" + arrIndex + "]";
+                            if (vals.length == 1)
+                                clause = "LOWER(" + field + ") LIKE " + "'%" + vals[0].toLowerCase() + "%'"; // may not be necessary if equivalent to SIMILAR TO
+                            else
+                                clause = "LOWER(" + field + ") SIMILAR TO " + "'%(" + vals.join("|").toLowerCase() + ")%'";
+                        }
+                        else {
+                            //TODO error
+                            console.log("Error: string similarity query not supported for type", term.type);
+                        }
+                    }
+                    else if (val.match(/(\w+)(\|\w+)*/)) { // literal string match
+                        if (term.type == "string") {
+                            let vals = val.split("|");
+                            console.log("literal string match", vals);
+                            field = "string_vals[" + arrIndex + "]";
+                            clause = field + "=" + "'" + val + "'";
+                            if (vals.length == 1)
+                                clause = field + "=" + "'" + val + "'"; // may not be necessary if equivalent to IN()
+                            else
+                                clause = "LOWER(" + field + ") IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
+                        }
+                        else {
+                            //TODO error
+                            console.log("Error: string literal query not supported for type", term.type);
+                        }
+                    }
                     else if (!isNaN(val)) { // numeric exact match
                         if (term.type == "number") {
+                            console.log("numeric exact match");
                             field = "number_vals[" + arrIndex + "]";
                             clause = field + "=" + parseFloat(val);
                         }
                         else {
                             //TODO error
+                            console.log("Error: numeric exact query not supported for type", term.type);
                         }
                     }
                     else if (val.match(/-?\d*(\.\d+)?\,-?\d*(\.\d+)?/)) { // numeric offset query
                         if (term.type == "number") {
+                            console.log("numeric offset query");
                             bounds = val.split(",");
                             field = "number_vals[" + arrIndex + "]";
                             clause = field + " BETWEEN " + (1*bounds[0] - 1*bounds[1]) + " AND " + (1*bounds[0] + 1*bounds[1]);
                         }
                         else {
                             //TODO error
+                            console.log("Error: numeric offset query not supported for type", term.type);
                         }
                     }
-                    else if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // numeric range query
+                    else if (val.match(/^\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // numeric range query
                         if (term.type == "number") {
+                            console.log("numeric range query");
                             bounds = JSON.parse(val);
                             field = "number_vals[" + arrIndex + "]";
                             clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1];
                         }
                         else {
                             //TODO error
+                            console.log("Error: numeric range query not supported for type", term.type);
                         }
                     }
                     else if (bounds = val.match(/\[([\d\-\ ]+)\,([\d\-\ ]+)\]/)) { // date/time range query
                         if (term.type == "datetime") {
+                            console.log("datetime range query");
                             field = "datetime_vals[" + arrIndex + "]";
                             clause = field + ">=timestamp'" + bounds[1] + "' AND " + field + "<=timestamp'" + bounds[2] + "'";
                         }
                         else {
                             //TODO error
+                            console.log("Error: datetime range query not supported for type", term.type);
                         }
                     }
                     else if (val.match(/^\d+[\d\-]+/)) { // date/time exact match
                         if (term.type == "datetime") {
+                            console.log("exact datetime match");
                             field = "datetime_vals[" + arrIndex + "]";
                             clause = field + "=timestamp'" + val + "'";
                         }
                         else {
                             //TODO error
-                        }
-                    }
-                    else if (val.match(/^\~\w+/)) { // partial string match
-                        if (term.type == "string") {
-                            let val2 = val.substr(1);
-                            field = "string_vals[" + arrIndex + "]";
-                            clause = "LOWER(" + field + ") LIKE " + "'%" + val2.toLowerCase() + "%'";
-                        }
-                        else {
-                            //TODO error
-                        }
-                    }
-                    else if (val.match(/\w+/)) { // literal string match
-                        if (term.type == "string") {
-                            field = "string_vals[" + arrIndex + "]";
-                            clause = field + "=" + "'" + val + "'";
-                        }
-                        else {
-                            //TODO error
+                            console.log("Error: datetime exact query not supported for type", term.type);
                         }
                     }
                     else {
