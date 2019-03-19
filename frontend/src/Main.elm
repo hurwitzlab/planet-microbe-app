@@ -270,6 +270,8 @@ update msg model =
 
         SetFilterValue id val ->
             let
+                _ = Debug.log "SetFilterValue" (toString (id, val))
+
                 newVals =
                     Dict.insert id val model.selectedVals
             in
@@ -386,7 +388,7 @@ validParam val =
             defined s
 
         SingleValue s ->
-            defined s
+            True
 
         MultipleValues vals ->
             List.all defined vals
