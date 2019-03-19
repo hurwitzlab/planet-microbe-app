@@ -46,8 +46,25 @@ minNumPanelOptionsForSearchBar =
     50
 
 
+purlBiome =
+    "http://purl.obolibrary.org/obo/ENVO_00000428"
+
+
+purlDepth =
+    "http://purl.obolibrary.org/obo/PMO_00000029"
+
+
+purlDateTime =
+    "http://purl.obolibrary.org/obo/PMO_00000008"
+
+
 facets =
-    [ ("Biomes", "http://purl.obolibrary.org/obo/ENVO_00000428")
+    [ ("Biomes", purlBiome)
+    ]
+
+
+initialParams =
+    [ purlBiome
     ]
 
 
@@ -60,10 +77,7 @@ type alias PURL =
 
 
 type alias Model =
-    { location : String
-    , depth : String
-    , date : String
-    , allParams : List SearchTerm -- list of available params to add
+    { allParams : List SearchTerm -- list of available params to add
 --    , availableParams : List String -- based on params already selected
     , selectedParams : List PURL -- added params, for maintaining order
     , selectedTerms : Dict PURL SearchTerm
@@ -82,21 +96,13 @@ type alias Model =
     }
 
 
-initialParams =
-    [ "http://purl.obolibrary.org/obo/ENVO_00000428"
-    ]
-
-
 -- lat/lon (constrained to -180/180, -90/90, respectively), date, depth.
 init : Value -> ( Model, Cmd Msg )
 init flags =
     (
-        { location = ""
-        , depth = ""
-        , date = ""
-        , allParams = []
+        { allParams = []
 --        , availableParams = []
-        , selectedParams = [ "http://purl.obolibrary.org/obo/ENVO_00000428" ]
+        , selectedParams = initialParams
         , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
         , locationVal = NoLocationValue
@@ -385,6 +391,12 @@ validParam val =
         MultipleValues vals ->
             List.all defined vals
 
+        DateTimeValue dt ->
+            defined dt --TODO
+
+        DateTimeRangeValue dt1 dt2 ->
+            defined dt1 && defined dt2 --TODO
+
         NoValue ->
             True
 
@@ -433,6 +445,12 @@ generateQueryParams locationVal params =
 
                 MultipleValues vals ->
                     String.join "|" vals
+
+                DateTimeValue dt ->
+                    dt
+
+                DateTimeRangeValue dt1 dt2 ->
+                    "[" ++ dt1 ++ "," ++ dt2 ++ "]"
 
                 NoValue ->
                     ""
@@ -544,11 +562,13 @@ type alias SearchTerm =
 
 type FilterValue
     = NoValue
-    | SingleValue String
-    | MultipleValues (List String)
-    | SearchValue String
+    | SingleValue String -- numeric/string value
     | RangeValue String String -- numeric min/max
     | OffsetValue String String -- numeric +/-
+    | SearchValue String -- string value for partial match
+    | MultipleValues (List String) -- multiple string literal values
+    | DateTimeValue String -- single datetime value
+    | DateTimeRangeValue String String -- start/end datetime values
 
 
 type LocationFilterValue
@@ -660,6 +680,13 @@ viewSearchPanel model =
 
 viewLocationPanel : Model -> Html Msg
 viewLocationPanel model =
+    let
+        depthVal =
+            Dict.get purlDepth model.selectedVals |> Maybe.withDefault NoValue
+
+        datetimeVal =
+            Dict.get purlDateTime model.selectedVals |> Maybe.withDefault NoValue
+    in
     div []
         [ div [ class "card", style "font-size" "0.85em" ]
             [ div [ class "card-body" ]
@@ -688,33 +715,21 @@ viewLocationPanel model =
                     , br [] []
                     , div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
-                            [ div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Depth"] ]
-                            , input [ type_ "text", class "form-control", size 5, placeholder "", value model.depth ] []
-                            , div [ class "input-group-append" ]
-                                [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
-                                , div [ class "dropdown-menu" ]
-                                    [ a [ class "dropdown-item", href "#" ] [ text "Exact depth (m)" ]
-                                    , a [ class "dropdown-item", href "#" ] [ text "Depth, plus/minus (m)" ]
-                                    , a [ class "dropdown-item", href "#" ] [ text "Depth min/max (m)" ]
-                                    ]
-                                ]
-                            ]
+                            ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Depth"] ])
+                                :: (viewNumberFilterInput purlDepth depthVal)
+                                ++ [ viewNumberFilterFormatOptions purlDepth ]
+                            )
                         ]
                     , br [] []
                     , div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
-                            [ div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Date/Time"] ]
-                            , input [ type_ "text", class "form-control", size 5, placeholder "", value model.date ] []
-                            , div [ class "input-group-append" ]
-                                [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
-                                , div [ class "dropdown-menu" ]
-                                    [ a [ class "dropdown-item", href "#" ] [ text "Time YY-MM-DD HH:MM:SS" ]
-                                    , a [ class "dropdown-item", href "#" ] [ text "Day YY-MM-DD" ]
-                                    , a [ class "dropdown-item", href "#" ] [ text "Year YYYY" ]
-                                    , a [ class "dropdown-item", href "#" ] [ text "Range YY-MM-DD HH:MM:SS, YY-MM-DD HH:MM:SS" ]
-                                    ]
-                                ]
-                            ]
+                            ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Date/Time"] ])
+                                :: (viewDateTimeFilterInput purlDateTime datetimeVal)
+                                ++ [ div [ class "input-group-append" ]
+                                       [ button [ class "btn btn-outline-secondary", type_ "button" ] [ text (String.fromChar (Char.fromCode 128197)) ] ]
+                                   , viewDateTimeFilterFormatOptions purlDateTime
+                                   ]
+                            )
                         ]
                     , br [] []
                     ]
@@ -796,6 +811,9 @@ viewAddedFiltersPanel params terms vals  =
                                 "number" ->
                                     viewNumberFilterPanel term termVal
 
+                                "datetime" ->
+                                    viewDateTimeFilterPanel term termVal
+
                                 _ ->
                                     text "Error"
                 )
@@ -858,28 +876,17 @@ viewStringFilterPanel term =
 
 viewNumberFilterPanel : SearchTerm -> FilterValue -> Html Msg
 viewNumberFilterPanel term val =
-    let
-        viewOption (label, filterVal) =
-            a [ class "dropdown-item", href "#", onClick (SetFilterValue term.id filterVal) ] [ label |> String.Extra.toSentenceCase |> text ]
-
-        options =
-            [ ("exact", SingleValue ""), ("range", RangeValue "" ""), ("offset", OffsetValue "" "") ]
-    in
     viewTermPanel term
         [ div [ class "input-group input-group-sm" ]
-            (List.append (viewFilterInput term.id val)
-                [ div [ class "input-group-append" ]
-                    [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
-                    , div [ class "dropdown-menu" ]
-                        (List.map viewOption options)
-                    ]
+            (List.append (viewNumberFilterInput term.id val)
+                [ viewNumberFilterFormatOptions term.id
                 ]
             )
         ]
 
 
-viewFilterInput : PURL -> FilterValue -> List (Html Msg)
-viewFilterInput id val =
+viewNumberFilterInput : PURL -> FilterValue -> List (Html Msg)
+viewNumberFilterInput id val =
     let
         rangeInput min max =
             [ input [ type_ "text", class "form-control", placeholder "min", value min, onInput (\p -> SetFilterValue id (RangeValue p max)) ] []
@@ -901,6 +908,75 @@ viewFilterInput id val =
 
         _ ->
             rangeInput "" ""
+
+
+viewNumberFilterFormatOptions : PURL -> Html Msg
+viewNumberFilterFormatOptions id =
+    let
+        viewOption (label, filterVal) =
+            a [ class "dropdown-item", href "#", onClick (SetFilterValue id filterVal) ]
+                [ label |> String.Extra.toSentenceCase |> text ]
+
+        options =
+            [ ("exact", SingleValue ""), ("range", RangeValue "" ""), ("offset", OffsetValue "" "") ]
+    in
+    div [ class "input-group-append" ]
+        [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+        , div [ class "dropdown-menu" ]
+            (List.map viewOption options)
+        ]
+
+
+viewDateTimeFilterPanel : SearchTerm -> FilterValue -> Html Msg
+viewDateTimeFilterPanel term val =
+    viewTermPanel term
+        [ div [ class "input-group input-group-sm" ]
+            (List.append (viewDateTimeFilterInput term.id val)
+                [ viewDateTimeFilterFormatOptions term.id
+                ]
+            )
+        ]
+
+
+viewDateTimeFilterInput : PURL -> FilterValue -> List (Html Msg)
+viewDateTimeFilterInput id val =
+    let
+        singleInput dt =
+            [ input [ type_ "text", class "form-control", placeholder "value", value dt, onInput (\p -> SetFilterValue id (DateTimeValue p)) ] [] ]
+    in
+    case val of
+        DateTimeValue dt ->
+            singleInput dt
+
+        DateTimeRangeValue dt1 dt2 ->
+            [ input [ type_ "text", class "form-control", placeholder "start", value dt1, onInput (\p -> SetFilterValue id (DateTimeRangeValue p dt2)) ] []
+            , input [ type_ "text", class "form-control", placeholder "end", value dt2, onInput (\p -> SetFilterValue id (DateTimeRangeValue dt1 p)) ] []
+            ]
+
+        _ ->
+            singleInput ""
+
+
+viewDateTimeFilterFormatOptions : PURL -> Html Msg
+viewDateTimeFilterFormatOptions id =
+    let
+        viewOption (label, filterVal) =
+            a [ class "dropdown-item", href "#", onClick (SetFilterValue id filterVal) ]
+                [ label |> String.Extra.toSentenceCase |> text ]
+
+        options =
+--            [ a [ class "dropdown-item", href "#" ] [ text "Time YY-MM-DD HH:MM:SS" ]
+--            , a [ class "dropdown-item", href "#" ] [ text "Day YY-MM-DD" ]
+--            , a [ class "dropdown-item", href "#" ] [ text "Year YYYY" ]
+--            , a [ class "dropdown-item", href "#" ] [ text "Range YY-MM-DD HH:MM:SS, YY-MM-DD HH:MM:SS" ]
+--            ]
+            [ ("Time YY-MM-DD HH:MM:SS", DateTimeValue ""), ("Range YY-MM-DD HH:MM:SS, YY-MM-DD HH:MM:SS", DateTimeRangeValue "" "") ]
+    in
+    div [ class "input-group-append" ]
+        [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+        , div [ class "dropdown-menu" ]
+            (List.map viewOption options)
+        ]
 
 
 viewLocationFilterInput : LocationFilterValue -> List (Html Msg)
@@ -1022,10 +1098,20 @@ viewResults model =
             th [ style "cursor" "pointer", onClick (SetSortPos pos) ] [ text lbl ]
 
         timeSpaceParamNames =
-            if model.locationVal /= NoLocationValue && validLocationParam model.locationVal then
-                [ "Location" ]
-            else
-                []
+            let
+                depthVal =
+                    Dict.get purlDepth model.selectedVals |> Maybe.withDefault NoValue
+            in
+            [ if model.locationVal /= NoLocationValue && validLocationParam model.locationVal then
+                "Location"
+              else
+                ""
+            , if depthVal /= NoValue && validParam depthVal then
+                "Depth"
+              else
+                ""
+            ]
+            |> List.filter (\s -> defined s)
 
         paramNames =
             List.concat

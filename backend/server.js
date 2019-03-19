@@ -311,6 +311,41 @@ async function search(db, params) {
                         else if (term.type == "datetime")
                             field = "datetime_vals[" + arrIndex + "]";
                     }
+                    else if (!isNaN(val)) { // numeric exact match
+                        if (term.type == "number") {
+                            console.log("numeric exact match");
+                            field = "number_vals[" + arrIndex + "]";
+                            clause = field + "=" + parseFloat(val);
+                        }
+                        else {
+                            //TODO error
+                            console.log("Error: numeric exact query not supported for type", term.type);
+                        }
+                    }
+                    else if (val.match(/^\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // numeric range query
+                        if (term.type == "number") {
+                            console.log("numeric range query");
+                            bounds = JSON.parse(val);
+                            field = "number_vals[" + arrIndex + "]";
+                            clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1];
+                        }
+                        else {
+                            //TODO error
+                            console.log("Error: numeric range query not supported for type", term.type);
+                        }
+                    }
+                    else if (val.match(/^-?\d*(\.\d+)?\,-?\d*(\.\d+)?$/)) { // numeric offset query
+                        if (term.type == "number") {
+                            console.log("numeric offset query");
+                            bounds = val.split(",");
+                            field = "number_vals[" + arrIndex + "]";
+                            clause = field + " BETWEEN " + (1*bounds[0] - 1*bounds[1]) + " AND " + (1*bounds[0] + 1*bounds[1]);
+                        }
+                        else {
+                            //TODO error
+                            console.log("Error: numeric offset query not supported for type", term.type);
+                        }
+                    }
                     else if (val.match(/^\~(\w+)(\|\w+)*/)) { // partial string match on one or more values
                         if (term.type == "string") {
                             let vals = val.substr(1).split("|");
@@ -326,7 +361,7 @@ async function search(db, params) {
                             console.log("Error: string similarity query not supported for type", term.type);
                         }
                     }
-                    else if (val.match(/(\w+)(\|\w+)*/)) { // literal string match
+                    else if (val.match(/^(\w+)(\|\w+)*$/)) { // literal string match
                         if (term.type == "string") {
                             let vals = val.split("|");
                             console.log("literal string match", vals);
@@ -342,42 +377,7 @@ async function search(db, params) {
                             console.log("Error: string literal query not supported for type", term.type);
                         }
                     }
-                    else if (!isNaN(val)) { // numeric exact match
-                        if (term.type == "number") {
-                            console.log("numeric exact match");
-                            field = "number_vals[" + arrIndex + "]";
-                            clause = field + "=" + parseFloat(val);
-                        }
-                        else {
-                            //TODO error
-                            console.log("Error: numeric exact query not supported for type", term.type);
-                        }
-                    }
-                    else if (val.match(/-?\d*(\.\d+)?\,-?\d*(\.\d+)?/)) { // numeric offset query
-                        if (term.type == "number") {
-                            console.log("numeric offset query");
-                            bounds = val.split(",");
-                            field = "number_vals[" + arrIndex + "]";
-                            clause = field + " BETWEEN " + (1*bounds[0] - 1*bounds[1]) + " AND " + (1*bounds[0] + 1*bounds[1]);
-                        }
-                        else {
-                            //TODO error
-                            console.log("Error: numeric offset query not supported for type", term.type);
-                        }
-                    }
-                    else if (val.match(/^\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // numeric range query
-                        if (term.type == "number") {
-                            console.log("numeric range query");
-                            bounds = JSON.parse(val);
-                            field = "number_vals[" + arrIndex + "]";
-                            clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1];
-                        }
-                        else {
-                            //TODO error
-                            console.log("Error: numeric range query not supported for type", term.type);
-                        }
-                    }
-                    else if (bounds = val.match(/\[([\d\-\ ]+)\,([\d\-\ ]+)\]/)) { // date/time range query
+                    else if (bounds = val.match(/^\[(\d{4}\-\d{2}\-\d{2})\,(\d{4}\-\d{2}\-\d{2})\]$/)) { // date/time range query
                         if (term.type == "datetime") {
                             console.log("datetime range query");
                             field = "datetime_vals[" + arrIndex + "]";
@@ -388,7 +388,7 @@ async function search(db, params) {
                             console.log("Error: datetime range query not supported for type", term.type);
                         }
                     }
-                    else if (val.match(/^\d+[\d\-]+/)) { // date/time exact match
+                    else if (val.match(/^(\d{4}\-\d{2}\-\d{2})/)) { // date/time exact match
                         if (term.type == "datetime") {
                             console.log("exact datetime match");
                             field = "datetime_vals[" + arrIndex + "]";
@@ -400,8 +400,8 @@ async function search(db, params) {
                         }
                     }
                     else {
-                        console.log("Error: invalid query");
-                        //TODO
+                        console.log("Error: invalid query syntax");
+                        throw("Invalid query syntax")
                     }
 
                     selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
