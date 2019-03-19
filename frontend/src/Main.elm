@@ -478,13 +478,25 @@ generateQueryParams locationVal params =
 
                 NoLocationValue ->
                     ""
+
+        sortFirst id a b =
+            if Tuple.first a == id then
+                LT
+            else if Tuple.first b == id then
+                GT
+            else
+                EQ
     in
     if locationVal == NoLocationValue && Dict.isEmpty params then
         Ok []
     else if params |> Dict.toList |> List.map Tuple.second |> List.all validParam then
         let
             queryParams =
-                params |> Dict.map formatParam |> Dict.toList
+                params
+                    |> Dict.map formatParam
+                    |> Dict.toList
+                    |> List.sortWith (sortFirst purlDateTime) --FIXME kinda kludgey, another way to order time/space params properly
+                    |> List.sortWith (sortFirst purlDepth)
 
             allQueryParams =
                 if validLocationParam locationVal then
@@ -1097,10 +1109,13 @@ viewResults model =
             in
             th [ style "cursor" "pointer", onClick (SetSortPos pos) ] [ text lbl ]
 
-        timeSpaceParamNames =
+        timeSpaceParamNames = -- kinda kludgey, find another way to order time/space params
             let
                 depthVal =
                     Dict.get purlDepth model.selectedVals |> Maybe.withDefault NoValue
+
+                datetimeVal =
+                    Dict.get purlDateTime model.selectedVals |> Maybe.withDefault NoValue
             in
             [ if model.locationVal /= NoLocationValue && validLocationParam model.locationVal then
                 "Location"
@@ -1108,6 +1123,10 @@ viewResults model =
                 ""
             , if depthVal /= NoValue && validParam depthVal then
                 "Depth"
+              else
+                ""
+            , if datetimeVal /= NoValue && validParam datetimeVal then
+                "Date/Time"
               else
                 ""
             ]
