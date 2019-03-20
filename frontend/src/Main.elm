@@ -24,7 +24,7 @@ main =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.batch
         [ Time.every 1000 InputTimerTick -- milliseconds
         ]
@@ -87,7 +87,7 @@ type alias Model =
     , doSearch : Bool
     , isSearching : Bool
     , searchStartTime : Int -- milliseconds
-    , results : Maybe (List SearchResult) --(List Sample)
+    , results : Maybe (List SearchResult)
     , count : Int
     , errorMsg : Maybe String
     , tableState : Table.State
@@ -132,8 +132,6 @@ init flags =
 type Msg
     = GetAllSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | GetSearchTermCompleted (Result Http.Error SearchTerm)
---    | Search
-    | SearchCompleted (Result Http.Error SearchResponse)
     | ClearFilters
     | AddFilter PURL
     | RemoveFilter PURL
@@ -145,8 +143,8 @@ type Msg
     | SetPageSize Int
     | SetPageNum Int
     | InputTimerTick Time.Posix
---    | Next
---    | Previous
+    | Search Int
+    | SearchCompleted (Result Http.Error SearchResponse)
     | SetTableState Table.State
 
 
@@ -303,33 +301,34 @@ update msg model =
                     else
                         model.pageNum
             in
-            ( { model | doSearch = (newPageNum /= model.pageNum), pageNum = newPageNum }, Cmd.none )
-
-        InputTimerTick time ->
-            if model.doSearch then
---                if model.selectedVals == Dict.empty then
---                    if model.results == Nothing then -- initial load of all samples
---                        ( { model | doSearch = False }, Cmd.none ) --Task.attempt UpdateSamples (Request.Sample.list session.token |> Http.toTask) )
---                    else
---                        ( { model | doSearch = False, isSearching = False, results = Nothing }, Cmd.none )
-                if Time.posixToMillis time - model.searchStartTime >= 1000 then -- 1 second
-                    case generateQueryParams model.locationVal model.selectedVals of
-                        Ok queryParams ->
-                            let
-                                searchTask =
-                                    searchRequest queryParams model.sortPos model.pageSize (model.pageSize * model.pageNum) |> Http.toTask
-                            in
-                            ( { model | doSearch = False, isSearching = True }, Task.attempt SearchCompleted searchTask )
-
-                        Err error ->
-                            let
-                                _ = Debug.log "Error generating query params:" (toString error)
-                            in
-                            ( model, Cmd.none )
-                else
-                    ( model, Cmd.none )
+            if newPageNum /= model.pageNum then
+                update (Search newPageNum) model
             else
                 ( model, Cmd.none )
+
+        InputTimerTick time ->
+            if model.doSearch && Time.posixToMillis time - model.searchStartTime >= 1000 then -- 1 second
+                update (Search 0) model
+            else
+                ( model, Cmd.none )
+
+        Search newPageNum ->
+            let
+                _ = Debug.log "Search" (toString newPageNum)
+            in
+            case generateQueryParams model.locationVal model.selectedVals of
+                Ok queryParams ->
+                    let
+                        searchTask =
+                            searchRequest queryParams model.sortPos model.pageSize (model.pageSize * newPageNum) |> Http.toTask
+                    in
+                    ( { model | doSearch = False, isSearching = True, pageNum = newPageNum }, Task.attempt SearchCompleted searchTask )
+
+                Err error ->
+                    let
+                        _ = Debug.log "Error generating query params:" (toString error)
+                    in
+                    ( model, Cmd.none )
 
         SearchCompleted (Ok response) ->
             ( { model | count = response.count, results = Just response.results, isSearching = False }, Cmd.none )
@@ -339,23 +338,6 @@ update msg model =
                 _ = Debug.log "SearchCompleted" (toString error)
             in
             ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
-
---        Next ->
---            let
---                (newModel, newCmd) =
---                    update Search { model | pageNum = model.pageNum + 1 }
---            in
---            ( newModel, newCmd )
---
---        Previous ->
---            let
---                pageNum =
---                    model.pageNum - 1 |> Basics.max 0
---
---                (newModel, newCmd) =
---                    update Search { model | pageNum = pageNum }
---            in
---            ( newModel, newCmd )
 
         SetTableState newState ->
             ( { model | tableState = newState }
