@@ -120,7 +120,7 @@ init flags =
     , Cmd.batch
         [ getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map getSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
-        , searchRequest [] 0 defaultPageSize |> Http.toTask |> Task.attempt SearchCompleted
+        , searchRequest [] 0 defaultPageSize 0 |> Http.toTask |> Task.attempt SearchCompleted
         ]
     )
 
@@ -142,6 +142,8 @@ type Msg
     | SetFilterValue PURL FilterValue
     | SetLocationFilterValue LocationFilterValue
     | SetSortPos Int
+    | SetPageSize Int
+    | SetPageNum Int
     | InputTimerTick Time.Posix
 --    | Next
 --    | Previous
@@ -290,6 +292,19 @@ update msg model =
             in
             ( { model | doSearch = True, sortPos = newPos }, Cmd.none )
 
+        SetPageSize size ->
+            ( { model | doSearch = True, pageSize = size }, Cmd.none )
+
+        SetPageNum num ->
+            let
+                newPageNum =
+                    if num >= 0 then
+                        num
+                    else
+                        model.pageNum
+            in
+            ( { model | doSearch = (newPageNum /= model.pageNum), pageNum = newPageNum }, Cmd.none )
+
         InputTimerTick time ->
             if model.doSearch then
 --                if model.selectedVals == Dict.empty then
@@ -302,7 +317,7 @@ update msg model =
                         Ok queryParams ->
                             let
                                 searchTask =
-                                    searchRequest queryParams model.sortPos model.pageSize |> Http.toTask
+                                    searchRequest queryParams model.sortPos model.pageSize (model.pageSize * model.pageNum) |> Http.toTask
                             in
                             ( { model | doSearch = False, isSearching = True }, Task.attempt SearchCompleted searchTask )
 
@@ -511,8 +526,8 @@ generateQueryParams locationVal params =
         Err "Invalid query parameter"
 
 
-searchRequest : List (String, String) -> Int -> Int -> Http.Request SearchResponse
-searchRequest queryParams sortPos pageSize =
+searchRequest : List (String, String) -> Int -> Int -> Int -> Http.Request SearchResponse
+searchRequest queryParams sortPos limit offset =
     let
         url =
             apiBaseUrl ++ "/search"
@@ -520,7 +535,8 @@ searchRequest queryParams sortPos pageSize =
         queryParams2 =
             queryParams
                 |> List.append [ ("sort", toString sortPos) ]
-                |> List.append [ ("limit", toString pageSize) ]
+                |> List.append [ ("limit", toString limit) ]
+                |> List.append [ ("offset", toString offset) ]
     in
     HttpBuilder.get url
         |> HttpBuilder.withQueryParams queryParams2
@@ -1201,6 +1217,46 @@ viewResults model =
                 , (if model.count /= 1 then "s" else "") |> text
                 ]
 
+        lastPageNum =
+            toFloat(model.count) / toFloat(model.pageSize) |> floor
+
+        pageControls =
+            let
+                sizeOption size =
+                    a [ class "dropdown-item", href "#", onClick (SetPageSize size) ] [ text (toString size) ]
+
+                pageOption label num =
+                    let
+                        dis =
+                            num < 0 -- previous
+                                || num == model.pageNum -- current
+                                || num > lastPageNum -- next
+                    in
+                    li [ classList [ ("page-item", True), ("disabled", dis) ] ]
+                        [ a [ class "page-link", href "#", onClick (SetPageNum num) ] [ text label ] ]
+            in
+            div [ style "padding" "0.5em", style "border" "1px solid lightgray" ]
+                [ text "Show "
+                , div [ class "dropup", style "display" "inline" ]
+                    [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (toString model.pageSize) ]
+                    , div [ class "dropdown-menu" ]
+                        (List.map sizeOption [20, 40, 60, 80, 100])
+                    ]
+                , text " results"
+                , nav [ style "float" "right" ]
+                    [ ul [ class "pagination" ]
+                        --FIXME code below is a little kludgey
+                        [ pageOption "Previous" (model.pageNum - 1)
+                        , pageOption (toString (model.pageNum + 1)) model.pageNum
+                        , if model.pageNum + 1 > lastPageNum then text "" else pageOption (toString (model.pageNum + 2)) (model.pageNum + 1)
+                        , if model.pageNum + 2 > lastPageNum then text "" else pageOption (toString (model.pageNum + 3)) (model.pageNum + 2)
+                        , if model.pageNum + 3 > lastPageNum then text "" else pageOption "..." (model.pageNum + 3)
+                        , pageOption "Last" lastPageNum
+                        , pageOption "Next" (model.pageNum + 1)
+                        ]
+                    ]
+                ]
+
         content =
             if model.isSearching then
                 text "Searching ..."
@@ -1232,31 +1288,7 @@ viewResults model =
                             , tbody [] (model.results |> Maybe.withDefault [] |> List.map mkRow)
                             ]
                         ]
-                    , div [ style "padding" "0.5em", style "border" "1px solid lightgray" ]
-                        [ text "Show "
-                        , div [ class "dropup", style "display" "inline" ]
-                            [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (toString model.pageSize) ]
-                            , div [ class "dropdown-menu" ]
-                                [ a [ class "dropdown-item", href "#" ] [ text "20" ]
-                                , a [ class "dropdown-item", href "#" ] [ text "40" ]
-                                , a [ class "dropdown-item", href "#" ] [ text "60" ]
-                                , a [ class "dropdown-item", href "#" ] [ text "80" ]
-                                , a [ class "dropdown-item", href "#" ] [ text "100" ]
-                                ]
-                            ]
-                        , text " results"
-                        , nav [ style "float" "right" ]
-                            [ ul [ class "pagination" ]
-                                [ li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Previous" ] ]
-                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "1" ] ]
-                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "2" ] ]
-                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "3" ] ]
-                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "..." ] ]
-                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Last" ] ]
-                                , li [ class "page-item" ] [ a [ class "page-link", href "#" ] [ text "Next" ] ]
-                                ]
-                            ]
-                        ]
+                    , pageControls
                     ]
     in
     div []
