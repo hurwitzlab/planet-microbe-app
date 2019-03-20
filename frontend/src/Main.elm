@@ -1228,13 +1228,14 @@ viewResults model =
                 , nav [ style "float" "right" ]
                     [ ul [ class "pagination" ]
                         --FIXME code below is a little kludgey
-                        [ pageOption "Previous" (model.pageNum - 1)
+                        [ pageOption "First" 0
+                        , pageOption "Previous" (model.pageNum - 1)
                         , pageOption (toString (model.pageNum + 1)) model.pageNum
                         , if model.pageNum + 1 > lastPageNum then text "" else pageOption (toString (model.pageNum + 2)) (model.pageNum + 1)
                         , if model.pageNum + 2 > lastPageNum then text "" else pageOption (toString (model.pageNum + 3)) (model.pageNum + 2)
                         , if model.pageNum + 3 > lastPageNum then text "" else pageOption "..." (model.pageNum + 3)
-                        , pageOption "Last" lastPageNum
                         , pageOption "Next" (model.pageNum + 1)
+                        , pageOption "Last" lastPageNum
                         ]
                     ]
                 ]
