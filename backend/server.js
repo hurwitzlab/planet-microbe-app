@@ -22,12 +22,7 @@ var db;
     });
     await db.connect();
 
-    let ontologies = config.ontologies.map(path => {
-        var json = fs.readFileSync(path);
-        return JSON.parse(json);
-    });
-
-    rdfTermIndex = await generateTermIndex(db, ontologies);
+    rdfTermIndex = await generateTermIndex(db, config.ontologies);
     console.log("index:", JSON.stringify(rdfTermIndex, null, 4));
 
     app.listen(config.serverPort, () => console.log('Server listening on port', config.serverPort));
@@ -62,6 +57,7 @@ app.get('/searchTerms', (req, res) => {
                 return {
                     id: term.id,
                     label: term.label,
+                    unitLabel: term.unitLabel,
                     type: term.type,
                     aliases: aliases
                 };
@@ -200,16 +196,51 @@ app.get('/search', async (req, res) => {
 
 //----------------------------------------------------------------------------------------------------------------------
 
-async function generateTermIndex(db, ontologies) {
+async function generateTermIndex(db, ontologyDescriptors) {
     //let result = await query('select fields[1].string from sample limit 1')
     let schemas = await query("SELECT schema_id,name,fields FROM schema");
     //console.log(schemas.rows);
 
     let index = {};
+    ontologyDescriptors.forEach( desc => {
+        console.log("Indexing ontology", desc.name);
+        load_ontology(desc.type, desc.path, index);
+    });
 
-    ontologies.forEach( ontology => {
-        console.log("Indexing ontology", ontology.name);
-//        ontology.graphs.forEach( g => {
+    schemas.rows.forEach( schema => {
+        console.log("Indexing schema", schema.name);
+
+        for (let i = 0; i < schema.fields.fields.length; i++) {
+            let field = schema.fields.fields[i];
+
+            let purl = field.rdfType;
+            if (!purl)
+                continue; // skip this field if no PURL value (not in term catalog)
+
+            if (!(purl in index))
+                index[purl] = {};
+            if (!('schemas' in index[purl]))
+                index[purl]['schemas'] = {};
+            if (!index[purl]['schemas'][schema.schema_id])
+                index[purl]['schemas'][schema.schema_id] = {};
+                
+            index[purl]['schemas'][schema.schema_id][field.name] = i+1
+            index[purl]['type'] = field.type;
+
+            let unitPurl = field['pm:unitRdfType'];
+            if (unitPurl && unitPurl in index)
+                index[purl]['unitLabel'] = index[unitPurl]['label'];
+        }
+    });
+
+    return index;
+}
+
+function load_ontology(type, path, index) {
+    if (path.endsWith(".json")) {
+        var json = fs.readFileSync(path);
+        ontology = JSON.parse(json);
+//          ontology.graphs.forEach( g => {
 //            g.nodes.forEach(node => {
 //                if (node.id in index)
 //                    throw("Error: duplicate PURL");
@@ -219,7 +250,7 @@ async function generateTermIndex(db, ontologies) {
 //                    label: node.lbl
 //                };
 //            })
-//        });
+//          });
         ontology.classAttribute.forEach(node => {
             let label = "<unknown>";
             if (node["label"]) {
@@ -233,27 +264,24 @@ async function generateTermIndex(db, ontologies) {
                 id: node.iri,
                 label: label
             }
+        });
+    }
+    else if (path.endsWith(".csv")) {
+        var data = fs.readFileSync(path, { encoding: "UTF8" });
+        console.log(data)
+        data.split('\n').forEach(line => {
+            let fields = line.split(',');
+            let purl = fields[0];
+            let label = fields[1];
+            index[purl] = {
+                id: purl,
+                label : label
+            }
         })
-    });
-
-    schemas.rows.forEach( schema => {
-        console.log("Indexing schema", schema.name);
-
-        for (let i = 0; i < schema.fields.fields.length; i++) {
-            let field = schema.fields.fields[i];
-            let rdf = field.rdfType;
-            if (!rdf)
-                continue;//rdf = 'http://planetmicrobe.org/temppurl/PM_'+ shortid.generate(); //FIXME hardcoded URL
-            if (!(rdf in index))
-                index[rdf] = {};
-            if (!('schemas' in index[rdf]))
-                index[rdf]['schemas'] = {};
-            if (!index[rdf]['schemas'][schema.schema_id])
-                index[rdf]['schemas'][schema.schema_id] = {};
-            index[rdf]['schemas'][schema.schema_id][field.name] = i+1 
-            index[rdf]['type'] = field.type;
-        }
-    });
+    }
+    else {
+        throw("Error: unsupported ontology file format");
+    }
 
     return index;
 }
@@ -361,7 +389,7 @@ async function search(db, params) {
                             console.log("Error: string similarity query not supported for type", term.type);
                         }
                     }
-                    else if (val.match(/^(\w+)(\|\w+)*$/)) { // literal string match
+                    else if (val.match(/^(\w+)(\|\w+)*/)) { // literal string match on one or more values
                         if (term.type == "string") {
                             let vals = val.split("|");
                             console.log("literal string match", vals);
@@ -378,7 +406,7 @@ async function search(db, params) {
                         }
                     }
                     else if (bounds = val.match(/^\[(\d{4}\-\d{2}\-\d{2})\,(\d{4}\-\d{2}\-\d{2})\]$/)) { // date/time range query
-                        if (term.type == "datetime") {
+                        if (term.type == "datetime" || term.type == "date") {
                             console.log("datetime range query");
                             field = "datetime_vals[" + arrIndex + "]";
                             clause = field + ">=timestamp'" + bounds[1] + "' AND " + field + "<=timestamp'" + bounds[2] + "'";
@@ -389,7 +417,7 @@ async function search(db, params) {
                         }
                     }
                     else if (val.match(/^(\d{4}\-\d{2}\-\d{2})/)) { // date/time exact match
-                        if (term.type == "datetime") {
+                        if (term.type == "datetime" || term.type == "date") {
                             console.log("exact datetime match");
                             field = "datetime_vals[" + arrIndex + "]";
                             clause = field + "=timestamp'" + val + "'";
@@ -458,7 +486,13 @@ async function search(db, params) {
 
     return {
         count: count.rows[0][0]*1,
-        results: results.rows.map(r => { return { schemaId: r[0], sampleId: r[1], values: r.slice(2) } })
+        results: results.rows.map(r => {
+            return {
+                schemaId: r[0],
+                sampleId: r[1],
+                values:   r.slice(2).map(v => typeof v == "undefined" ? "" : v ) // kludge to convert null to empty string
+            }
+        })
     };
 }
 
