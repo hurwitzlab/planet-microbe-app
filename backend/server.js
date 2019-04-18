@@ -97,6 +97,7 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
         res.json({
             id: term.id,
             label: term.label,
+            unitLabel: term.unitLabel,
             type: term.type,
             aliases: aliases,
             values: uniqueVals
@@ -131,6 +132,7 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
         res.json({
             id: term.id,
             label: term.label,
+            unitLabel: term.unitLabel,
             type: term.type,
             aliases: aliases,
             min: min,
@@ -166,6 +168,7 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
         res.json({
             id: term.id,
             label: term.label,
+            unitLabel: term.unitLabel,
             type: term.type,
             aliases: aliases,
             min: new Date(min).toISOString(),
