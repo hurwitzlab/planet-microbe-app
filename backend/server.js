@@ -23,7 +23,7 @@ var db;
     await db.connect();
 
     rdfTermIndex = await generateTermIndex(db, config.ontologies);
-    console.log("index:", JSON.stringify(rdfTermIndex, null, 4));
+    //console.log("index:", JSON.stringify(rdfTermIndex, null, 4));
 
     app.listen(config.serverPort, () => console.log('Server listening on port', config.serverPort));
 })();
@@ -214,7 +214,7 @@ async function generateTermIndex(db, ontologyDescriptors) {
             let field = schema.fields.fields[i];
 
             let purl = field.rdfType;
-            if (!purl)
+            if (!purl || !field["pm:searchable"])
                 continue; // skip this field if no PURL value (not in term catalog)
 
             if (!(purl in index))
@@ -223,7 +223,7 @@ async function generateTermIndex(db, ontologyDescriptors) {
                 index[purl]['schemas'] = {};
             if (!index[purl]['schemas'][schema.schema_id])
                 index[purl]['schemas'][schema.schema_id] = {};
-                
+
             index[purl]['schemas'][schema.schema_id][field.name] = i+1
             index[purl]['type'] = field.type;
 
@@ -268,7 +268,6 @@ function load_ontology(type, path, index) {
     }
     else if (path.endsWith(".csv")) {
         var data = fs.readFileSync(path, { encoding: "UTF8" });
-        console.log(data)
         data.split('\n').forEach(line => {
             let fields = line.split(',');
             let purl = fields[0];
@@ -461,7 +460,7 @@ async function search(db, params) {
         clauseStr = "WHERE " + clauseStr;
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-    let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+1) + " " + sortDir : "");
+    let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+2) + " " + sortDir : "");
 
     let countQueryStr = "SELECT count(*) FROM sample " + clauseStr;
 
