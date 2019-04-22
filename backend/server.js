@@ -197,6 +197,16 @@ app.get('/search', async (req, res) => {
 //    });
 });
 
+app.get('/projects', async (req, res) => {
+    let result = await query({ text: "SELECT name,count(sample_id) FROM project JOIN project_to_sample ON project.project_id=project_to_sample.project_id GROUP BY name"});
+    result.rows.forEach(row => row.count *= 1); // convert count to int
+    res.json(result.rows);
+//    .catch(err => {
+//        console.log(err);
+//        res.send(err);
+//    });
+});
+
 //----------------------------------------------------------------------------------------------------------------------
 
 async function generateTermIndex(db, ontologyDescriptors) {
@@ -472,7 +482,9 @@ async function search(db, params) {
     let limitStr = (limit ? " LIMIT " + limit : "");
     let offsetStr = (offset ? " OFFSET " + offset : "");
 
-    let queryStr = "SELECT " + ["schema_id", "sample_id"].concat(selections).join(",") + " FROM sample " + clauseStr + sortStr + offsetStr + limitStr;
+    let queryStr = "SELECT " + ["schema_id", "sample.sample_id", "project.project_id", "project.name"].concat(selections).join(",") +
+        " FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
+        clauseStr + sortStr + offsetStr + limitStr;
 
     let count = await query({
         text: countQueryStr,
@@ -492,7 +504,9 @@ async function search(db, params) {
             return {
                 schemaId: r[0],
                 sampleId: r[1],
-                values:   r.slice(2).map(v => typeof v == "undefined" ? "" : v ) // kludge to convert null to empty string
+                projectId: r[2],
+                projectName: r[3],
+                values: r.slice(4).map(v => typeof v == "undefined" ? "" : v ) // kludge to convert null to empty string
             }
         })
     };
