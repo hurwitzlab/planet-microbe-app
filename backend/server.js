@@ -473,7 +473,7 @@ async function search(db, params) {
         clauseStr = "WHERE " + clauseStr;
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-    let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+2) + " " + sortDir : "");
+    let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
 
     let countQueryStr = "SELECT count(*) FROM sample " + clauseStr;
 
