@@ -2,7 +2,6 @@ import Browser
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onCheck)
-import Table exposing (defaultCustomizations)
 import Http
 import HttpBuilder
 import Json.Encode as Encode exposing (Value, string)
@@ -14,6 +13,7 @@ import Task
 import Time
 import String.Extra
 import Set
+import Dialog
 import Dict exposing (Dict)
 import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
@@ -43,7 +43,11 @@ maxNumPanelOptions =
 
 
 minNumPanelOptionsForSearchBar =
-    50
+    30
+
+
+purlSampleID =
+    "http://purl.obolibrary.org/obo/OBI_0001901"
 
 
 purlBiome =
@@ -77,12 +81,14 @@ type alias PURL =
 
 
 type alias Model =
-    { allParams : List SearchTerm -- list of available params to add
+    { projectCounts : List ProjectCount
+    , allParams : List SearchTerm -- list of available params to add
 --    , availableParams : List String -- based on params already selected
     , selectedParams : List PURL -- added params, for maintaining order
     , selectedTerms : Dict PURL SearchTerm
     , selectedVals : Dict PURL FilterValue
     , locationVal : LocationFilterValue
+    , stringFilterDialogTerm : Maybe SearchTerm
     , sortPos : Int
     , doSearch : Bool
     , isSearching : Bool
@@ -90,7 +96,6 @@ type alias Model =
     , results : Maybe (List SearchResult)
     , count : Int
     , errorMsg : Maybe String
-    , tableState : Table.State
     , pageNum : Int
     , pageSize : Int
     }
@@ -100,12 +105,14 @@ type alias Model =
 init : Value -> ( Model, Cmd Msg )
 init flags =
     (
-        { allParams = []
+        { projectCounts = []
+        , allParams = []
 --        , availableParams = []
         , selectedParams = initialParams
         , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
         , locationVal = NoLocationValue
+        , stringFilterDialogTerm = Nothing
         , sortPos = 1
         , doSearch = False
         , isSearching = False
@@ -113,7 +120,6 @@ init flags =
         , results = Nothing
         , count = 0
         , errorMsg = Nothing
-        , tableState = Table.initialSort "Sample"
         , pageNum = 0
         , pageSize = defaultPageSize
         }
@@ -121,6 +127,7 @@ init flags =
         [ getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map getSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , searchRequest [] 0 defaultPageSize 0 |> Http.toTask |> Task.attempt SearchCompleted
+        , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         ]
     )
 
@@ -130,11 +137,14 @@ init flags =
 
 
 type Msg
-    = GetAllSearchTermsCompleted (Result Http.Error (List SearchTerm))
+    = GetProjectCountsCompleted (Result Http.Error (List ProjectCount))
+    | GetAllSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | GetSearchTermCompleted (Result Http.Error SearchTerm)
     | ClearFilters
     | AddFilter PURL
     | RemoveFilter PURL
+    | OpenStringFilterDialog SearchTerm
+    | CloseStringFilterDialog
     | SetSearchFilterValue PURL String
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
@@ -145,12 +155,21 @@ type Msg
     | InputTimerTick Time.Posix
     | Search Int
     | SearchCompleted (Result Http.Error SearchResponse)
-    | SetTableState Table.State
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        GetProjectCountsCompleted (Ok counts) ->
+            ( { model | projectCounts = counts }, Cmd.none )
+
+
+        GetProjectCountsCompleted (Err error) -> --TODO
+            let
+                _ = Debug.log "GetProjectCountsCompleted" (toString error)
+            in
+            ( model, Cmd.none )
+
         GetAllSearchTermsCompleted (Ok terms) ->
             ( { model | allParams = terms }, Cmd.none )
 
@@ -213,6 +232,12 @@ update msg model =
                     Dict.remove id model.selectedVals
             in
             ( { model | doSearch = True, selectedParams = newParams, selectedTerms = newTerms, selectedVals = newVals }, Cmd.none )
+
+        OpenStringFilterDialog term ->
+            ( { model | stringFilterDialogTerm = Just term }, Cmd.none )
+
+        CloseStringFilterDialog ->
+            ( { model | stringFilterDialogTerm = Nothing }, Cmd.none )
 
         SetSearchFilterValue id val ->
             let
@@ -338,11 +363,6 @@ update msg model =
                 _ = Debug.log "SearchCompleted" (toString error)
             in
             ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
-
-        SetTableState newState ->
-            ( { model | tableState = newState }
-            , Cmd.none
-            )
 
 
 getSearchTerms : Http.Request (List SearchTerm)
@@ -501,9 +521,9 @@ generateQueryParams locationVal params =
                 if validLocationParam locationVal then
                     ("location", formatLocationParam locationVal) :: queryParams
                 else
-                    queryParams
+                     queryParams
         in
-        allQueryParams |> Ok
+        (purlSampleID, "") :: allQueryParams |> Ok
     else
         Err "Invalid query parameter"
 
@@ -526,6 +546,17 @@ searchRequest queryParams sortPos limit offset =
         |> HttpBuilder.toRequest
 
 
+getProjectCounts : Http.Request (List ProjectCount)
+getProjectCounts =
+    let
+        url =
+            apiBaseUrl ++ "/projects"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list decodeProjectCount))
+        |> HttpBuilder.toRequest
+
+
 type alias SearchResponse =
     { count : Int
     , results : List SearchResult --List Sample
@@ -535,6 +566,8 @@ type alias SearchResponse =
 type alias SearchResult =
     { schemaId : Int
     , sampleId : Int
+    , projectId : Int
+    , projectName : String
     , values : List SearchResultValue
     }
 
@@ -564,6 +597,7 @@ type alias SearchTerm =
     { type_ : String
     , id : String
     , label : String
+    , unitLabel : String
     , aliases : List String
     , min : Float
     , max : Float
@@ -591,6 +625,12 @@ type LocationFilterValue
     | LonghurstValue String -- Longhurst province
 
 
+type alias ProjectCount  =
+    { name : String
+    , count : Int
+    }
+
+
 decodeSearchResponse : Decoder SearchResponse
 decodeSearchResponse =
     Decode.succeed SearchResponse
@@ -603,6 +643,8 @@ decodeSearchResult =
     Decode.succeed SearchResult
         |> required "schemaId" Decode.int
         |> required "sampleId" Decode.int
+        |> required "projectId" Decode.int
+        |> required "projectName" Decode.string
         |> required "values" (Decode.list decodeSearchResultValue)
 
 
@@ -637,11 +679,19 @@ decodeSearchTerm =
         |> required "type" Decode.string
         |> required "id" Decode.string
         |> required "label" Decode.string
+        |> optional "unitLabel" Decode.string ""
         |> optional "aliases" (Decode.list Decode.string) []
         |> optional "min" Decode.float 0
         |> optional "max" Decode.float 0
         |> optional "values" (Decode.dict Decode.int) Dict.empty
 --        |> optional "viewType" Decode.string ""
+
+
+decodeProjectCount : Decoder ProjectCount
+decodeProjectCount =
+    Decode.succeed ProjectCount
+        |> required "name" Decode.string
+        |> required "count" Decode.int
 
 
 
@@ -653,11 +703,19 @@ view model =
     div []
         [ div [ style "float" "left", style "width" "26%" ]
             [ viewSearchPanel model ]
-        , div [ style "float" "right", style "width" "74%", class "container-fluid" ]
+        , div [ class "float-right", style "width" "74%", class "container-fluid" ]
 --            [ viewSearchSummary model
 --            , br [] []
             [ viewResults model
             ]
+--        , case model.stringFilterDialogTerm of
+--            Nothing ->
+--                text ""
+--
+--            Just term ->
+--                viewStringFilterDialog term
+--        , Dialog.view
+--                (Just stringFilterDialogConfig)
         ]
 
 
@@ -682,9 +740,9 @@ viewSearchPanel model =
                 ]
             , div []
                 [ viewLocationPanel model
-                , viewProjectPanel model
+                , viewProjectPanel model.projectCounts
                 , viewAddedFiltersPanel model.selectedParams model.selectedTerms model.selectedVals
-                , viewAddFilterPanel model.allParams
+                , viewAddFilterPanel model.allParams model.selectedParams
                 ]
             ]
         ]
@@ -705,7 +763,7 @@ viewLocationPanel model =
                 [ h6 [ style "color" "darkblue"]
                     [ text (String.fromChar (Char.fromCode 9660))
                     , text " Time/Space"
-                    , small [] [ a [ class "alert-link", href "#", style "float" "right" ] [ text "Map View" ] ]
+                    , small [] [ a [ class "alert-link", href "#", class "float-right" ] [ text "Map View" ] ]
                     ]
                 , Html.form [ style "padding-top" "0.5em" ]
                     [ div [ class "form-row" ]
@@ -750,44 +808,33 @@ viewLocationPanel model =
         ]
 
 
-viewProjectPanel : Model -> Html Msg
-viewProjectPanel model =
-    let
-        mkRow name count =
-            div []
-                [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox" ] []
-                    , label [ class "form-check-label" ] [ text name ]
-                    ]
-                , div [ class "badge badge-secondary", style "float" "right" ] [ count |> format myLocale |> text ]
-                ]
-    in
-    viewPanel "" "Project" False
-        [ mkRow "HOT - Hawaii Ocean Time Series" 1234
-        , mkRow "OSD - Ocean Science Data" 56789
-        , mkRow "TARA - Tara Oceans Expedition" 12345
-        , button [ class "btn btn-sm btn-link", style "float" "right" ] [ text "23 More ..."]
-        ]
-
-
-viewAddFilterPanel : List SearchTerm  -> Html Msg
-viewAddFilterPanel terms =
+viewAddFilterPanel : List SearchTerm -> List PURL -> Html Msg
+viewAddFilterPanel allTerms selectedIDs =
     let
         makeOption term =
-            a [ class "dropdown-item", href "#", onClick (AddFilter term.id) ] [ term.label |> String.Extra.toSentenceCase |> text ]
+            let
+                dis =
+                    List.member term.id selectedIDs
+            in
+            a [ classList [ ("dropdown-item", True), ("disabled", dis) ], href "#", onClick (AddFilter term.id) ] [ term.label |> String.Extra.toSentenceCase |> text ]
 
         filter term =
-            [ "latitude coordinate measurement datum", "longitude coordinate measurement datum", "zero-dimensional temporal region" ]
+            [ "latitude coordinate measurement datum"
+            , "longitude coordinate measurement datum"
+            , "zero-dimensional temporal region"
+            , "depth of water"
+            , "specimen collection time measurement datum start"
+            ]
                 |> List.member (String.toLower term.label)
                 |> not
 
         options =
-            terms
+            allTerms
                 |> List.filter filter
                 |> List.sortWith (\a b -> compare a.label b.label )
                 |> List.map makeOption
     in
-    viewPanel "" "Add Filter" False
+    viewPanel "" "Add Filter" "" False
         [ div [ class "input-group input-group-sm" ]
             [ input [ type_ "text", class "form-control", placeholder "Search parameters", value "" ] []
             , div [ class "input-group-append" ]
@@ -818,7 +865,7 @@ viewAddedFiltersPanel params terms vals  =
                                     if Dict.size term.values >= minNumPanelOptionsForSearchBar then
                                         viewSearchFilterPanel term termVal
                                     else
-                                        viewStringFilterPanel term
+                                        viewStringFilterPanel term termVal
 
                                 "number" ->
                                     viewNumberFilterPanel term termVal
@@ -853,8 +900,41 @@ viewSearchFilterPanel term val =
         ]
 
 
-viewStringFilterPanel : SearchTerm -> Html Msg
-viewStringFilterPanel term =
+viewProjectPanel : List ProjectCount -> Html Msg --TODO merge with viewStringFilterPanel
+viewProjectPanel projectCounts =
+    let
+        mkRow projectCount =
+            div []
+                [ div [ class "form-check form-check-inline" ]
+                    [ input [ class "form-check-input", type_ "checkbox" ] []
+                    , label [ class "form-check-label" ] [ text projectCount.name ]
+                    ]
+                , div [ class "badge badge-secondary float-right" ] [ projectCount.count |> toFloat |> format myLocale |> text ]
+                ]
+
+        sortByCount a b =
+            case compare a.count b.count of
+                LT -> GT
+                EQ -> EQ
+                GT -> LT
+
+        truncatedOptions =
+            projectCounts |> List.sortWith sortByCount |> List.take maxNumPanelOptions
+
+        numOptions =
+            List.length projectCounts
+    in
+    viewPanel "" "Project" "" False
+        [ div [] (List.map mkRow truncatedOptions)
+        , if numOptions > maxNumPanelOptions then
+            button [ class "btn btn-sm btn-link float-right" ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
+          else
+            viewBlank
+        ]
+
+
+viewStringFilterPanel : SearchTerm -> FilterValue -> Html Msg
+viewStringFilterPanel term val =
     let
         numOptions =
             Dict.size term.values
@@ -868,22 +948,65 @@ viewStringFilterPanel term =
         truncatedOptions =
             Dict.toList term.values |> List.sortWith sortByCount |> List.take maxNumPanelOptions
 
+        isChecked name =
+            (case val of
+                SingleValue s ->
+                    List.singleton s
+
+                MultipleValues l ->
+                    l
+
+                _ ->
+                    []
+            ) |> List.member name
+
         viewRow (name, count) =
             div []
                 [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", onCheck (SetStringFilterValue term.id name) ] []
+                    [ input [ class "form-check-input", type_ "checkbox", checked (isChecked name), onCheck (SetStringFilterValue term.id name) ] []
                     , label [ class "form-check-label" ] [ name |> String.Extra.toSentenceCase |> text]
                     ]
-                , div [ class "badge badge-secondary", style "float" "right" ] [ count |> toFloat |> format myLocale |> text ]
+                , div [ class "badge badge-secondary float-right" ] [ count |> toFloat |> format myLocale |> text ]
                 ]
     in
     viewTermPanel term
         [ div [] (List.map viewRow truncatedOptions)
         , if numOptions > maxNumPanelOptions then
-            button [ class "btn btn-sm btn-link", style "float" "right" ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
+            button [ class "btn btn-sm btn-link float-right", onClick (OpenStringFilterDialog term) ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
           else
             viewBlank
         ]
+
+
+viewStringFilterDialog : SearchTerm -> Html Msg
+viewStringFilterDialog term =
+    viewDialog term.id
+
+
+viewDialog : String -> Html Msg
+viewDialog title =
+    div [ class "modal fade show", tabindex -1, style "display" "block", attribute "role" "dialog" ]
+        [ div [ class "modal-dialog", attribute "role" "document" ]
+            [ div [ class "modal-content" ]
+                [ div [ class "modal-header" ]
+                    [ h5 [ class "modal-title" ] [ text title ]
+                    , button [ type_ "button", class "close", attribute "data-dismiss" "modal" ] [ span [] [ text "x" ] ]
+                    ]
+                , div [ class "modal-body" ] [ text "body" ]
+                , div [ class "modal-footer" ] [ text "footer" ]
+                ]
+            ]
+        ]
+
+
+stringFilterDialogConfig : Dialog.Config Msg
+stringFilterDialogConfig =
+    { closeMessage = Just CloseStringFilterDialog
+    , containerClass = Nothing
+    , header = Just (h3 [] [ text "foo" ])
+    , body = Just (text "foo2")
+    , footer = Just (text "foo3")
+    }
 
 
 viewNumberFilterPanel : SearchTerm -> FilterValue -> Html Msg
@@ -1027,17 +1150,22 @@ viewLocationFilterInput val =
 
 viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
 viewTermPanel term nodes =
-    viewPanel term.id term.label True nodes
+    viewPanel term.id term.label term.unitLabel True nodes
 
 
-viewPanel : PURL -> String -> Bool -> List (Html Msg) -> Html Msg
-viewPanel id title removable nodes =
+viewPanel : PURL -> String -> String -> Bool -> List (Html Msg) -> Html Msg
+viewPanel id title unit removable nodes =
     let
         header =
             h6 [ style "color" "darkblue"]
                 [ text (String.fromChar (Char.fromCode 9660))
                 , text " "
                 , text (String.Extra.toTitleCase title)
+                , text " "
+                , if unit /= "" then
+                    small [ style "margin-left" "5px" ] [ text ("[" ++ unit ++ "]") ]
+                  else
+                    viewBlank
                 , if removable then
                     span [ class "float-right", style "cursor" "pointer", onClick (RemoveFilter id) ] [ text (String.fromChar (Char.fromCode 10005)) ]
                   else
@@ -1095,9 +1223,9 @@ viewResults model =
 
                 dirSymbol =
                     if model.sortPos > 0 then
-                        String.fromChar (Char.fromCode 9660)
-                    else
                         String.fromChar (Char.fromCode 9650)
+                    else
+                        String.fromChar (Char.fromCode 9660)
 
                 lbl =
                     String.Extra.toSentenceCase
@@ -1134,9 +1262,9 @@ viewResults model =
 
         paramNames =
             List.concat
-                [ [ "Sample ID"
+                [ [ "Project Name"
+                  , "Sample ID"
                   --, "Sample Name"
-                  --, "Project Name"
                   ]
                 , timeSpaceParamNames
                 , (model.selectedParams
@@ -1177,10 +1305,11 @@ viewResults model =
         mkRow result =
             tr []
                 (List.concat
-                    [ [ mkTd (toString result.sampleId) ]
+                    [
+                    --[ mkTd (toString result.sampleId) ]
                     --, [ mkTd "" ] -- sample name
-                    --, [ mkTd "" ] -- project name
-                    , List.map (formatVal >> mkTd) result.values
+                      [ mkTd result.projectName ]
+                    ,  List.map (formatVal >> mkTd) result.values
                     , [ td [] [ addToCartButton ] ]
                     ])
 
@@ -1225,7 +1354,7 @@ viewResults model =
                         (List.map sizeOption [20, 40, 60, 80, 100])
                     ]
                 , text " results"
-                , nav [ style "float" "right" ]
+                , nav [ class "float-right" ]
                     [ ul [ class "pagination" ]
                         --FIXME code below is a little kludgey
                         [ pageOption "First" 0
