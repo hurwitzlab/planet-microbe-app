@@ -302,7 +302,7 @@ async function search(db, params) {
     console.log("params:", params);
 
     let limit = 20, offset, sort;
-    let gisClause;
+    let gisClause, projectClause;
     let clauses = {};
     let selections = [];
 
@@ -326,6 +326,11 @@ async function search(db, params) {
                 selections.push("ST_AsText(locations::geography)");
                 gisClause = "ST_DWithin(ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")::geography, locations, " + bounds[2] + ")";
             }
+        }
+        else if (param == 'project') {
+            let vals = val.split("|");
+            console.log("project match", vals);
+            projectClause = "LOWER(project.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
         }
         else {
             let term = getTerm(param);
@@ -469,13 +474,16 @@ async function search(db, params) {
     if (gisClause)
         clauseStr = gisClause + (clauseStr ? " AND (" + clauseStr + ")" : "");
 
+    if (projectClause)
+        clauseStr = projectClause + (clauseStr ? " AND (" + clauseSTr + ")": "");
+
     if (clauseStr)
         clauseStr = "WHERE " + clauseStr;
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
     let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
 
-    let countQueryStr = "SELECT count(*) FROM sample " + clauseStr;
+    let countQueryStr = "SELECT count(*) FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " + clauseStr;
 
     if (!limit)
         limit = 50;

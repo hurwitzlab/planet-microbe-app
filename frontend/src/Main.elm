@@ -88,6 +88,7 @@ type alias Model =
     , selectedTerms : Dict PURL SearchTerm
     , selectedVals : Dict PURL FilterValue
     , locationVal : LocationFilterValue
+    , projectVals : List String
     , stringFilterDialogTerm : Maybe SearchTerm
     , sortPos : Int
     , doSearch : Bool
@@ -112,6 +113,7 @@ init flags =
         , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
         , locationVal = NoLocationValue
+        , projectVals = []
         , stringFilterDialogTerm = Nothing
         , sortPos = 1
         , doSearch = False
@@ -149,6 +151,7 @@ type Msg
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
     | SetLocationFilterValue LocationFilterValue
+    | SetProjectFilterValue String Bool
     | SetSortPos Int
     | SetPageSize Int
     | SetPageNum Int
@@ -272,7 +275,7 @@ update msg model =
                                     else
                                         NoValue
 
-                                SingleValue val1 -> --FIXME merge into MultipleValues case?258
+                                SingleValue val1 -> --FIXME merge into MultipleValues case?
                                     if enable then
                                         MultipleValues [val1, val]
                                     else
@@ -304,6 +307,16 @@ update msg model =
 
         SetLocationFilterValue val ->
             ( { model | doSearch = True, locationVal = val }, Cmd.none )
+
+        SetProjectFilterValue val enable ->
+            let
+                vals =
+                    model.projectVals
+                        |> Set.fromList
+                        |> (if enable then Set.insert val else Set.remove val)
+                        |> Set.toList
+            in
+            ( { model | doSearch = True, projectVals = vals }, Cmd.none )
 
         SetSortPos pos ->
             let
@@ -341,7 +354,7 @@ update msg model =
             let
                 _ = Debug.log "Search" (toString newPageNum)
             in
-            case generateQueryParams model.locationVal model.selectedVals of
+            case generateQueryParams model.locationVal model.projectVals model.selectedVals of
                 Ok queryParams ->
                     let
                         searchTask =
@@ -439,8 +452,8 @@ validLocationParam val =
             True
 
 
-generateQueryParams : LocationFilterValue -> Dict String FilterValue -> Result String (List (String, String))
-generateQueryParams locationVal params =
+generateQueryParams : LocationFilterValue -> List String -> Dict String FilterValue -> Result String (List (String, String))
+generateQueryParams locationVal projectVals params =
     let
         range min max =
             "[" ++ min ++ "," ++ max ++ "]"
@@ -498,6 +511,9 @@ generateQueryParams locationVal params =
                 NoLocationValue ->
                     ""
 
+        formatProjectParam vals =
+            String.join "|" vals
+
         sortFirst id a b =
             if Tuple.first a == id then
                 LT
@@ -506,7 +522,7 @@ generateQueryParams locationVal params =
             else
                 EQ
     in
-    if locationVal == NoLocationValue && Dict.isEmpty params then
+    if locationVal == NoLocationValue && projectVals == [] && Dict.isEmpty params then
         Ok []
     else if params |> Dict.toList |> List.map Tuple.second |> List.all validParam then
         let
@@ -517,13 +533,19 @@ generateQueryParams locationVal params =
                     |> List.sortWith (sortFirst purlDateTime) --FIXME kinda kludgey, another way to order time/space params properly
                     |> List.sortWith (sortFirst purlDepth)
 
-            allQueryParams =
+            locParam =
                 if validLocationParam locationVal then
-                    ("location", formatLocationParam locationVal) :: queryParams
+                    [ ("location", formatLocationParam locationVal) ]
                 else
-                     queryParams
+                    []
+
+            projectParam =
+                if projectVals /= [] then
+                    [ ("project", formatProjectParam projectVals) ]
+                else
+                    []
         in
-        (purlSampleID, "") :: allQueryParams |> Ok
+        List.concat [ [(purlSampleID, "")], locParam, projectParam ] |> Ok
     else
         Err "Invalid query parameter"
 
@@ -903,10 +925,10 @@ viewSearchFilterPanel term val =
 viewProjectPanel : List ProjectCount -> Html Msg --TODO merge with viewStringFilterPanel
 viewProjectPanel projectCounts =
     let
-        mkRow projectCount =
+        viewRow projectCount =
             div []
                 [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox" ] []
+                    [ input [ class "form-check-input", type_ "checkbox", onCheck (SetProjectFilterValue projectCount.name) ] []
                     , label [ class "form-check-label" ] [ text projectCount.name ]
                     ]
                 , div [ class "badge badge-secondary float-right" ] [ projectCount.count |> toFloat |> format myLocale |> text ]
@@ -925,7 +947,7 @@ viewProjectPanel projectCounts =
             List.length projectCounts
     in
     viewPanel "" "Project" "" False
-        [ div [] (List.map mkRow truncatedOptions)
+        [ div [] (List.map viewRow truncatedOptions)
         , if numOptions > maxNumPanelOptions then
             button [ class "btn btn-sm btn-link float-right" ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
           else
