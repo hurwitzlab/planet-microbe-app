@@ -475,7 +475,7 @@ async function search(db, params) {
         clauseStr = gisClause + (clauseStr ? " AND (" + clauseStr + ")" : "");
 
     if (projectClause)
-        clauseStr = projectClause + (clauseStr ? " AND (" + clauseSTr + ")": "");
+        clauseStr = projectClause + (clauseStr ? " AND (" + clauseStr + ")": "");
 
     if (clauseStr)
         clauseStr = "WHERE " + clauseStr;

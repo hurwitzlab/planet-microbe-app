@@ -545,7 +545,7 @@ generateQueryParams locationVal projectVals params =
                 else
                     []
         in
-        List.concat [ [(purlSampleID, "")], locParam, projectParam ] |> Ok
+        List.concat [ locParam, projectParam, [(purlSampleID, "")], queryParams ] |> Ok
     else
         Err "Invalid query parameter"
 
