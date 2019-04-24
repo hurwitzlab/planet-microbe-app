@@ -494,17 +494,25 @@ async function search(db, params) {
         " FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
         clauseStr + sortStr + offsetStr + limitStr;
 
+    let locationClusterQuery = "SELECT ST_NumGeometries(gc), ST_AsGeoJSON(gc) AS geom_collection, ST_AsGeoJSON(ST_Centroid(gc)) AS centroid, ST_AsGeoJSON(ST_MinimumBoundingCircle(gc)) AS circle, sqrt(ST_Area(ST_MinimumBoundingCircle(gc)) / pi()) AS radius " +
+        "FROM (SELECT unnest(ST_ClusterWithin(locations::geometry, 0.01)) gc FROM sample) f;"
+
     let count = await query({
         text: countQueryStr,
         values: [],
-        rowMode: 'array',
+        rowMode: 'array'
     });
 
     let results = await query({
         text: queryStr,
         values: [],
-        rowMode: 'array',
+        rowMode: 'array'
     });
+
+    let clusters = await query({
+        text: locationClusterQuery
+    });
+    console.log(clusters.rows);
 
     return {
         count: count.rows[0][0]*1,
@@ -516,7 +524,8 @@ async function search(db, params) {
                 projectName: r[3],
                 values: r.slice(4).map(v => typeof v == "undefined" ? "" : v ) // kludge to convert null to empty string
             }
-        })
+        }),
+        map: clusters.rows
     };
 }
 
