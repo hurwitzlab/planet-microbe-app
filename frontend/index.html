@@ -11,14 +11,44 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css" integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS" crossorigin="anonymous">
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js" integrity="sha384-B0UglyR+jN6CkvvICOB2joaf5I4l3gm9GU6Hc1og6Ls7i6U/mkkaduKaBhlAXv9k" crossorigin="anonymous"></script>
 
+    <!-- Elm -->
     <script src="./elm.js"></script>
   </head>
   <body>
-    <div></div>
+    <div id="main"></div>
     <script>
-    var app = Elm.Main.init({
-      node: document.querySelector("div")
+var app = Elm.Main.init({
+  node: document.getElementById('main')
+});
+
+app.ports.loadMap.subscribe(function(model) {
+    var mapDiv = document.getElementsByTagName('gmap')[0]; // TODO add support for more than one map in a page
+    if (!mapDiv) {
+      throw("Error: map div not found");
+    }
+
+    var myLatlng = new google.maps.LatLng(model.lat, model.lng);
+    var mapOptions = {
+        zoom: 2,
+        center: myLatlng
+    };
+
+    var gmap = new google.maps.Map(mapDiv, mapOptions);
+
+    var marker = new google.maps.Marker({
+        position: myLatlng,
+        map: gmap
+        //title: ''
     });
-  </script>
+});
+
+/*app.ports.setCenter.subscribe(function(model) {
+    var myLatlng = new google.maps.LatLng(model.center.lat, model.center.lng);
+    model.gmap.setCenter(myLatlng);
+});*/
+    </script>
+
+    <!-- GoogleMaps -->
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCIQ7aSxFXmmx8oEAZ2KNPOyGiSkuj9hdA" type="text/javascript"></script> <!-- FIXME -->
   </body>
 </html>

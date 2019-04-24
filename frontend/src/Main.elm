@@ -13,7 +13,7 @@ import Task
 import Time
 import String.Extra
 import Set
-import Dialog
+import GMap
 import Dict exposing (Dict)
 import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
@@ -101,6 +101,8 @@ type alias Model =
     , errorMsg : Maybe String
     , pageNum : Int
     , pageSize : Int
+    , mapState : GMap.MapState
+    , showMap : Bool
     }
 
 
@@ -128,6 +130,8 @@ init flags =
         , errorMsg = Nothing
         , pageNum = 0
         , pageSize = defaultPageSize
+        , mapState = GMap.MapState (Encode.string "google map here") (GMap.LatLng 0 0)
+        , showMap = False
         }
     , Cmd.batch
         [ getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
@@ -164,6 +168,8 @@ type Msg
     | InputTimerTick Time.Posix
     | Search Int
     | SearchCompleted (Result Http.Error SearchResponse)
+    | MapTick
+    | JSMap Value
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -388,6 +394,12 @@ update msg model =
                 _ = Debug.log "SearchCompleted" (toString error)
             in
             ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
+
+        JSMap gmap ->
+            ( { model | mapState = GMap.MapState gmap model.mapState.center }, Cmd.none )
+
+        MapTick ->
+            ( { model | showMap = True }, GMap.loadMap model.mapState.center )
 
 
 getSearchTerms : Http.Request (List SearchTerm)
@@ -741,16 +753,15 @@ view model =
         , div [ class "float-right", style "width" "74%", class "container-fluid" ]
 --            [ viewSearchSummary model
 --            , br [] []
-            [ viewResults model
+            [ viewMap model.showMap
+            , viewResults model
             ]
---        , case model.stringFilterDialogTerm of
---            Nothing ->
---                text ""
---
---            Just term ->
---                viewStringFilterDialog term
---        , Dialog.view
---                (Just stringFilterDialogConfig)
+        , case model.stringFilterDialogTerm of
+            Nothing ->
+                text ""
+
+            Just term ->
+                viewStringFilterDialog term (Dict.get term.id model.selectedVals |> Maybe.withDefault NoValue)
         ]
 
 
@@ -798,7 +809,7 @@ viewLocationPanel model =
                 [ h6 [ style "color" "darkblue"]
                     [ text (String.fromChar (Char.fromCode 9660))
                     , text " Time/Space"
-                    , small [] [ a [ class "alert-link", href "#", class "float-right" ] [ text "Map View" ] ]
+                    , small [] [ a [ class "alert-link", href "#", class "float-right", onClick MapTick ] [ text "Map View" ] ]
                     ]
                 , Html.form [ style "padding-top" "0.5em" ]
                     [ div [ class "form-row" ]
@@ -989,7 +1000,19 @@ viewStringFilterPanel term val =
 
         truncatedOptions =
             Dict.toList term.values |> List.sortWith sortByCount |> List.take maxNumPanelOptions
+    in
+    viewTermPanel term
+        [ div [ style "max-height" "5em", style "overflow-y" "auto" ] (viewStringFilterOptions term val truncatedOptions)
+        , if numOptions > maxNumPanelOptions then
+            button [ class "btn btn-sm btn-link float-right", onClick (OpenStringFilterDialog term) ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
+          else
+            viewBlank
+        ]
 
+
+viewStringFilterOptions : SearchTerm -> FilterValue -> List (String, Int) -> List (Html Msg)
+viewStringFilterOptions term val options =
+    let
         isChecked name =
             (case val of
                 SingleValue s ->
@@ -1011,44 +1034,45 @@ viewStringFilterPanel term val =
                 , div [ class "badge badge-secondary float-right" ] [ count |> toFloat |> format myLocale |> text ]
                 ]
     in
-    viewTermPanel term
-        [ div [] (List.map viewRow truncatedOptions)
-        , if numOptions > maxNumPanelOptions then
-            button [ class "btn btn-sm btn-link float-right", onClick (OpenStringFilterDialog term) ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
-          else
-            viewBlank
-        ]
+    List.map viewRow options
 
 
-viewStringFilterDialog : SearchTerm -> Html Msg
-viewStringFilterDialog term =
-    viewDialog term.id
+viewStringFilterDialog : SearchTerm -> FilterValue -> Html Msg
+viewStringFilterDialog term val =
+    let
+        sortByName a b =
+            case compare (Tuple.first a) (Tuple.first b) of
+                LT -> GT
+                EQ -> EQ
+                GT -> LT
+
+        options =
+            Dict.toList term.values |> List.sortWith sortByName
+    in
+    viewDialog (String.Extra.toSentenceCase term.label)
+        [ div [] (viewStringFilterOptions term val options) ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseStringFilterDialog ] [ text "Close" ] ]
+        CloseStringFilterDialog
 
 
-viewDialog : String -> Html Msg
-viewDialog title =
-    div [ class "modal fade show", tabindex -1, style "display" "block", attribute "role" "dialog" ]
-        [ div [ class "modal-dialog", attribute "role" "document" ]
-            [ div [ class "modal-content" ]
-                [ div [ class "modal-header" ]
-                    [ h5 [ class "modal-title" ] [ text title ]
-                    , button [ type_ "button", class "close", attribute "data-dismiss" "modal" ] [ span [] [ text "x" ] ]
+-- Our own Boostrap modal since elm-dialog has not yet been ported to Elm 0.19
+viewDialog : String -> List (Html Msg) -> List (Html Msg) -> Msg -> Html Msg
+viewDialog title body footer closeMsg =
+    div []
+        [ div [ class "modal fade show", tabindex -1, style "display" "block", attribute "role" "dialog" ]
+            [ div [ class "modal-dialog", attribute "role" "document" ]
+                [ div [ class "modal-content" ]
+                    [ div [ class "modal-header" ]
+                        [ h5 [ class "modal-title" ] [ text title ]
+                        , button [ type_ "button", class "close", onClick closeMsg ] [ span [] [ text (String.fromChar (Char.fromCode 215)) ] ]
+                        ]
+                    , div [ class "modal-body" ] body
+                    , div [ class "modal-footer" ] footer
                     ]
-                , div [ class "modal-body" ] [ text "body" ]
-                , div [ class "modal-footer" ] [ text "footer" ]
                 ]
             ]
+        , div [ class "modal-backdrop fade show" ] []
         ]
-
-
-stringFilterDialogConfig : Dialog.Config Msg
-stringFilterDialogConfig =
-    { closeMessage = Just CloseStringFilterDialog
-    , containerClass = Nothing
-    , header = Just (h3 [] [ text "foo" ])
-    , body = Just (text "foo2")
-    , footer = Just (text "foo3")
-    }
 
 
 viewNumberFilterPanel : SearchTerm -> FilterValue -> Html Msg
@@ -1450,6 +1474,18 @@ viewResults model =
         , if model.results /= Nothing then pageInfo else viewBlank
         , div [] [ content ]
         ]
+
+
+viewMap : Bool -> Html Msg
+viewMap showMap =
+    let
+        hideOrShow =
+            if showMap then
+                style "display" "block"
+            else
+                style "display" "none"
+    in
+    GMap.view [ hideOrShow, style "height" "90vh", style "width" "100%" ] []
 
 
 viewBlank : Html Msg
