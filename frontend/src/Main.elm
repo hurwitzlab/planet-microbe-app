@@ -90,6 +90,8 @@ type alias Model =
     , locationVal : LocationFilterValue
     , projectVals : List String
     , stringFilterDialogTerm : Maybe SearchTerm
+    , paramSearchInputVal : String
+    , showParamSearchDropdown : Bool
     , sortPos : Int
     , doSearch : Bool
     , isSearching : Bool
@@ -115,6 +117,8 @@ init flags =
         , locationVal = NoLocationValue
         , projectVals = []
         , stringFilterDialogTerm = Nothing
+        , paramSearchInputVal = ""
+        , showParamSearchDropdown = False
         , sortPos = 1
         , doSearch = False
         , isSearching = False
@@ -145,6 +149,8 @@ type Msg
     | ClearFilters
     | AddFilter PURL
     | RemoveFilter PURL
+    | SetParamSearchInput String
+    | ShowParamSearchDropdown
     | OpenStringFilterDialog SearchTerm
     | CloseStringFilterDialog
     | SetSearchFilterValue PURL String
@@ -221,7 +227,7 @@ update msg model =
                 getTerm =
                     getSearchTerm id |> Http.toTask
             in
-            ( { model | selectedParams = params }, Task.attempt GetSearchTermCompleted getTerm )
+            ( { model | paramSearchInputVal = "", selectedParams = params }, Task.attempt GetSearchTermCompleted getTerm )
 
         RemoveFilter id ->
             let
@@ -235,6 +241,12 @@ update msg model =
                     Dict.remove id model.selectedVals
             in
             ( { model | doSearch = True, selectedParams = newParams, selectedTerms = newTerms, selectedVals = newVals }, Cmd.none )
+
+        SetParamSearchInput val ->
+            ( { model | paramSearchInputVal = val }, Cmd.none )
+
+        ShowParamSearchDropdown ->
+            ( { model | showParamSearchDropdown = not model.showParamSearchDropdown }, Cmd.none )
 
         OpenStringFilterDialog term ->
             ( { model | stringFilterDialogTerm = Just term }, Cmd.none )
@@ -522,8 +534,9 @@ generateQueryParams locationVal projectVals params =
             else
                 EQ
     in
+    --FIXME refactor section below
     if locationVal == NoLocationValue && projectVals == [] && Dict.isEmpty params then
-        Ok []
+        Ok [(purlSampleID, "")]
     else if params |> Dict.toList |> List.map Tuple.second |> List.all validParam then
         let
             queryParams =
@@ -764,7 +777,7 @@ viewSearchPanel model =
                 [ viewLocationPanel model
                 , viewProjectPanel model.projectCounts
                 , viewAddedFiltersPanel model.selectedParams model.selectedTerms model.selectedVals
-                , viewAddFilterPanel model.allParams model.selectedParams
+                , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allParams model.selectedParams
                 ]
             ]
         ]
@@ -830,8 +843,8 @@ viewLocationPanel model =
         ]
 
 
-viewAddFilterPanel : List SearchTerm -> List PURL -> Html Msg
-viewAddFilterPanel allTerms selectedIDs =
+viewAddFilterPanel : Bool -> String -> List SearchTerm -> List PURL -> Html Msg
+viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
     let
         makeOption term =
             let
@@ -840,7 +853,7 @@ viewAddFilterPanel allTerms selectedIDs =
             in
             a [ classList [ ("dropdown-item", True), ("disabled", dis) ], href "#", onClick (AddFilter term.id) ] [ term.label |> String.Extra.toSentenceCase |> text ]
 
-        filter term =
+        removeRedundantTerms term =
             [ "latitude coordinate measurement datum"
             , "longitude coordinate measurement datum"
             , "zero-dimensional temporal region"
@@ -850,18 +863,25 @@ viewAddFilterPanel allTerms selectedIDs =
                 |> List.member (String.toLower term.label)
                 |> not
 
+        filterOnSearch term =
+            String.contains searchVal term.label
+
         options =
             allTerms
-                |> List.filter filter
+                |> List.filter removeRedundantTerms
+                |> List.filter filterOnSearch
                 |> List.sortWith (\a b -> compare a.label b.label )
                 |> List.map makeOption
+
+        show =
+            searchVal /= "" || showDropdown
     in
     viewPanel "" "Add Filter" "" False
-        [ div [ class "input-group input-group-sm" ]
-            [ input [ type_ "text", class "form-control", placeholder "Search parameters", value "" ] []
+        [ div [ class "input-group input-group-sm", style "position" "relative" ]
+            [ input [ type_ "text", class "form-control", placeholder "Search parameters", value searchVal, onInput SetParamSearchInput ] []
             , div [ class "input-group-append" ]
-                [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] []
-                , div [ class "dropdown-menu" ] options
+                [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", onClick ShowParamSearchDropdown ] []
+                , div [ class "dropdown-menu", classList [("show", show)], style "position" "absolute", style "left" "0px", style "max-height" "30vh", style "overflow-y" "auto" ] options
                 ]
             ]
         ]
