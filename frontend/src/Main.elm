@@ -97,6 +97,7 @@ type alias Model =
     , isSearching : Bool
     , searchStartTime : Int -- milliseconds
     , results : Maybe (List SearchResult)
+    , mapResults : Value --List MapResult
     , count : Int
     , errorMsg : Maybe String
     , pageNum : Int
@@ -126,6 +127,7 @@ init flags =
         , isSearching = False
         , searchStartTime = 0
         , results = Nothing
+        , mapResults = Encode.object []
         , count = 0
         , errorMsg = Nothing
         , pageNum = 0
@@ -136,7 +138,7 @@ init flags =
     , Cmd.batch
         [ getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map getSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
-        , searchRequest [] 0 defaultPageSize 0 |> Http.toTask |> Task.attempt SearchCompleted
+        , searchRequest [] 0 defaultPageSize 0 False |> Http.toTask |> Task.attempt SearchCompleted
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         ]
     )
@@ -376,7 +378,7 @@ update msg model =
                 Ok queryParams ->
                     let
                         searchTask =
-                            searchRequest queryParams model.sortPos model.pageSize (model.pageSize * newPageNum) |> Http.toTask
+                            searchRequest queryParams model.sortPos model.pageSize (model.pageSize * newPageNum) model.showMap |> Http.toTask
                     in
                     ( { model | doSearch = False, isSearching = True, pageNum = newPageNum }, Task.attempt SearchCompleted searchTask )
 
@@ -387,7 +389,7 @@ update msg model =
                     ( model, Cmd.none )
 
         SearchCompleted (Ok response) ->
-            ( { model | count = response.count, results = Just response.results, isSearching = False }, Cmd.none )
+            ( { model | count = response.count, results = Just response.results, mapResults = response.map, isSearching = False }, GMap.loadMap response.map )
 
         SearchCompleted (Err error) ->
             let
@@ -399,7 +401,14 @@ update msg model =
             ( { model | mapState = GMap.MapState gmap model.mapState.center }, Cmd.none )
 
         MapTick ->
-            ( { model | showMap = True }, GMap.loadMap model.mapState.center )
+            let
+                showMap =
+                    not model.showMap
+            in
+            if showMap then
+                ( { model | doSearch = True, showMap = True }, GMap.loadMap model.mapResults ) --(Encode.list encodeMapResult model.mapResults) ) --GMap.loadMap model.mapState.center )
+            else
+                ( { model | showMap = False }, Cmd.none )
 
 
 getSearchTerms : Http.Request (List SearchTerm)
@@ -575,8 +584,8 @@ generateQueryParams locationVal projectVals params =
         Err "Invalid query parameter"
 
 
-searchRequest : List (String, String) -> Int -> Int -> Int -> Http.Request SearchResponse
-searchRequest queryParams sortPos limit offset =
+searchRequest : List (String, String) -> Int -> Int -> Int -> Bool -> Http.Request SearchResponse
+searchRequest queryParams sortPos limit offset showMap =
     let
         url =
             apiBaseUrl ++ "/search"
@@ -586,6 +595,7 @@ searchRequest queryParams sortPos limit offset =
                 |> List.append [ ("sort", toString sortPos) ]
                 |> List.append [ ("limit", toString limit) ]
                 |> List.append [ ("offset", toString offset) ]
+                |> List.append [ ("map", if showMap then "1" else "0") ]
     in
     HttpBuilder.get url
         |> HttpBuilder.withQueryParams queryParams2
@@ -606,7 +616,8 @@ getProjectCounts =
 
 type alias SearchResponse =
     { count : Int
-    , results : List SearchResult --List Sample
+    , results : List SearchResult
+    , map: Value --List MapResult
     }
 
 
@@ -623,6 +634,15 @@ type SearchResultValue
     = NoResultValue
     | NumberResultValue Float
     | StringResultValue String
+
+
+--type alias MapResult =
+--    { centroid : String
+--    , circle : String
+--    , collection : String
+--    , radius : Float
+--    , count : Int
+--    }
 
 
 type alias Sample =
@@ -682,7 +702,8 @@ decodeSearchResponse : Decoder SearchResponse
 decodeSearchResponse =
     Decode.succeed SearchResponse
         |> required "count" Decode.int
-        |> required "results" (Decode.list decodeSearchResult)--(Decode.list decodeSample)
+        |> required "results" (Decode.list decodeSearchResult)
+        |> required "map" Decode.value --(Decode.list decodeMapResult) []
 
 
 decodeSearchResult : Decoder SearchResult
@@ -701,6 +722,27 @@ decodeSearchResultValue =
         [ Decode.map NumberResultValue Decode.float
         , Decode.map StringResultValue Decode.string
         ]
+
+
+--decodeMapResult : Decoder MapResult
+--decodeMapResult =
+--    Decode.succeed MapResult
+--        |> required "centroid" Decode.string
+--        |> required "circle" Decode.string
+--        |> required "collection" Decode.string
+--        |> required "radius" Decode.float
+--        |> required "count" Decode.int
+
+
+--encodeMapResult : MapResult -> Encode.Value
+--encodeMapResult result =
+--    Encode.object
+--        [ ("centroid", Encode.string result.centroid)
+--        , ("circle", Encode.string result.circle)
+--        , ("collection", Encode.string result.collection)
+--        , ("radius", Encode.float result.radius)
+--        , ("count", Encode.int result.count)
+--        ]
 
 
 decodeSample : Decoder Sample
@@ -753,7 +795,9 @@ view model =
         , div [ class "float-right", style "width" "74%", class "container-fluid" ]
 --            [ viewSearchSummary model
 --            , br [] []
-            [ viewMap model.showMap
+            [ h4 [ style "margin" "3px", style "display" "inline" ] [ text "Results" ]
+            , viewMap model.showMap
+            , br [] []
             , viewResults model
             ]
         , case model.stringFilterDialogTerm of
@@ -809,7 +853,8 @@ viewLocationPanel model =
                 [ h6 [ style "color" "darkblue"]
                     [ text (String.fromChar (Char.fromCode 9660))
                     , text " Time/Space"
-                    , small [] [ a [ class "alert-link", href "#", class "float-right", onClick MapTick ] [ text "Map View" ] ]
+                    , small [] [ a [ class "alert-link", href "#", class "float-right", onClick MapTick ]
+                        [ if model.showMap then text "Close Map" else text "Map View" ] ]
                     ]
                 , Html.form [ style "padding-top" "0.5em" ]
                     [ div [ class "form-row" ]
@@ -1470,8 +1515,7 @@ viewResults model =
                     ]
     in
     div []
-        [ h4 [ style "margin" "3px", style "display" "inline" ] [ text "Results" ]
-        , if model.results /= Nothing then pageInfo else viewBlank
+        [ if model.results /= Nothing then pageInfo else viewBlank
         , div [] [ content ]
         ]
 
