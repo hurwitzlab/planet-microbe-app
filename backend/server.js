@@ -301,7 +301,7 @@ function load_ontology(type, path, index) {
 async function search(db, params) {
     console.log("params:", params);
 
-    let limit = 20, offset, sort;
+    let limit = 20, offset, sort, map;
     let gisClause, projectClause;
     let clauses = {};
     let selections = [];
@@ -316,6 +316,8 @@ async function search(db, params) {
             offset = val * 1; // convert to int
         else if (param == 'sort')
             sort = val * 1; // convert to int
+        else if (param == 'map')
+            map = val == 1;
         else if (param == 'location') {
 //            if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // [lat, lng] exact match
 //                //TODO
@@ -494,8 +496,8 @@ async function search(db, params) {
         " FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
         clauseStr + sortStr + offsetStr + limitStr;
 
-    let locationClusterQuery = "SELECT ST_NumGeometries(gc), ST_AsGeoJSON(gc) AS geom_collection, ST_AsGeoJSON(ST_Centroid(gc)) AS centroid, ST_AsGeoJSON(ST_MinimumBoundingCircle(gc)) AS circle, sqrt(ST_Area(ST_MinimumBoundingCircle(gc)) / pi()) AS radius " +
-        "FROM (SELECT unnest(ST_ClusterWithin(locations::geometry, 0.01)) gc FROM sample) f;"
+    let locationClusterQuery = "SELECT ST_NumGeometries(gc) AS count, ST_AsGeoJSON(gc) AS collection, ST_AsGeoJSON(ST_Centroid(gc)) AS centroid, ST_AsGeoJSON(ST_MinimumBoundingCircle(gc)) AS circle, sqrt(ST_Area(ST_MinimumBoundingCircle(gc)) / pi()) AS radius " +
+        "FROM (SELECT unnest(ST_ClusterWithin(locations::geometry, 100)) gc FROM sample " + clauseStr + ") f;"
 
     let count = await query({
         text: countQueryStr,
@@ -509,10 +511,9 @@ async function search(db, params) {
         rowMode: 'array'
     });
 
-    let clusters = await query({
-        text: locationClusterQuery
-    });
-    console.log(clusters.rows);
+    let clusters;
+    //if (map)
+        clusters = await query(locationClusterQuery);
 
     return {
         count: count.rows[0][0]*1,
@@ -525,7 +526,7 @@ async function search(db, params) {
                 values: r.slice(4).map(v => typeof v == "undefined" ? "" : v ) // kludge to convert null to empty string
             }
         }),
-        map: clusters.rows
+        map: (clusters ? clusters.rows : {})
     };
 }
 
