@@ -103,7 +103,7 @@ type alias Model =
     , errorMsg : Maybe String
     , pageNum : Int
     , pageSize : Int
-    , mapState : GMap.MapState
+--    , mapState : GMap.MapState
     , showMap : Bool
     }
 
@@ -133,7 +133,7 @@ init flags =
         , errorMsg = Nothing
         , pageNum = 0
         , pageSize = defaultPageSize
-        , mapState = GMap.MapState (Encode.string "google map here") (GMap.LatLng 0 0)
+--        , mapState = GMap.MapState (Encode.string "google map here") (GMap.LatLng 0 0)
         , showMap = False
         }
     , Cmd.batch
@@ -172,7 +172,7 @@ type Msg
     | Search Int
     | SearchCompleted (Result Http.Error SearchResponse)
     | MapTick
-    | JSMap Value
+--    | JSMap Value
     | UpdateLocationFromMap GMap.Location
 
 
@@ -328,7 +328,26 @@ update msg model =
             ( { model | doSearch = True, selectedVals = newVals }, Cmd.none )
 
         SetLocationFilterValue val ->
-            ( { model | doSearch = True, locationVal = val }, Cmd.none )
+            let
+                cmd =
+                    case val of
+                        LatLngRadiusValue (lat,lng) radius ->
+                            let
+                                lat2 =
+                                    String.toFloat lat |> Maybe.withDefault 0
+
+                                lng2 =
+                                    String.toFloat lng |> Maybe.withDefault 0
+
+                                radius2 =
+                                    String.toFloat radius |> Maybe.withDefault 0
+                            in
+                            GMap.setLocation (GMap.Location lat2 lng2 radius2)
+
+                        _ ->
+                            Cmd.none
+            in
+            ( { model | doSearch = True, locationVal = val }, cmd )
 
         SetProjectFilterValue val enable ->
             let
@@ -399,8 +418,8 @@ update msg model =
             in
             ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
 
-        JSMap gmap ->
-            ( { model | mapState = GMap.MapState gmap model.mapState.center }, Cmd.none )
+--        JSMap gmap ->
+--            ( { model | mapState = GMap.MapState gmap model.mapState.center }, Cmd.none )
 
         MapTick ->
             let

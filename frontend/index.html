@@ -61,6 +61,7 @@ app.ports.loadMap.subscribe(function(model) {
 
       google.maps.event.addListener(drawingManager, 'circlecomplete',
         function(circle) {
+          console.log("circlecomplete");
           // Remove current circles, only show latest one on the map at a time
           for (var i = 0; i < shapes.length; i++) {
             shapes[i].setMap(null);
@@ -70,7 +71,6 @@ app.ports.loadMap.subscribe(function(model) {
           handleCircleEvent.apply(circle);
           circle.addListener('radius_changed', handleCircleEvent.bind(circle));
           circle.addListener('center_changed', handleCircleEvent.bind(circle));
-          //google.maps.event.addListener(circle, 'radius_changed', handleCircleEvent);
         }
       );
     }
@@ -134,7 +134,7 @@ app.ports.loadMap.subscribe(function(model) {
 });
 
 function handleCircleEvent() {
-  console.log("circle:", this);
+  console.log("handleCircleEvent:", this);
 
   // Send selected circle coords to Elm
   app.ports.getLocation.send({
@@ -143,6 +143,20 @@ function handleCircleEvent() {
     radius: this.getRadius()
   });
 }
+
+app.ports.setLocation.subscribe(function(location) {
+  console.log("setLocation:", location);
+  for (var i = 0; i < shapes.length; i++) {
+    circle = shapes[i];
+    console.log(circle);
+    google.maps.event.clearListeners(circle, 'radius_changed');
+    google.maps.event.clearListeners(circle, 'center_changed');
+    circle.setCenter(new google.maps.LatLng(location.lat,location.lng));
+    circle.setRadius(location.radius);
+    circle.addListener('radius_changed', handleCircleEvent.bind(circle));
+    circle.addListener('center_changed', handleCircleEvent.bind(circle));
+  }
+});
 
 /*app.ports.setCenter.subscribe(function(model) {
     var myLatlng = new google.maps.LatLng(model.center.lat, model.center.lng);
