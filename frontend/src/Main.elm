@@ -27,6 +27,7 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Time.every 1000 InputTimerTick -- milliseconds
+        , GMap.getLocation UpdateLocationFromMap
         ]
 
 
@@ -172,6 +173,7 @@ type Msg
     | SearchCompleted (Result Http.Error SearchResponse)
     | MapTick
     | JSMap Value
+    | UpdateLocationFromMap GMap.Location
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -410,6 +412,13 @@ update msg model =
             else
                 ( { model | showMap = False }, Cmd.none )
 
+        UpdateLocationFromMap loc ->
+            let
+                newLocationVal =
+                    LatLngRadiusValue (toString loc.lat, toString loc.lng) (toString loc.radius)
+            in
+            ( { model | doSearch = True, locationVal = newLocationVal }, Cmd.none )
+
 
 getSearchTerms : Http.Request (List SearchTerm)
 getSearchTerms =
@@ -579,7 +588,7 @@ generateQueryParams locationVal projectVals params =
                 else
                     []
         in
-        List.concat [ locParam, projectParam, [(purlSampleID, "")], queryParams ] |> Ok
+        List.concat [ projectParam, [(purlSampleID, "")], locParam, queryParams ] |> Ok
     else
         Err "Invalid query parameter"
 
@@ -797,7 +806,6 @@ view model =
 --            , br [] []
             [ h4 [ style "margin" "3px", style "display" "inline" ] [ text "Results" ]
             , viewMap model.showMap
-            , br [] []
             , viewResults model
             ]
         , case model.stringFilterDialogTerm of
@@ -854,7 +862,7 @@ viewLocationPanel model =
                     [ text (String.fromChar (Char.fromCode 9660))
                     , text " Time/Space"
                     , small [] [ a [ class "alert-link", href "#", class "float-right", onClick MapTick ]
-                        [ if model.showMap then text "Close Map" else text "Map View" ] ]
+                        [ if model.showMap then text "Close Map" else text "View Map" ] ]
                     ]
                 , Html.form [ style "padding-top" "0.5em" ]
                     [ div [ class "form-row" ]
@@ -1529,7 +1537,7 @@ viewMap showMap =
             else
                 style "display" "none"
     in
-    GMap.view [ hideOrShow, style "height" "90vh", style "width" "100%" ] []
+    GMap.view [ hideOrShow, style "height" "50vh", style "width" "100%", style "margin-bottom" "0.85em", style "border" "1px solid lightgray" ] []
 
 
 viewBlank : Html Msg

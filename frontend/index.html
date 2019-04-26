@@ -59,14 +59,20 @@ app.ports.loadMap.subscribe(function(model) {
       });
       drawingManager.setMap(gmap);
 
-      google.maps.event.addListener(drawingManager, 'circlecomplete', function(circle) {
-        var radius = circle.getRadius();
-        console.log("circle:", radius);
-        for (var i = 0; i < shapes.length; i++) {
-          shapes[i].setMap(null);
+      google.maps.event.addListener(drawingManager, 'circlecomplete',
+        function(circle) {
+          // Remove current circles, only show latest one on the map at a time
+          for (var i = 0; i < shapes.length; i++) {
+            shapes[i].setMap(null);
+          }
+          shapes.push(circle);
+
+          handleCircleEvent.apply(circle);
+          circle.addListener('radius_changed', handleCircleEvent.bind(circle));
+          circle.addListener('center_changed', handleCircleEvent.bind(circle));
+          //google.maps.event.addListener(circle, 'radius_changed', handleCircleEvent);
         }
-        shapes.push(circle);
-      });
+      );
     }
     else { // reset map
       // Clear all markers, rectangles, and features
@@ -79,10 +85,14 @@ app.ports.loadMap.subscribe(function(model) {
         gmap.data.remove(features[i]);
       }
       features = [];
+
+      google.maps.event.clearListeners(gmap, 'radius_changed');
     }
 
     if (!model || !Object.keys(model).length)
       return;
+
+    var bounds = new google.maps.LatLngBounds();
 
     model.forEach(cluster => {
       let circle = gmap.data.addGeoJson({ type: "Feature", id: 123, "geometry": JSON.parse(cluster.circle) });
@@ -96,7 +106,12 @@ app.ports.loadMap.subscribe(function(model) {
           label: { text: cluster.count.toString(), color: "white" }
       });
       markers.push(marker);
+
+      bounds.extend(marker.position);
     });
+
+    gmap.fitBounds(bounds);
+    gmap.setZoom(2);
 
     /*var rectangle = new google.maps.Rectangle({
       map: gmap,
@@ -117,6 +132,17 @@ app.ports.loadMap.subscribe(function(model) {
     shapes.push(rectangle);
     */
 });
+
+function handleCircleEvent() {
+  console.log("circle:", this);
+
+  // Send selected circle coords to Elm
+  app.ports.getLocation.send({
+    lat: this.center.lat(),
+    lng: this.center.lng(),
+    radius: this.getRadius()
+  });
+}
 
 /*app.ports.setCenter.subscribe(function(model) {
     var myLatlng = new google.maps.LatLng(model.center.lat, model.center.lng);
