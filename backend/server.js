@@ -326,7 +326,7 @@ async function search(db, params) {
                 let bounds = JSON.parse(val);
                 console.log("location:", bounds);
                 selections.push("ST_AsText(locations::geography)");
-                gisClause = "ST_DWithin(ST_MakePoint(" + bounds[0] + "," + bounds[1] + ")::geography, locations, " + bounds[2] + ")";
+                gisClause = "ST_DWithin(ST_MakePoint(" + bounds[1] + "," + bounds[0] + ")::geography, locations, " + bounds[2] + ")";
             }
         }
         else if (param == 'project') {
