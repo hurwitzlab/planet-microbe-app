@@ -749,6 +749,7 @@ decodeSearchResultValue =
     Decode.oneOf
         [ Decode.map NumberResultValue Decode.float
         , Decode.map StringResultValue Decode.string
+        , Decode.map (\a -> NoResultValue) (Decode.null a)
         ]
 
 
