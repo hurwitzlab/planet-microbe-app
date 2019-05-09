@@ -94,7 +94,7 @@ app.ports.loadMap.subscribe(function(model) {
 
     var bounds = new google.maps.LatLngBounds();
 
-    model.forEach(cluster => {
+    /*model.forEach(cluster => {
       let circle = gmap.data.addGeoJson({ type: "Feature", id: 123, "geometry": JSON.parse(cluster.circle) });
       features = features.concat(circle);
 
@@ -108,29 +108,29 @@ app.ports.loadMap.subscribe(function(model) {
       markers.push(marker);
 
       bounds.extend(marker.position);
+    });*/
+
+    let points = JSON.parse(model.points);
+    points.coordinates.forEach(point => {
+      let marker = new google.maps.Marker({
+          position: new google.maps.LatLng(point[1], point[0]),
+          //map: gmap
+      });
+      markers.push(marker);
+
+      bounds.extend(marker.position);
     });
+
+    var markerCluster = new MarkerClusterer(gmap, markers,
+        { imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m',
+          //gridSize: 50,
+          maxZoom: 15,
+          averageCenter: true
+        }
+    );
 
     gmap.fitBounds(bounds);
     gmap.setZoom(2);
-
-    /*var rectangle = new google.maps.Rectangle({
-      map: gmap,
-      bounds: {
-        north: 20,
-        south: 50,
-        east: -150,
-        west: -200
-      },
-      strokeColor: 'gray',
-      strokeOpacity: 0.8,
-      strokeWeight: 2,
-      fillColor: 'lightgray',
-      fillOpacity: 0.35,
-      editable: true,
-      draggable: true
-    });
-    shapes.push(rectangle);
-    */
 });
 
 function handleCircleEvent() {
@@ -157,14 +157,10 @@ app.ports.setLocation.subscribe(function(location) {
     circle.addListener('center_changed', handleCircleEvent.bind(circle));
   }
 });
-
-/*app.ports.setCenter.subscribe(function(model) {
-    var myLatlng = new google.maps.LatLng(model.center.lat, model.center.lng);
-    model.gmap.setCenter(myLatlng);
-});*/
     </script>
 
     <!-- GoogleMaps -->
+    <script src="https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js"></script>
     <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCIQ7aSxFXmmx8oEAZ2KNPOyGiSkuj9hdA&libraries=drawing" type="text/javascript"></script> <!-- FIXME -->
   </body>
 </html>

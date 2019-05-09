@@ -496,8 +496,10 @@ async function search(db, params) {
         " FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
         clauseStr + sortStr + offsetStr + limitStr;
 
-    let locationClusterQuery = "SELECT ST_NumGeometries(gc) AS count, ST_AsGeoJSON(gc) AS collection, ST_AsGeoJSON(ST_Centroid(gc)) AS centroid, ST_AsGeoJSON(ST_MinimumBoundingCircle(gc)) AS circle, sqrt(ST_Area(ST_MinimumBoundingCircle(gc)) / pi()) AS radius " +
-        "FROM (SELECT unnest(ST_ClusterWithin(locations::geometry, 100)) gc FROM sample " + clauseStr + ") f;"
+//    let locationClusterQuery = "SELECT ST_NumGeometries(gc) AS count, ST_AsGeoJSON(gc) AS collection, ST_AsGeoJSON(ST_Centroid(gc)) AS centroid, ST_AsGeoJSON(ST_MinimumBoundingCircle(gc)) AS circle, sqrt(ST_Area(ST_MinimumBoundingCircle(gc)) / pi()) AS radius " +
+//        "FROM (SELECT unnest(ST_ClusterWithin(locations::geometry, 100)) gc FROM sample " + clauseStr + ") f;"
+
+    let locationClusterQuery = "SELECT ST_AsGeoJSON(ST_Union(ST_GeometryN(locations::geometry, 1))) AS points FROM sample " + clauseStr;
 
     let count = await query({
         text: countQueryStr,
@@ -514,6 +516,7 @@ async function search(db, params) {
     let clusters;
     //if (map)
         clusters = await query(locationClusterQuery);
+    console.log(clusters)
 
     return {
         count: count.rows[0][0]*1,
@@ -526,7 +529,7 @@ async function search(db, params) {
                 values: r.slice(4).map(v => typeof v == "undefined" ? "" : v ) // kludge to convert null to empty string
             }
         }),
-        map: (clusters ? clusters.rows : {})
+        map: (clusters ? clusters.rows[0] : {})
     };
 }
 
