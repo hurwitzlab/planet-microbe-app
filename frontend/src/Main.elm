@@ -40,7 +40,7 @@ defaultPageSize =
 
 
 maxNumPanelOptions =
-    4
+    3
 
 
 minNumPanelOptionsForSearchBar =
@@ -124,7 +124,7 @@ init flags =
         , paramSearchInputVal = ""
         , showParamSearchDropdown = False
         , sortPos = 1
-        , doSearch = False
+        , doSearch = True
         , isSearching = False
         , searchStartTime = 0
         , results = Nothing
@@ -139,7 +139,7 @@ init flags =
     , Cmd.batch
         [ getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map getSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
-        , searchRequest [] 0 defaultPageSize 0 False |> Http.toTask |> Task.attempt SearchCompleted
+--        , searchRequest [] 0 defaultPageSize 0 False |> Http.toTask |> Task.attempt SearchCompleted
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         ]
     )
