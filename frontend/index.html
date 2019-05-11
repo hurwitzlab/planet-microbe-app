@@ -22,8 +22,8 @@ var app = Elm.Main.init({
 });
 
 var gmap, markerClusterer, initMap = true, markers = [], shapes = [], features = [];
-app.ports.loadMap.subscribe(function(model) {
-    console.log("loadMap: model:", model);
+app.ports.loadMap.subscribe(function(results) {
+    console.log("loadMap");//: results:", results);
 
     if (!gmap) {
       var mapDiv = document.getElementsByTagName('gmap')[0]; // TODO add support for more than one map in a page
@@ -96,8 +96,8 @@ app.ports.loadMap.subscribe(function(model) {
       google.maps.event.clearListeners(gmap, 'radius_changed');
     }
 
-    /*if (!model || !Object.keys(model).length)
-      return;*/
+    if (!results || results.length == 0)
+      return;
 
     var bounds = new google.maps.LatLngBounds();
 
@@ -117,10 +117,10 @@ app.ports.loadMap.subscribe(function(model) {
       bounds.extend(marker.position);
     });*/
 
-    let points = JSON.parse(model.points);
-    points.coordinates.forEach(point => {
+    results.forEach(result => {
       let marker = new google.maps.Marker({
-          position: new google.maps.LatLng(point[1], point[0]),
+          position: new google.maps.LatLng(result.latitude, result.longitude),
+          label: result.project_name
           //map: gmap
       });
       markers.push(marker);
