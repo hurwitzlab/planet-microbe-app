@@ -72,6 +72,24 @@ app.ports.loadMap.subscribe(function(results) {
         }
       );
 
+      gmap.addListener('zoom_changed',
+        function() {
+          zoom = gmap.getZoom();
+          if (zoom >= 4) {
+            for (var i = 0; i < markers.length; i++) {
+              let marker = markers[i];
+              let label = marker.customData.project_name + " - " + marker.customData.sample_accn
+              marker.setLabel(label);
+            }
+          }
+          else {
+            for (var i = 0; i < markers.length; i++) {
+              markers[i].setLabel("");
+            }
+          }
+        }
+      );
+
       markerClusterer = new MarkerClusterer(gmap, [],
         { imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m',
           //gridSize: 50,
@@ -120,7 +138,10 @@ app.ports.loadMap.subscribe(function(results) {
     results.forEach(result => {
       let marker = new google.maps.Marker({
           position: new google.maps.LatLng(result.latitude, result.longitude),
-          label: result.project_name
+          customData: {
+            sample_accn: result.sample_accn,
+            project_name: result.project_name
+          }
           //map: gmap
       });
       markers.push(marker);

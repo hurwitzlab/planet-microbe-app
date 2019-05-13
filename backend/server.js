@@ -503,7 +503,7 @@ async function search(db, params) {
 //        "FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
 //        clauseStr;
 
-    let locationClusterQuery = "SELECT sample.sample_id,project.name AS project_name,ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude, ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude " +
+    let locationClusterQuery = "SELECT sample.sample_id,sample.accn as sample_accn,project.name AS project_name,ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude, ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude " +
         "FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
         clauseStr;
 
