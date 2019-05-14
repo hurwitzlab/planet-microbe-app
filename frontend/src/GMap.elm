@@ -14,7 +14,7 @@ type alias Location =
 port loadMap : Value -> Cmd msg
 
 
-port setLocation : Location -> Cmd msg
+port setLocation : Maybe Location -> Cmd msg
 
 
 port getLocation : (Location -> msg) -> Sub msg

@@ -227,7 +227,7 @@ update msg model =
                 newVals =
                     Dict.map (\k v -> NoValue) model.selectedVals
             in
-            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = newVals }, Cmd.none )
+            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = newVals }, GMap.setLocation Nothing )
 
         AddFilter id ->
             let
@@ -342,7 +342,7 @@ update msg model =
                                 radius2 =
                                     String.toFloat radius |> Maybe.withDefault 0
                             in
-                            GMap.setLocation (GMap.Location lat2 lng2 radius2)
+                            GMap.setLocation (Just (GMap.Location lat2 lng2 radius2))
 
                         _ ->
                             Cmd.none

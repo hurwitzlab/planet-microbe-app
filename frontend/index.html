@@ -99,7 +99,7 @@ app.ports.loadMap.subscribe(function(results) {
       );
     }
     else { // reset map
-      // Clear all markers, rectangles, and features
+      // Clear all markers
       for (var i = 0; i < markers.length; i++) {
         markers[i].setMap(null);
       }
@@ -176,15 +176,22 @@ function handleCircleEvent() {
 
 app.ports.setLocation.subscribe(function(location) {
   console.log("setLocation:", location);
-  for (var i = 0; i < shapes.length; i++) {
-    circle = shapes[i];
-    console.log(circle);
-    google.maps.event.clearListeners(circle, 'radius_changed');
-    google.maps.event.clearListeners(circle, 'center_changed');
-    circle.setCenter(new google.maps.LatLng(location.lat,location.lng));
-    circle.setRadius(location.radius);
-    circle.addListener('radius_changed', handleCircleEvent.bind(circle));
-    circle.addListener('center_changed', handleCircleEvent.bind(circle));
+  if (!location) {
+    for (var i = 0; i < shapes.length; i++) {
+      shapes[i].setMap(null);
+    }
+  }
+  else {
+    for (var i = 0; i < shapes.length; i++) {
+      circle = shapes[i];
+      console.log(circle);
+      google.maps.event.clearListeners(circle, 'radius_changed');
+      google.maps.event.clearListeners(circle, 'center_changed');
+      circle.setCenter(new google.maps.LatLng(location.lat,location.lng));
+      circle.setRadius(location.radius);
+      circle.addListener('radius_changed', handleCircleEvent.bind(circle));
+      circle.addListener('center_changed', handleCircleEvent.bind(circle));
+    }
   }
 });
     </script>
