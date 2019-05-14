@@ -72,6 +72,17 @@ app.ports.loadMap.subscribe(function(results) {
         }
       );
 
+      // Listen on circle selection button to clear selection
+      google.maps.event.addListener(drawingManager, "drawingmode_changed", function() {
+        console.log("drawing mode changed:"+drawingManager.getDrawingMode());
+        if (drawingManager.getDrawingMode() == "circle" && shapes.length > 0) {
+          for (var i = 0; i < shapes.length; i++) {
+            shapes[i].setMap(null);
+          }
+          app.ports.getLocation.send(null);
+        }
+      });
+
       gmap.addListener('zoom_changed',
         function() {
           zoom = gmap.getZoom();

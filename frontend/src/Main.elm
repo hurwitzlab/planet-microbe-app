@@ -173,7 +173,7 @@ type Msg
     | SearchCompleted (Result Http.Error SearchResponse)
     | MapTick
 --    | JSMap Value
-    | UpdateLocationFromMap GMap.Location
+    | UpdateLocationFromMap (Maybe GMap.Location)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -431,10 +431,15 @@ update msg model =
             else
                 ( { model | showMap = False }, Cmd.none )
 
-        UpdateLocationFromMap loc ->
+        UpdateLocationFromMap maybeLoc ->
             let
                 newLocationVal =
-                    LatLngRadiusValue (toString loc.lat, toString loc.lng) (toString loc.radius)
+                    case maybeLoc of
+                        Just loc ->
+                            LatLngRadiusValue (toString loc.lat, toString loc.lng) (toString loc.radius)
+
+                        Nothing ->
+                            NoLocationValue
             in
             ( { model | doSearch = True, locationVal = newLocationVal }, Cmd.none )
 

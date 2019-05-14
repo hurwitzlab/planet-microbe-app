@@ -17,7 +17,7 @@ port loadMap : Value -> Cmd msg
 port setLocation : Maybe Location -> Cmd msg
 
 
-port getLocation : (Location -> msg) -> Sub msg
+port getLocation : (Maybe Location -> msg) -> Sub msg
 
 
 view : List (Attribute msg) -> List (Html msg) -> Html msg
