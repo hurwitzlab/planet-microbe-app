@@ -144,6 +144,11 @@ app.ports.loadMap.subscribe(function(results) {
           }
           //map: gmap
       });
+      marker.addListener("click",
+        function() {
+          console.log("click");
+        }
+      );
       markers.push(marker);
 
       bounds.extend(marker.position);
