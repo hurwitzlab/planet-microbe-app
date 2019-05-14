@@ -237,7 +237,7 @@ update msg model =
                 getTerm =
                     getSearchTerm id |> Http.toTask
             in
-            ( { model | paramSearchInputVal = "", selectedParams = params }, Task.attempt GetSearchTermCompleted getTerm )
+            ( { model | showParamSearchDropdown = False, paramSearchInputVal = "", selectedParams = params }, Task.attempt GetSearchTermCompleted getTerm )
 
         RemoveFilter id ->
             let
@@ -1071,8 +1071,19 @@ viewStringFilterPanel term val =
                 EQ -> EQ
                 GT -> LT
 
+        sortBySelected a b =
+            case ( isStringFilterSelected (Tuple.first a) val, isStringFilterSelected (Tuple.first b) val ) of
+                (True, False) ->
+                    LT
+
+                (False, True) ->
+                    GT
+
+                (_, _) ->
+                    sortByCount a b
+
         truncatedOptions =
-            Dict.toList term.values |> List.sortWith sortByCount |> List.take maxNumPanelOptions
+            Dict.toList term.values |> List.sortWith sortBySelected |> List.take maxNumPanelOptions
     in
     viewTermPanel term
         [ div [ style "max-height" "5em", style "overflow-y" "auto" ] (viewStringFilterOptions term val truncatedOptions)
@@ -1086,28 +1097,30 @@ viewStringFilterPanel term val =
 viewStringFilterOptions : SearchTerm -> FilterValue -> List (String, Int) -> List (Html Msg)
 viewStringFilterOptions term val options =
     let
-        isChecked name =
-            (case val of
-                SingleValue s ->
-                    List.singleton s
-
-                MultipleValues l ->
-                    l
-
-                _ ->
-                    []
-            ) |> List.member name
-
         viewRow (name, count) =
             div []
                 [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked (isChecked name), onCheck (SetStringFilterValue term.id name) ] []
+                    [ input [ class "form-check-input", type_ "checkbox", checked (isStringFilterSelected name val), onCheck (SetStringFilterValue term.id name) ] []
                     , label [ class "form-check-label" ] [ name |> String.Extra.toSentenceCase |> text]
                     ]
                 , div [ class "badge badge-secondary float-right" ] [ count |> toFloat |> format myLocale |> text ]
                 ]
     in
     List.map viewRow options
+
+
+isStringFilterSelected : String -> FilterValue -> Bool
+isStringFilterSelected name val =
+    (case val of
+        SingleValue s ->
+            List.singleton s
+
+        MultipleValues l ->
+            l
+
+        _ ->
+            []
+    ) |> List.member name
 
 
 viewStringFilterDialog : SearchTerm -> FilterValue -> Html Msg
@@ -1123,7 +1136,7 @@ viewStringFilterDialog term val =
             Dict.toList term.values |> List.sortWith sortByName
     in
     viewDialog (String.Extra.toSentenceCase term.label)
-        [ div [] (viewStringFilterOptions term val options) ]
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions term val options) ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseStringFilterDialog ] [ text "Close" ] ]
         CloseStringFilterDialog
 
