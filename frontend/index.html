@@ -33,7 +33,8 @@ app.ports.loadMap.subscribe(function(results) {
 
       gmap = new google.maps.Map(mapDiv, {
           zoom: 2,
-          center: new google.maps.LatLng(0, 0)
+          center: new google.maps.LatLng(0, 0),
+          streetViewControl: false
       });
 
       var drawingManager = new google.maps.drawing.DrawingManager({
