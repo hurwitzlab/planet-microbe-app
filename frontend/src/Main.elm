@@ -9,6 +9,9 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline as Pipeline exposing (optional, required)
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (usLocale)
+import Date exposing (Date, day, month, weekday, year)
+import DatePicker exposing (DateEvent(..), defaultSettings)
+import Time exposing (Weekday(..))
 import Task
 import Time
 import String.Extra
@@ -105,12 +108,23 @@ type alias Model =
     , pageSize : Int
 --    , mapState : GMap.MapState
     , showMap : Bool
+    , startDate : Maybe Date
+    , endDate : Maybe Date
+    , startDatePicker : DatePicker.DatePicker
+    , endDatePicker : DatePicker.DatePicker
     }
 
 
 -- lat/lon (constrained to -180/180, -90/90, respectively), date, depth.
 init : Value -> ( Model, Cmd Msg )
 init flags =
+    let
+        ( startDatePicker, startDatePickerFx ) =
+            DatePicker.init
+
+        ( endDatePicker, endDatePickerFx ) =
+            DatePicker.init
+    in
     (
         { projectCounts = []
         , allParams = []
@@ -135,9 +149,15 @@ init flags =
         , pageSize = defaultPageSize
 --        , mapState = GMap.MapState (Encode.string "google map here") (GMap.LatLng 0 0)
         , showMap = False
+        , startDate = Nothing
+        , endDate = Nothing
+        , startDatePicker = startDatePicker
+        , endDatePicker = endDatePicker
         }
     , Cmd.batch
-        [ getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
+        [ Cmd.map ToStartDatePicker startDatePickerFx
+        , Cmd.map ToEndDatePicker endDatePickerFx
+        , getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map getSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
 --        , searchRequest [] 0 defaultPageSize 0 False |> Http.toTask |> Task.attempt SearchCompleted
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
@@ -174,6 +194,8 @@ type Msg
     | MapTick
 --    | JSMap Value
     | UpdateLocationFromMap (Maybe GMap.Location)
+    | ToStartDatePicker DatePicker.Msg
+    | ToEndDatePicker DatePicker.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -442,6 +464,105 @@ update msg model =
                             NoLocationValue
             in
             ( { model | doSearch = True, locationVal = newLocationVal }, Cmd.none )
+
+        ToStartDatePicker subMsg ->
+            let
+                ( newDatePicker, dateEvent ) =
+                    DatePicker.update (startSettings model.endDate) subMsg model.startDatePicker
+
+                newDate =
+                    case dateEvent of
+                        Picked changedDate ->
+                            Just changedDate
+
+                        _ ->
+                            model.startDate
+            in
+            ( { model
+                | startDate = newDate
+                , startDatePicker = newDatePicker
+              }
+            , Cmd.none
+            )
+
+        ToEndDatePicker subMsg ->
+            let
+                ( newDatePicker, dateEvent ) =
+                    DatePicker.update (endSettings model.startDate) subMsg model.endDatePicker
+
+                newDate =
+                    case dateEvent of
+                        Picked changedDate ->
+                            Just changedDate
+
+                        _ ->
+                            model.endDate
+            in
+            ( { model
+                | endDate = newDate
+                , endDatePicker = newDatePicker
+              }
+            , Cmd.none
+            )
+
+
+-- Could be used to customize common settings for both date pickers. Like for
+-- example disabling weekends from them.
+
+
+commonSettings : DatePicker.Settings
+commonSettings =
+    defaultSettings
+
+
+
+-- Extend commonSettings with isDisabled function which would disable dates
+-- after already selected end date because range start should come before end.
+
+
+startSettings : Maybe Date -> DatePicker.Settings
+startSettings endDate =
+    let
+        isDisabled =
+            case endDate of
+                Nothing ->
+                    commonSettings.isDisabled
+
+                Just date ->
+                    \d ->
+                        Date.toRataDie d
+                            > Date.toRataDie date
+                            || commonSettings.isDisabled d
+    in
+    { commonSettings
+        | placeholder = "Pick a start date"
+        , isDisabled = isDisabled
+    }
+
+
+
+-- Extend commonSettings with isDisabled function which would disable dates
+-- before already selected start date because range end should come after start.
+
+
+endSettings : Maybe Date -> DatePicker.Settings
+endSettings startDate =
+    let
+        isDisabled =
+            case startDate of
+                Nothing ->
+                    commonSettings.isDisabled
+
+                Just date ->
+                    \d ->
+                        Date.toRataDie d
+                            < Date.toRataDie date
+                            || commonSettings.isDisabled d
+    in
+    { commonSettings
+        | placeholder = "Pick an end date"
+        , isDisabled = isDisabled
+    }
 
 
 getSearchTerms : Http.Request (List SearchTerm)
@@ -864,7 +985,7 @@ viewSearchPanel model =
             , div []
                 [ viewLocationPanel model
                 , viewProjectPanel model.projectCounts
-                , viewAddedFiltersPanel model.selectedParams model.selectedTerms model.selectedVals
+                , viewAddedFiltersPanel model model.selectedParams model.selectedTerms model.selectedVals
                 , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allParams model.selectedParams
                 ]
             ]
@@ -922,6 +1043,10 @@ viewLocationPanel model =
                                 ++ [ div [ class "input-group-append" ]
                                        [ button [ class "btn btn-outline-secondary", type_ "button" ] [ text (String.fromChar (Char.fromCode 128197)) ] ]
                                    , viewDateTimeFilterFormatOptions purlDateTime
+                                   , DatePicker.view model.startDate (startSettings model.endDate) model.startDatePicker
+                                       |> Html.map ToStartDatePicker
+                                   , DatePicker.view model.endDate (endSettings model.startDate) model.endDatePicker
+                                       |> Html.map ToEndDatePicker
                                    ]
                             )
                         ]
@@ -976,8 +1101,8 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
         ]
 
 
-viewAddedFiltersPanel : List PURL -> Dict PURL SearchTerm -> Dict PURL FilterValue -> Html Msg
-viewAddedFiltersPanel params terms vals  =
+viewAddedFiltersPanel : Model -> List PURL -> Dict PURL SearchTerm -> Dict PURL FilterValue -> Html Msg
+viewAddedFiltersPanel model params terms vals  =
     div []
         (params
             |> List.map
