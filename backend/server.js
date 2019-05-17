@@ -232,6 +232,11 @@ async function generateTermIndex(db, ontologyDescriptors) {
 
             if (!(purl in index))
                 index[purl] = {};
+            else { // Check type consistency
+                if (index[purl].type && index[purl].type != field.type)
+                    console.log("WARNING: type mismatch for", purl, index[purl].type, field.type);
+            }
+
             if (!('schemas' in index[purl]))
                 index[purl]['schemas'] = {};
             if (!index[purl]['schemas'][schema.schema_id])
