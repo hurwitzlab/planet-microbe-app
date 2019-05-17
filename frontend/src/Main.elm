@@ -396,7 +396,7 @@ update msg model =
             let
                 _ = Debug.log "Search" (toString model.selectedVals)
             in
-            case generateQueryParams model.locationVal model.projectVals model.selectedVals of
+            case generateQueryParams model.locationVal model.projectVals model.selectedParams model.selectedVals of
                 Ok queryParams ->
                     let
                         searchTask =
@@ -519,8 +519,8 @@ validLocationParam val =
             True
 
 
-generateQueryParams : LocationFilterValue -> List String -> Dict String FilterValue -> Result String (List (String, String))
-generateQueryParams locationVal projectVals params =
+generateQueryParams : LocationFilterValue -> List String -> List PURL -> Dict PURL FilterValue -> Result String (List (String, String))
+generateQueryParams locationVal projectVals params vals =
     let
         range min max =
             "[" ++ min ++ "," ++ max ++ "]"
@@ -528,7 +528,7 @@ generateQueryParams locationVal projectVals params =
         offset val ofs =
             val ++ "," ++ ofs
 
-        formatParam _ val = --TODO use encoder instead
+        formatParam val = --TODO use encoder instead
             case val of
                 RangeValue min max ->
                     range min max
@@ -542,8 +542,8 @@ generateQueryParams locationVal projectVals params =
                 SingleValue s ->
                     s
 
-                MultipleValues vals ->
-                    String.join "|" vals
+                MultipleValues values ->
+                    String.join "|" values
 
                 DateTimeValue dt ->
                     dt
@@ -578,8 +578,8 @@ generateQueryParams locationVal projectVals params =
                 NoLocationValue ->
                     ""
 
-        formatProjectParam vals =
-            String.join "|" vals
+        formatProjectParam values =
+            String.join "|" values
 
         sortFirst id a b =
             if Tuple.first a == id then
@@ -590,14 +590,16 @@ generateQueryParams locationVal projectVals params =
                 EQ
     in
     --FIXME refactor section below
-    if locationVal == NoLocationValue && projectVals == [] && Dict.isEmpty params then
+    if locationVal == NoLocationValue && projectVals == [] && Dict.isEmpty vals then
         Ok [(purlSampleID, "")]
-    else if params |> Dict.toList |> List.map Tuple.second |> List.all validParam then
+    else if vals |> Dict.toList |> List.map Tuple.second |> List.all validParam then
         let
             queryParams =
-                params
-                    |> Dict.map formatParam
-                    |> Dict.toList
+                params -- maintain filter order
+                    |> List.map (\id ->
+                        (id, (Dict.get id vals |> Maybe.withDefault NoValue))
+                    )
+                    |> List.map (Tuple.mapSecond formatParam)
                     |> List.sortWith (sortFirst purlDateTime) --FIXME kinda kludgey, another way to order time/space params properly
                     |> List.sortWith (sortFirst purlDepth)
 
@@ -1431,7 +1433,10 @@ viewResults model =
                                         Nothing
 
                                     Just term ->
-                                        Just term.label
+                                        if term.unitLabel /= "" then
+                                            Just (term.label ++ " (" ++ term.unitLabel ++ ")")
+                                        else
+                                            Just term.label
                             )
 
                     )
