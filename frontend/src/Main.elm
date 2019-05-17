@@ -15,6 +15,7 @@ import Time exposing (Weekday(..))
 import Task
 import Time
 import String.Extra
+import List.Extra
 import Set
 import GMap
 import Dict exposing (Dict)
@@ -106,7 +107,6 @@ type alias Model =
     , errorMsg : Maybe String
     , pageNum : Int
     , pageSize : Int
---    , mapState : GMap.MapState
     , showMap : Bool
     }
 
@@ -136,13 +136,11 @@ init flags =
         , errorMsg = Nothing
         , pageNum = 0
         , pageSize = defaultPageSize
---        , mapState = GMap.MapState (Encode.string "google map here") (GMap.LatLng 0 0)
         , showMap = False
         }
     , Cmd.batch
         [ getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map getSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
---        , searchRequest [] 0 defaultPageSize 0 False |> Http.toTask |> Task.attempt SearchCompleted
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         ]
     )
@@ -235,7 +233,7 @@ update msg model =
         AddFilter id ->
             let
                 params =
-                    model.selectedParams |> Set.fromList |> Set.insert id |> Set.toList
+                    List.singleton id |> List.append model.selectedParams |> List.Extra.unique -- cannot use Set because it doesn't preserve order
 
                 getTerm =
                     getSearchTerm id |> Http.toTask
@@ -245,7 +243,7 @@ update msg model =
         RemoveFilter id ->
             let
                 newParams =
-                    model.selectedParams |> Set.fromList |> Set.remove id |> Set.toList
+                    model.selectedParams |> List.filter (\n -> n /= id) -- cannot use Set because it doesn't preserve order
 
                 newTerms =
                     Dict.remove id model.selectedTerms
