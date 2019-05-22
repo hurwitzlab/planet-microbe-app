@@ -2,6 +2,7 @@ import Browser exposing (Document)
 import Html exposing (..)
 import Json.Encode as Encode exposing (Value)
 import Debug exposing (toString)
+import Page exposing (view)
 import Page.Search as Search
 import Session exposing (Session)
 
@@ -99,7 +100,8 @@ view model =
 --            Page.view viewer Page.Other NotFound.view
 
         Search subModel ->
-            Search.view subModel |> Html.map SearchMsg
+--            Search.view subModel |> Html.map SearchMsg
+            Page.view (Search.view subModel |> Html.map SearchMsg)
 
         _ ->
             text ""
