@@ -5,9 +5,9 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onCheck)
 import Http
 import HttpBuilder
-import Json.Encode as Encode exposing (Value, string)
+import Json.Encode as Encode exposing (Value)
 import Json.Decode as Decode exposing (Decoder)
-import Json.Decode.Pipeline as Pipeline exposing (optional, required)
+import Json.Decode.Pipeline exposing (optional, required)
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (usLocale)
 --import Date exposing (Date, day, month, weekday, year)
@@ -385,9 +385,6 @@ update msg model =
                 ( model, Cmd.none )
 
         InputTimerTick time ->
-            let
-                _ = Debug.log "foo" "bar"
-            in
             if model.doSearch && Time.posixToMillis time - model.searchStartTime >= 1000 then -- 1 second
                 update (Search 0) model
             else

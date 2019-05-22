@@ -1,11 +1,7 @@
 import Browser exposing (Document)
 import Html exposing (..)
-import Json.Encode as Encode exposing (Value, string)
-import Time exposing (Weekday(..))
-import Time
-import GMap
+import Json.Encode as Encode exposing (Value)
 import Debug exposing (toString)
-import Config exposing (apiBaseUrl)
 import Page.Search as Search
 import Session exposing (Session)
 
@@ -57,20 +53,12 @@ init flags =
 
 
 type Msg
-    = InputTimerTick Time.Posix
-    | SearchMsg Search.Msg
+    = SearchMsg Search.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case ( msg, model ) of
-        ( InputTimerTick time, Search subModel ) ->
-            let
-                _ = Debug.log "blah" "blah"
-            in
-            Search.update (Search.InputTimerTick time) subModel
-                |> updateWith Search SearchMsg model
-
         ( SearchMsg subMsg, Search subModel ) ->
             Search.update subMsg subModel
                 |> updateWith Search SearchMsg model
