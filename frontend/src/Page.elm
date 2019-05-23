@@ -94,7 +94,7 @@ view : Html msg -> Html msg
 view content =
     div []
         [ viewHeader
-        , br [] []
+--        , br [] []
         , content
         ]
 

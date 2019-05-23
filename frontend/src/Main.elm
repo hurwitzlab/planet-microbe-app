@@ -4,6 +4,7 @@ import Json.Encode as Encode exposing (Value)
 import Debug exposing (toString)
 import Page exposing (view)
 import Page.Search as Search
+import Page.Home as Home
 import Session exposing (Session)
 
 
@@ -20,11 +21,11 @@ main =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model of
-        NotFound _ ->
+        NotFound ->
             Sub.none
 
-        Home home ->
-            Sub.none --Sub.map GotHomeMsg (Home.subscriptions home)
+        Home ->
+            Sub.none
 
         Search search ->
             Sub.map SearchMsg (Search.subscriptions search)
@@ -35,8 +36,8 @@ subscriptions model =
 
 
 type Model
-    = NotFound Session
-    | Home Session
+    = NotFound
+    | Home
     | Search Search.Model
 
 
@@ -44,9 +45,11 @@ init : Value -> ( Model, Cmd Msg )
 init flags =
     let
         ( subModel, subMsg ) =
-            Search.init flags
+--            Search.init flags
+            Home.init
     in
-    ( Search subModel, Cmd.map SearchMsg subMsg )
+--    ( Search subModel, Cmd.map SearchMsg subMsg )
+    ( Home, Cmd.none )
 
 
 
@@ -54,7 +57,8 @@ init flags =
 
 
 type Msg
-    = SearchMsg Search.Msg
+    = HomeMsg Home.Msg
+    | SearchMsg Search.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -98,6 +102,9 @@ view model =
     case model of
 --        NotFound _ ->
 --            Page.view viewer Page.Other NotFound.view
+
+        Home ->
+            Page.view Home.view |> Html.map HomeMsg
 
         Search subModel ->
 --            Search.view subModel |> Html.map SearchMsg
