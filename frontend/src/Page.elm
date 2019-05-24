@@ -7,8 +7,8 @@ import Html exposing (Html, a, br, button, div, img, li, nav, p, span, text, ul)
 import Html.Attributes exposing (id, class, attribute, href, src, style, title)
 import Html.Events exposing (onClick)
 --import Profile
---import Route exposing (Route)
-import Session exposing (Session)
+import Route exposing (Route)
+--import Session exposing (Session)
 --import Username exposing (Username)
 --import Viewer exposing (Viewer)
 
@@ -90,13 +90,15 @@ in the header. (This comes up during slow page transitions.)
 --            ]
 
 
-view : Html msg -> Html msg
+view : Html msg -> Document msg
 view content =
-    div []
+    { title = "Planet Microbe"
+    , body =
         [ viewHeader
 --        , br [] []
         , content
         ]
+    }
 
 
 viewHeader : Html msg --Page -> Maybe Viewer -> Html msg
@@ -113,7 +115,7 @@ viewHeader = --page maybeViewer =
             , div [ class "navbar-collapse collapse", id "navbarNav" ]
                 [ ul [ class "navbar-nav mr-auto" ]
                     [ li [ class "nav-item active" ]
-                        [ a [ class "nav-link", href "#" ]
+                        [ a [ class "nav-link", Route.href Route.Search ]
                             [ text "Search"
                             ]
                         ]

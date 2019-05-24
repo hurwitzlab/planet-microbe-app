@@ -102,8 +102,8 @@ type alias Model =
 
 
 -- lat/lon (constrained to -180/180, -90/90, respectively), date, depth.
-init : Value -> ( Model, Cmd Msg )
-init flags =
+init : ( Model, Cmd Msg )
+init =
     (
         { projectCounts = []
         , allParams = []

@@ -43,8 +43,8 @@ update msg model =
 -- VIEW --
 
 
-view : Html Msg --Model -> Html Msg
-view = --model =
+view : Model -> Html Msg
+view model =
     div [ class "fade-in" ]
         [ div [ class "jumbotron jumbotron-fluid", style "background-image" "url('assets/images/ocean-background.jpg')", style "background-size" "cover", style "min-height" "27em", style "border-bottom" "1px solid lightgray" ] --TODO move into css
             [ div [ class "container" ]
@@ -91,7 +91,7 @@ view = --model =
             , div [ class "row featurette" ]
                 [ div [ class "col-md-7" ]
                     [ h2 [ class "featurette-heading" ]
-                        [ text "First featurette heading. "
+                        [ text "Semantic Search. "
                         , span [ class "text-muted" ]
                             [ text "It'll blow your mind." ]
                         ]
@@ -107,7 +107,7 @@ view = --model =
             , div [ class "row featurette" ]
                 [ div [ class "col-md-7 order-md-2" ]
                     [ h2 [ class "featurette-heading" ]
-                        [ text "Oh yeah, it's that good. "
+                        [ text "Scalable Analytics. "
                         , span [ class "text-muted" ]
                             [ text "See for yourself." ]
                         ]
