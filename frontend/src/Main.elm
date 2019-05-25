@@ -34,10 +34,10 @@ main =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model of
-        Redirect ->
+        Redirect _ ->
             Sub.none
 
-        NotFound ->
+        NotFound _ ->
             Sub.none
 
         Home home ->
@@ -52,8 +52,8 @@ subscriptions model =
 
 
 type Model
-    = Redirect
-    | NotFound
+    = Redirect Session
+    | NotFound Session
     | Home Home.Model
     | Search Search.Model
 
@@ -68,7 +68,7 @@ init navKey url flags =
 --    ( Search subModel, Cmd.map SearchMsg subMsg )
 --    ( Home subModel, Cmd.none )
     changeRouteTo (Route.fromUrl url)
-        Redirect --(Session.fromViewer navKey maybeViewer))
+        (Redirect Session.empty) --(Session.fromViewer navKey maybeViewer))
 
 
 
@@ -82,24 +82,40 @@ type Msg
     | ClickedLink Browser.UrlRequest
 
 
+toSession : Model -> Session
+toSession page =
+    case page of
+        Redirect session ->
+            session
+
+        NotFound session ->
+            session
+
+        Home home ->
+            Home.toSession home
+
+        Search search ->
+            Search.toSession search
+
+
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
 changeRouteTo maybeRoute model =
---    let
---        session =
---            toSession model
---    in
+    let
+        session =
+            toSession model
+    in
     case maybeRoute of
         Nothing ->
 --            ( NotFound session, Cmd.none )
-            Home.init
+            Home.init session
                 |> updateWith Home HomeMsg model
 
         Just Route.Home ->
-            Home.init
+            Home.init session
                 |> updateWith Home HomeMsg model
 
         Just Route.Search ->
-            Search.init
+            Search.init session
                 |> updateWith Search SearchMsg model
 
 
@@ -123,7 +139,7 @@ update msg model =
 
                         Just _ ->
                             ( model
-                            , Browser.Navigation.pushUrl (Session.navKey (toSession model)) (Url.toString url)
+                            , Browser.Navigation.load (Url.toString url) --Browser.Navigation.pushUrl (Session.navKey (toSession model)) (Url.toString url)
                             )
 
                 Browser.External href ->
@@ -170,10 +186,10 @@ view model =
             }
     in
     case model of
-        Redirect ->
+        Redirect _ ->
             Page.view Blank.view
 
-        NotFound ->
+        NotFound _ ->
             Page.view NotFound.view
 
         Home subModel ->

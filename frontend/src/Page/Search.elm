@@ -1,5 +1,6 @@
-module Page.Search exposing (Model, Msg(..), init, subscriptions, update, view)
+module Page.Search exposing (Model, Msg(..), init, subscriptions, toSession, update, view)
 
+import Session exposing (Session)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onCheck)
@@ -76,7 +77,8 @@ type alias PURL =
 
 
 type alias Model =
-    { projectCounts : List ProjectCount
+    { session : Session
+    , projectCounts : List ProjectCount
     , allParams : List SearchTerm -- list of available params to add
 --    , availableParams : List String -- based on params already selected
     , selectedParams : List PURL -- added params, for maintaining order
@@ -102,10 +104,11 @@ type alias Model =
 
 
 -- lat/lon (constrained to -180/180, -90/90, respectively), date, depth.
-init : ( Model, Cmd Msg )
-init =
+init : Session -> ( Model, Cmd Msg )
+init session =
     (
-        { projectCounts = []
+        { session = session
+        , projectCounts = []
         , allParams = []
 --        , availableParams = []
         , selectedParams = initialParams
@@ -142,6 +145,11 @@ subscriptions model =
         [ Time.every 1000 InputTimerTick -- milliseconds
 --        , GMap.getLocation Search.UpdateLocationFromMap
         ]
+
+
+toSession : Model -> Session
+toSession model =
+    model.session
 
 
 

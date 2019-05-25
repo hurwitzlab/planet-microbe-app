@@ -1,6 +1,6 @@
-module Page.Home exposing (Model, Msg, init, update, view)
+module Page.Home exposing (Model, Msg, init, toSession, update, view)
 
---import Data.Session as Session exposing (Session)
+import Session as Session exposing (Session)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Http
@@ -14,14 +14,18 @@ import Task exposing (Task)
 
 
 type alias Model =
-    { pageTitle : String
-    , pageBody : String
+    { session : Session
     }
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( { pageTitle = "", pageBody = "" }, Cmd.none )
+init : Session -> ( Model, Cmd Msg )
+init session =
+    ( { session = session }, Cmd.none )
+
+
+toSession : Model -> Session
+toSession model =
+    model.session
 
 
 

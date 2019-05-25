@@ -2,6 +2,7 @@ module Session exposing (..)
 
 --import Data.Cart as Cart exposing (Cart)
 --import Data.User as User exposing (User)
+--import Browser.Navigation
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode exposing (Value)
@@ -19,6 +20,7 @@ type alias Session =
     , expiresAt : Maybe Int
 --    , user : Maybe User
     , url : String
+--    , navKey : Browser.Navigation.Key
     }
 
 
@@ -30,6 +32,7 @@ empty =
     , expiresAt = Nothing
 --    , user = Nothing
     , url = ""
+--    , navKey =
     }
 
 
