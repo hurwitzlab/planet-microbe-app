@@ -832,14 +832,14 @@ decodeProjectCount =
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ div [ style "float" "left", style "width" "26%" ]
+    div [ class "container-fluid" ]
+        [ br [] []
+        , div [ class "float-left", style "width" "26%" ]
             [ viewSearchPanel model ]
-        , div [ class "float-right", style "width" "74%", class "container-fluid" ]
+        , div [ class "float-right", style "width" "74%", style "padding-left" "1em" ]
 --            [ viewSearchSummary model
 --            , br [] []
-            [ h4 [ style "margin" "3px", style "display" "inline" ] [ text "Results" ]
-            , viewMap model.showMap
+            [ viewMap model.showMap
             , viewResults model
             ]
         , case model.stringFilterDialogTerm of
@@ -854,21 +854,19 @@ view model =
 viewSearchPanel : Model -> Html Msg
 viewSearchPanel model =
     div []
-        [ h4 [ style "margin" "3px", style "display" "inline" ]
-            [ text "Filters" ]
-        , span [ class "float-right small", style "padding-top" "5px" ]
-            [ a [ class "alert-link", href "#", onClick ClearFilters ] [ text "Reset" ]
+        [ div [ class "small" ]
+            [ a [ class "alert-link", href "", onClick ClearFilters ] [ text "Reset" ]
             , text " | "
-            , a [ class "alert-link", href "#"] [ text "Advanced Search" ]
-        ]
-        , div [ style "border" "1px solid lightgray" ]
+            , a [ class "alert-link", href ""] [ text "Advanced Search" ]
+            ]
+        , div [ style "border" "1px solid lightgray", style "display" "inline-block" ]
             [ ul [ class "nav nav-tabs" ]
                 [ li [ class "nav-item" ]
-                    [ a [ class "nav-link" ] [ text "Projects" ] ]
+                    [ a [ class "nav-link", href "", style "color" "black" ] [ text "Projects" ] ]
                 , li [ class "nav-item" ]
-                    [ a [ class "nav-link active", href "#", style "font-weight" "bold" ] [ text "Samples" ] ]
+                    [ a [ class "nav-link active", href "", style "font-weight" "bold" ] [ text "Samples" ] ]
                 , li [ class "nav-item" ]
-                    [ a [ class "nav-link" ] [ text "Files" ] ]
+                    [ a [ class "nav-link", href "", style "color" "black" ] [ text "Files" ] ]
                 ]
             , div []
                 [ viewLocationPanel model
@@ -895,7 +893,7 @@ viewLocationPanel model =
                 [ h6 [ style "color" "darkblue"]
                     [ text (String.fromChar (Char.fromCode 9660))
                     , text " Time/Space"
-                    , small [] [ a [ class "alert-link", href "#", class "float-right", onClick MapTick ]
+                    , small [] [ a [ class "alert-link float-right", href "", onClick MapTick ]
                         [ if model.showMap then text "Close Map" else text "View Map" ] ]
                     ]
                 , Html.form [ style "padding-top" "0.5em" ]
@@ -1484,7 +1482,7 @@ viewResults model =
             model.results |> Maybe.withDefault [] |> List.length
 
         pageInfo =
-            div [ class "float-right", style "font-size" "0.9em" ]
+            div [ class "small", style "color" "dimgray" ]
                 [ text "Showing "
                 , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> toString |> text
                 , text " - "
@@ -1513,14 +1511,16 @@ viewResults model =
                     li [ classList [ ("page-item", True), ("disabled", dis) ] ]
                         [ a [ class "page-link", href "#", onClick (SetPageNum num) ] [ text label ] ]
             in
-            div [ style "padding" "0.5em", style "border" "1px solid lightgray" ]
-                [ text "Show "
-                , div [ class "dropup", style "display" "inline" ]
-                    [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (toString model.pageSize) ]
-                    , div [ class "dropdown-menu" ]
-                        (List.map sizeOption [20, 40, 60, 80, 100])
-                    ]
-                , text " results"
+            div [ style "padding" "0.5em" ]
+                [ div [ class "float-left" ]
+                    [ text "Show "
+                    , div [ class "dropup", style "display" "inline" ]
+                        [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (toString model.pageSize) ]
+                        , div [ class "dropdown-menu" ]
+                            (List.map sizeOption [20, 40, 60, 80, 100])
+                        ]
+                    , text " results"
+                ]
                 , nav [ class "float-right" ]
                     [ ul [ class "pagination" ]
                         --FIXME code below is a little kludgey
@@ -1549,18 +1549,17 @@ viewResults model =
             else
                 div []
                     [ div [ style "border" "1px solid lightgray" ]
-                        [ div [ style "display" "inline" ]
-                            [ button [ class "btn btn-sm btn-link alert-link float-right", style "margin" "4px" ] [ text "Columns" ]
-                            , ul [ class "nav nav-tabs" ]
-                                [ li [ class "nav-item" ]
-                                    [ a [ class "nav-link" ] [ text "Summary" ] ]
-                                , li [ class "nav-item" ]
-                                    [ a [ class "nav-link" ] [ text "Projects" ] ]
-                                , li [ class "nav-item" ]
-                                    [ a [ class "nav-link active", href "#", style "font-weight" "bold" ] [ text "Samples" ] ]
-                                , li [ class "nav-item" ]
-                                    [ a [ class "nav-link" ] [ text "Files" ] ]
-                                ]
+                        [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                            [ li [ class "nav-item" ]
+                                [ a [ class "nav-link", href "", style "color" "black" ] [ text "Summary" ] ]
+                            , li [ class "nav-item" ]
+                                [ a [ class "nav-link", href "", style "color" "black" ] [ text "Projects" ] ]
+                            , li [ class "nav-item" ]
+                                [ a [ class "nav-link active", href "", style "font-weight" "bold" ] [ text "Samples" ] ]
+                            , li [ class "nav-item" ]
+                                [ a [ class "nav-link", href "", style "color" "black" ] [ text "Files" ] ]
+                            , li [ class "nav-item ml-auto" ]
+                                [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
                             ]
                         , table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
                             [ thead [] [ tr [] columns ]
@@ -1571,8 +1570,11 @@ viewResults model =
                     ]
     in
     div []
-        [ if model.results /= Nothing then pageInfo else viewBlank
-        , div [] [ content ]
+        [ if model.results /= Nothing then
+            pageInfo
+          else
+            viewBlank
+        , content
         ]
 
 
