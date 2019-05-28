@@ -1,8 +1,9 @@
 module Page.Home exposing (Model, Msg, init, toSession, update, view)
 
-import Session as Session exposing (Session)
+import Session exposing (Session)
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Route exposing (Route)
 import Http
 import Json.Encode as Encode
 --import Page.Error as Error exposing (PageLoadError)
@@ -54,6 +55,8 @@ view model =
             [ div [ class "container" ]
                 [ h1 [ class "display-3 font-weight-bold", style "color" "#ff7a00", style "text-shadow" "2px 2px 3px rgba(0,0,0,0.6)" ] [ text "Planet Microbe" ]
                 , p [ class "lead font-weight-bold", style "color" "#f0f0f0", style "font-size" "2em", style "text-shadow" "2px 2px 3px rgba(0,0,0,0.6)" ] [ text "Enabling the discovery and integration of oceanographic ‘omics, environmental and physiochemical data layers." ]
+                , br [] []
+                , a [ class "btn btn-light", Route.href Route.Search ] [ text "Try it now!" ]
                 ]
             ]
         , br [] []
@@ -97,7 +100,7 @@ view model =
                     [ h2 [ class "featurette-heading" ]
                         [ text "Semantic Search. "
                         , span [ class "text-muted" ]
-                            [ text "It'll blow your mind." ]
+                            [ text "subtitle" ]
                         ]
                     , p [ class "lead" ]
                         [ text "Donec ullamcorper nulla non metus auctor fringilla. Vestibulum id ligula porta felis euismod semper. Praesent commodo cursus magna, vel scelerisque nisl consectetur. Fusce dapibus, tellus ac cursus commodo." ]
@@ -113,7 +116,7 @@ view model =
                     [ h2 [ class "featurette-heading" ]
                         [ text "Scalable Analytics. "
                         , span [ class "text-muted" ]
-                            [ text "See for yourself." ]
+                            [ text "subtitle" ]
                         ]
                     , p [ class "lead" ]
                         [ text "Donec ullamcorper nulla non metus auctor fringilla. Vestibulum id ligula porta felis euismod semper. Praesent commodo cursus magna, vel scelerisque nisl consectetur. Fusce dapibus, tellus ac cursus commodo." ]
@@ -127,9 +130,9 @@ view model =
             , div [ class "row featurette" ]
                 [ div [ class "col-md-7" ]
                     [ h2 [ class "featurette-heading" ]
-                        [ text "And lastly, this one. "
+                        [ text "Community Integration. "
                         , span [ class "text-muted" ]
-                            [ text "Checkmate." ]
+                            [ text "subtitle" ]
                         ]
                     , p [ class "lead" ]
                         [ text "Donec ullamcorper nulla non metus auctor fringilla. Vestibulum id ligula porta felis euismod semper. Praesent commodo cursus magna, vel scelerisque nisl consectetur. Fusce dapibus, tellus ac cursus commodo." ]
