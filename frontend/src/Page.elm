@@ -3,7 +3,7 @@ module Page exposing (Page(..), view, viewErrors)
 --import Api exposing (Cred)
 --import Avatar
 import Browser exposing (Document)
-import Html exposing (Html, a, br, button, div, img, li, nav, p, span, text, ul)
+import Html exposing (Html, a, button, div, img, i, li, nav, p, text, ul)
 import Html.Attributes exposing (id, class, attribute, href, src, style, title)
 import Html.Events exposing (onClick)
 --import Profile
@@ -105,21 +105,37 @@ viewHeader : Html msg --Page -> Maybe Viewer -> Html msg
 viewHeader = --page maybeViewer =
     let
         helpButton =
-            a [ title "Contact Us" ]
-                [ text "?" ]
+            li [ class "nav-item" ]
+                [ a [ class "nav-link", title "Get Help" ]
+                    [ i [ class "fa fa-question-circle fa-lg" ] [] ]
+                ]
     in
     div [ style "background-color" "#f8f8f8", style "border-bottom" "1px solid lightgray" ]
         [ nav [ class "navbar navbar-expand-lg navbar-light bg-light" ]
-            [ a [ class "navbar-brand", Route.href Route.Home ]
+            [ a [ class "navbar-brand", style "margin-right" "5em", Route.href Route.Home ]
                 [ img [ src "/assets/images/pm-logo.png", style "width" "238px", style "height" "49px" ] [] ]
             , div [ class "navbar-collapse collapse", id "navbarNav" ]
-                [ ul [ class "navbar-nav mr-auto" ]
-                    [ li [ class "nav-item active" ]
+--                [ ul [ class "navbar-nav" ]
+--                    [ li [ class "nav-item" ]
+--                        [ a [ class "nav-link" ]
+--                            [ text "Browse"
+--                            ]
+--                        ]
+--                    ]
+                [ ul [ class "navbar-nav" ]
+                    [ li [ class "nav-item" ]
                         [ a [ class "nav-link", Route.href Route.Search ]
                             [ text "Search"
                             ]
                         ]
                     ]
+--                , ul [ class "navbar-nav mr-auto" ]
+--                    [ li [ class "nav-item" ]
+--                        [ a [ class "nav-link" ]
+--                            [ text "Analyze"
+--                            ]
+--                        ]
+--                    ]
                 , ul [ class "navbar-nav ml-auto" ]
                     [ helpButton
 --                    , dashboardButton
