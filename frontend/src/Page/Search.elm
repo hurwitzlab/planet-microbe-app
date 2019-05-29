@@ -121,7 +121,7 @@ init session =
         , showParamSearchDropdown = False
         , sortPos = 1
         , doSearch = True
-        , isSearching = False
+        , isSearching = True
         , searchStartTime = 0
         , results = Nothing
         , mapResults = Encode.object []
@@ -1538,7 +1538,7 @@ viewResults model =
 
         content =
             if model.isSearching then
-                text "Searching ..."
+                viewSpinner
             else if count == 0 then
                 text "No Results"
             else if model.errorMsg /= Nothing then
@@ -1597,4 +1597,17 @@ viewBlank =
 
 viewSpinner : Html Msg
 viewSpinner =
-    div [ class "spinner-border" ] [ span [ class "sr-only" ] [ text "Loading..." ] ]
+    div [ class "ml-loader", style "position" "absolute", style "height" "100vh", style "top" "50%", style "left" "60%" ]
+        [ div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        ]
