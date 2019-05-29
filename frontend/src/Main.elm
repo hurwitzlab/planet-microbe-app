@@ -4,7 +4,7 @@ import Url exposing (Url)
 import Html exposing (..)
 import Json.Encode as Encode exposing (Value)
 import Debug exposing (toString)
-import Page exposing (view)
+import Page exposing (Page, view)
 import Page.NotFound as NotFound
 import Page.Blank as Blank
 import Page.Home as Home
@@ -106,9 +106,7 @@ changeRouteTo maybeRoute model =
     in
     case maybeRoute of
         Nothing ->
---            ( NotFound session, Cmd.none )
-            Home.init session
-                |> updateWith Home HomeMsg model
+            ( NotFound session, Cmd.none )
 
         Just Route.Home ->
             Home.init session
@@ -179,7 +177,7 @@ view model =
         viewPage page toMsg content  =
             let
                 { title, body } =
-                    Page.view content
+                    Page.view page content
             in
             { title = title
             , body = List.map (Html.map toMsg) body
@@ -187,14 +185,14 @@ view model =
     in
     case model of
         Redirect _ ->
-            Page.view Blank.view
+            Page.view Page.Other Blank.view
 
         NotFound _ ->
-            Page.view NotFound.view
+            Page.view Page.Other NotFound.view
 
         Home subModel ->
             viewPage Page.Home HomeMsg (Home.view subModel)
 
         Search subModel ->
 --            Search.view subModel |> Html.map SearchMsg
-            Page.view (Search.view subModel |> Html.map SearchMsg)
+            Page.view Page.Search (Search.view subModel |> Html.map SearchMsg)

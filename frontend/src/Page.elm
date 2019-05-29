@@ -4,7 +4,7 @@ module Page exposing (Page(..), view, viewErrors)
 --import Avatar
 import Browser exposing (Document)
 import Html exposing (Html, a, button, div, img, i, li, nav, p, text, ul)
-import Html.Attributes exposing (id, class, attribute, href, src, style, title)
+import Html.Attributes exposing (id, class, classList, src, style, title)
 import Html.Events exposing (onClick)
 --import Profile
 import Route exposing (Route)
@@ -23,6 +23,7 @@ under Other.
 type Page
     = Other
     | Home
+    | Search
 --    | Login
 --    | Register
 --    | Settings
@@ -90,19 +91,19 @@ in the header. (This comes up during slow page transitions.)
 --            ]
 
 
-view : Html msg -> Document msg
-view content =
+view : Page -> Html msg -> Document msg
+view page content =
     { title = "Planet Microbe"
     , body =
-        [ viewHeader
+        [ viewHeader page
 --        , br [] []
         , content
         ]
     }
 
 
-viewHeader : Html msg --Page -> Maybe Viewer -> Html msg
-viewHeader = --page maybeViewer =
+viewHeader : Page -> Html msg --Page -> Maybe Viewer -> Html msg
+viewHeader page = --page maybeViewer =
     let
         helpButton =
             li [ class "nav-item" ]
@@ -115,27 +116,23 @@ viewHeader = --page maybeViewer =
             [ a [ class "navbar-brand", style "margin-right" "5em", Route.href Route.Home ]
                 [ img [ src "/assets/images/pm-logo.png", style "width" "238px", style "height" "49px" ] [] ]
             , div [ class "navbar-collapse collapse", id "navbarNav" ]
---                [ ul [ class "navbar-nav" ]
---                    [ li [ class "nav-item" ]
---                        [ a [ class "nav-link" ]
---                            [ text "Browse"
---                            ]
---                        ]
---                    ]
                 [ ul [ class "navbar-nav" ]
-                    [ li [ class "nav-item" ]
-                        [ a [ class "nav-link", Route.href Route.Search ]
+                    [ li [ class "nav-item", style "width" "7em" ]
+                        [ a [ class "nav-link", classList [ ("active", False) ] ]
+                            [ text "Browse"
+                            ]
+                        ]
+                    , li [ class "nav-item", style "width" "7em" ]
+                        [ a [ class "nav-link", classList [ ("active", page == Search) ], Route.href Route.Search ]
                             [ text "Search"
                             ]
                         ]
+                    , li [ class "nav-item", style "width" "7em" ]
+                        [ a [ class "nav-link", classList [ ("active", False) ] ]
+                            [ text "Analyze"
+                            ]
+                        ]
                     ]
---                , ul [ class "navbar-nav mr-auto" ]
---                    [ li [ class "nav-item" ]
---                        [ a [ class "nav-link" ]
---                            [ text "Analyze"
---                            ]
---                        ]
---                    ]
                 , ul [ class "navbar-nav ml-auto" ]
                     [ helpButton
 --                    , dashboardButton
