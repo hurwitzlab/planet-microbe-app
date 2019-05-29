@@ -117,19 +117,22 @@ viewHeader page = --page maybeViewer =
                 [ img [ src "/assets/images/pm-logo.png", style "width" "238px", style "height" "49px" ] [] ]
             , div [ class "navbar-collapse collapse", id "navbarNav" ]
                 [ ul [ class "navbar-nav" ]
-                    [ li [ class "nav-item", style "width" "7em" ]
+                    [ li [ class "nav-item", style "width" "9em" ]
                         [ a [ class "nav-link", classList [ ("active", False) ] ]
-                            [ text "Browse"
+                            [ i [ class "fa fa-table" ] []
+                            , text " Browse"
                             ]
                         ]
-                    , li [ class "nav-item", style "width" "7em" ]
+                    , li [ class "nav-item", style "width" "9em" ]
                         [ a [ class "nav-link", classList [ ("active", page == Search) ], Route.href Route.Search ]
-                            [ text "Search"
+                            [ i [ class "fa fa-search" ] []
+                            , text " Search"
                             ]
                         ]
-                    , li [ class "nav-item", style "width" "7em" ]
+                    , li [ class "nav-item", style "width" "9em" ]
                         [ a [ class "nav-link", classList [ ("active", False) ] ]
-                            [ text "Analyze"
+                            [ i [ class "fa fa-chart-bar" ] []
+                            , text " Analyze"
                             ]
                         ]
                     ]
