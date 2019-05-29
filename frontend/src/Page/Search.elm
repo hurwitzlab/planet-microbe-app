@@ -143,7 +143,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ Time.every 1000 InputTimerTick -- milliseconds
---        , GMap.getLocation Search.UpdateLocationFromMap
+        , GMap.getLocation UpdateLocationFromMap
         ]
 
 
