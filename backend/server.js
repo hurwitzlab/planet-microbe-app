@@ -381,9 +381,16 @@ async function search(db, params) {
                     else if (val.match(/^\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // numeric range query
                         if (term.type == "number") {
                             console.log("numeric range query");
-                            bounds = JSON.parse(val);
+                            bounds = val.substr(1, val.length-2).split(',');
                             field = "number_vals[" + arrIndex + "]";
-                            clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1];
+                            if (present(bounds[0]) && present(bounds[1]))
+                                clause = field + " BETWEEN " + bounds[0] + " AND " + bounds[1];
+                            else if (present(bounds[0]))
+                                clause = field + " >= " + bounds[0];
+                            else if (present(bounds[1]))
+                                clause = field + " <= " + bounds[1];
+                            else //TODO error
+                                console.log("Error: numeric range query with no bounds");
                         }
                         else {
                             //TODO error
@@ -492,7 +499,6 @@ async function search(db, params) {
         clauseStr = "WHERE " + clauseStr;
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-    console.log("foo", sort, selections.length);
     let sortStr = (typeof sort !== 'undefined' && Math.abs(sort) <= selections.length+1 ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
 
     let countQueryStr = "SELECT count(*) FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " + clauseStr;
@@ -566,4 +572,12 @@ function query(queryStrOrObj, params) {
 async function batchQuery(queryObjArray) {
   const promises = queryObjArray.map(obj => query(obj));
   return await Promise.all(promises);
+}
+
+function defined(val) {
+    return (typeof val !== "undefined");
+}
+
+function present(val) {
+    return defined(val) && val != "";
 }
