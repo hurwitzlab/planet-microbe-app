@@ -978,7 +978,7 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
             allTerms
                 |> List.filter removeRedundantTerms
                 |> List.filter filterOnSearch
-                |> List.sortWith (\a b -> compare a.label b.label )
+                |> List.sortWith (\a b -> compare (String.Extra.toSentenceCase a.label) (String.Extra.toSentenceCase b.label) )
                 |> List.map makeOption
 
         show =
