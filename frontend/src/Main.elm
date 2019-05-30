@@ -11,6 +11,8 @@ import Page.Home as Home
 import Page.Browse as Browse
 import Page.Search as Search
 import Page.Analyze as Analyze
+import Page.Project as Project
+import Page.Sample as Sample
 import Session exposing (Session)
 import Route exposing (Route)
 
@@ -54,6 +56,8 @@ type Model
     | Browse Browse.Model
     | Search Search.Model
     | Analyze Analyze.Model
+    | Project Project.Model
+    | Sample Sample.Model
 
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -78,6 +82,8 @@ type Msg
     | BrowseMsg Browse.Msg
     | SearchMsg Search.Msg
     | AnalyzeMsg Analyze.Msg
+    | ProjectMsg Project.Msg
+    | SampleMsg Sample.Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
 
@@ -102,6 +108,12 @@ toSession page =
 
         Analyze analyze ->
             Analyze.toSession analyze
+
+        Project project ->
+            Project.toSession project
+
+        Sample sample ->
+            Sample.toSession sample
 
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
@@ -129,6 +141,14 @@ changeRouteTo maybeRoute model =
         Just Route.Analyze ->
             Analyze.init session
                 |> updateWith Analyze AnalyzeMsg model
+
+        Just (Route.Project id) ->
+            Project.init session id
+                |> updateWith Project ProjectMsg model
+
+        Just (Route.Sample id) ->
+            Sample.init session id
+                |> updateWith Sample SampleMsg model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -173,6 +193,14 @@ update msg model =
         ( AnalyzeMsg subMsg, Analyze subModel ) ->
             Analyze.update subMsg subModel
                 |> updateWith Analyze AnalyzeMsg model
+
+        ( ProjectMsg subMsg, Project subModel ) ->
+            Project.update subMsg subModel
+                |> updateWith Project ProjectMsg model
+
+        ( SampleMsg subMsg, Sample subModel ) ->
+            Sample.update subMsg subModel
+                |> updateWith Sample SampleMsg model
 
         ( _, _ ) ->
             -- Disregard messages that arrived for the wrong page.
@@ -223,3 +251,9 @@ view model =
 
         Analyze subModel ->
             Page.view Page.Analyze (Analyze.view subModel |> Html.map AnalyzeMsg)
+
+        Project subModel ->
+            Page.view Page.Project (Project.view subModel |> Html.map ProjectMsg)
+
+        Sample subModel ->
+            Page.view Page.Sample (Sample.view subModel |> Html.map SampleMsg)

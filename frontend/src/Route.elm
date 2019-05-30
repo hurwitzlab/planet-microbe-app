@@ -1,13 +1,11 @@
 module Route exposing (Route(..), fromUrl, href, replaceUrl)
 
---import Article.Slug as Slug exposing (Slug)
 import Browser.Navigation as Nav
 import Html exposing (Attribute)
 import Html.Attributes as Attr
---import Profile exposing (Profile)
 import Url exposing (Url)
-import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, string)
---import Username exposing (Username)
+import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, int, string)
+import Debug exposing (toString)
 
 
 
@@ -19,6 +17,8 @@ type Route
     | Browse
     | Search
     | Analyze
+    | Project Int
+    | Sample Int
 --    | Root
 --    | Login
 --    | Logout
@@ -37,6 +37,8 @@ parser =
         , Parser.map Browse (s "browse")
         , Parser.map Search (s "search")
         , Parser.map Analyze (s "analyze")
+        , Parser.map Project (s "project" </> int)
+        , Parser.map Sample (s "sample" </> int)
 --        , Parser.map Login (s "login")
 --        , Parser.map Logout (s "logout")
 --        , Parser.map Settings (s "settings")
@@ -91,6 +93,12 @@ routeToString page =
 
                 Analyze ->
                     [ "analyze" ]
+
+                Project id ->
+                    [ "project", toString id ]
+
+                Sample id ->
+                    [ "sample", toString id ]
 
 --                Root ->
 --                    []

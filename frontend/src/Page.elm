@@ -1,9 +1,9 @@
-module Page exposing (Page(..), view, viewErrors)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitleWithoutBorder)
 
 --import Api exposing (Cred)
 --import Avatar
 import Browser exposing (Document)
-import Html exposing (Html, a, button, div, img, i, li, nav, p, text, ul)
+import Html exposing (Html, a, button, h1, div, img, i, li, nav, p, text, ul)
 import Html.Attributes exposing (id, class, classList, src, style, title)
 import Html.Events exposing (onClick)
 --import Profile
@@ -26,6 +26,8 @@ type Page
     | Browse
     | Search
     | Analyze
+    | Project
+    | Sample
 --    | Login
 --    | Register
 --    | Settings
@@ -203,3 +205,15 @@ viewErrors dismissErrors errors =
         <|
             List.map (\error -> p [] [ text error ]) errors
                 ++ [ button [ onClick dismissErrors ] [ text "Ok" ] ]
+
+
+viewTitle : String -> Html msg
+viewTitle title =
+    h1 [ class "row pb-2 mt-4 mb-2 font-weight-bold border-bottom", style "color" "dimgray" ]
+        [ text title ]
+
+
+viewTitleWithoutBorder : String -> Html msg
+viewTitleWithoutBorder title =
+    h1 [ class "row pb-2 mt-4 mb-2 font-weight-bold", style "color" "dimgray" ]
+        [ text title ]
