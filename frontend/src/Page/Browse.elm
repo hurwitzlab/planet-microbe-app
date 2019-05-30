@@ -3,11 +3,15 @@ module Page.Browse exposing (Model, Msg, init, toSession, update, view)
 import Session exposing (Session)
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Page
 import Route exposing (Route)
 import Http
-import Json.Encode as Encode
+import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline exposing (optional, required)
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
+import Debug exposing (toString)
+import Project exposing (Project)
 
 
 
@@ -16,12 +20,17 @@ import Task exposing (Task)
 
 type alias Model =
     { session : Session
+    , projects : List Project
     }
 
 
 init : Session -> ( Model, Cmd Msg )
 init session =
-    ( { session = session }, Cmd.none )
+    ( { session = session
+      , projects = []
+      }
+      , Project.fetchAll |> Http.toTask |> Task.attempt GetProjectsCompleted
+    )
 
 
 toSession : Model -> Session
@@ -34,13 +43,19 @@ toSession model =
 
 
 type Msg
-    = None
+    = GetProjectsCompleted (Result Http.Error (List Project))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        None ->
+        GetProjectsCompleted (Ok projects) ->
+            ( { model | projects = projects }, Cmd.none )
+
+        GetProjectsCompleted (Err error) -> --TODO
+            let
+                _ = Debug.log "GetProjectsCompleted" (toString error)
+            in
             ( model, Cmd.none )
 
 
@@ -50,4 +65,37 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    div [] [ text "Browse" ]
+    let
+        mkRow project =
+            tr []
+                [ td [ style "white-space" "nowrap" ]
+                    [ a [ Route.href (Route.Project project.id) ] [ text project.name ] ]
+                , td [] [ text project.description ]
+                , td [] [ text (toString project.sampleCount) ]
+                ]
+
+        sortByName a b =
+            compare a.name b.name
+
+        content =
+            if model.projects == [] then
+                text "None"
+            else
+                table [ class "table" ]
+                    [ thead []
+                        [ tr []
+                            [ th [] [ text "Name" ]
+                            , th [] [ text "Description" ]
+                            , th [] [ text "Samples" ]
+                            ]
+                        ]
+                    , tbody []
+                        (model.projects |> List.sortWith sortByName |> List.map mkRow)
+                    ]
+    in
+    div [ class "container" ]
+        [ Page.viewTitleWithoutBorder "Projects"
+        , div [ class "row" ]
+            [ content
+            ]
+        ]
