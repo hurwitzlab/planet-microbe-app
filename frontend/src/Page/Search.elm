@@ -235,7 +235,7 @@ update msg model =
                     |> Dict.remove purlDateTime
                     |> Dict.map (\k v -> NoValue)
             in
-            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = newVals, sortPos = 0 }, GMap.setLocation Nothing )
+            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = newVals, sortPos = 1 }, GMap.setLocation Nothing )
 
         AddFilter id ->
             let
@@ -258,7 +258,7 @@ update msg model =
                 newVals =
                     Dict.remove id model.selectedVals
             in
-            ( { model | doSearch = True, selectedParams = newParams, selectedTerms = newTerms, selectedVals = newVals }, Cmd.none )
+            ( { model | doSearch = True, selectedParams = newParams, selectedTerms = newTerms, selectedVals = newVals, sortPos = 1 }, Cmd.none )
 
         SetParamSearchInput val ->
             ( { model | paramSearchInputVal = val }, Cmd.none )
