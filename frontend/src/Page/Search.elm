@@ -1459,11 +1459,11 @@ viewResults model =
                             )
 
                     )
-                , [ "Cart "]
                 ]
 
         columns =
             List.indexedMap mkTh paramNames
+                ++ [ th [] [ text "Cart" ] ]
 
         mkTd label =
             td [] [ text label ]
