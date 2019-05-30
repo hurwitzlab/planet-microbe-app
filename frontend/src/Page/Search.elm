@@ -904,10 +904,10 @@ viewLocationPanel model =
                                 ++ [ div [ class "input-group-append" ]
                                     [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
                                     , div [ class "dropdown-menu" ]
-                                        [ a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (m)" ]
---                                        , a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (  ("","") ("",""))) ] [ text "Lat min/max, Lng min/max (deg)" ]
---                                        , a [ class "dropdown-item", href "#", onClick (SetLocationFilterValue (LatLngValue "" "")) ] [ text "Lat, Lng (deg)" ]
-                                        , a [ class "dropdown-item disabled", href "#", disabled True, onClick (SetLocationFilterValue (LonghurstValue "")) ] [ text "Longhurst Province - coming soon" ]
+                                        [ a [ class "dropdown-item", href "", onClick (SetLocationFilterValue (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (m)" ]
+--                                        , a [ class "dropdown-item", href "", onClick (SetLocationFilterValue (  ("","") ("",""))) ] [ text "Lat min/max, Lng min/max (deg)" ]
+--                                        , a [ class "dropdown-item", href "", onClick (SetLocationFilterValue (LatLngValue "" "")) ] [ text "Lat, Lng (deg)" ]
+                                        , a [ class "dropdown-item disabled", href "", disabled True, onClick (SetLocationFilterValue (LonghurstValue "")) ] [ text "Longhurst Province - coming soon" ]
                                         ]
                                     ]
                                 ]
@@ -944,7 +944,7 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
                 dis =
                     List.member term.id selectedIDs
             in
-            a [ classList [ ("dropdown-item", True), ("disabled", dis) ], href "#", onClick (AddFilter term.id) ] [ term.label |> String.Extra.toSentenceCase |> text ]
+            a [ classList [ ("dropdown-item", True), ("disabled", dis) ], href "", onClick (AddFilter term.id) ] [ term.label |> String.Extra.toSentenceCase |> text ]
 
         removeRedundantTerms term =
             [ "latitude coordinate measurement datum"
@@ -1210,7 +1210,7 @@ viewNumberFilterFormatOptions : PURL -> Html Msg
 viewNumberFilterFormatOptions id =
     let
         viewOption (label, filterVal) =
-            a [ class "dropdown-item", href "#", onClick (SetFilterValue id filterVal) ]
+            a [ class "dropdown-item", href "", onClick (SetFilterValue id filterVal) ]
                 [ label |> String.Extra.toSentenceCase |> text ]
 
         options =
@@ -1257,7 +1257,7 @@ viewDateTimeFilterFormatOptions : PURL -> Html Msg
 viewDateTimeFilterFormatOptions id =
     let
         viewOption (label, filterVal) =
-            a [ class "dropdown-item", href "#", onClick (SetFilterValue id filterVal) ]
+            a [ class "dropdown-item", href "", onClick (SetFilterValue id filterVal) ]
                 [ label |> String.Extra.toSentenceCase |> text ]
 
         options =
@@ -1499,7 +1499,7 @@ viewResults model =
         pageControls =
             let
                 sizeOption size =
-                    a [ class "dropdown-item", href "#", onClick (SetPageSize size) ] [ text (toString size) ]
+                    a [ class "dropdown-item", href "", onClick (SetPageSize size) ] [ text (toString size) ]
 
                 pageOption label num =
                     let
@@ -1509,7 +1509,7 @@ viewResults model =
                                 || num > lastPageNum -- next
                     in
                     li [ classList [ ("page-item", True), ("disabled", dis) ] ]
-                        [ a [ class "page-link", href "#", onClick (SetPageNum num) ] [ text label ] ]
+                        [ a [ class "page-link", href "", onClick (SetPageNum num) ] [ text label ] ]
             in
             div [ style "padding" "0.5em" ]
                 [ div [ class "float-left" ]
