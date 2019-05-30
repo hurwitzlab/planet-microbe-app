@@ -8,7 +8,9 @@ import Page exposing (Page, view)
 import Page.NotFound as NotFound
 import Page.Blank as Blank
 import Page.Home as Home
+import Page.Browse as Browse
 import Page.Search as Search
+import Page.Analyze as Analyze
 import Session exposing (Session)
 import Route exposing (Route)
 
@@ -34,17 +36,11 @@ main =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model of
-        Redirect _ ->
-            Sub.none
-
-        NotFound _ ->
-            Sub.none
-
-        Home home ->
-            Sub.none --Sub.map HomeMsg (Home.subscriptions home)
-
         Search search ->
             Sub.map SearchMsg (Search.subscriptions search)
+
+        _ ->
+            Sub.none
 
 
 
@@ -55,7 +51,9 @@ type Model
     = Redirect Session
     | NotFound Session
     | Home Home.Model
+    | Browse Browse.Model
     | Search Search.Model
+    | Analyze Analyze.Model
 
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -77,7 +75,9 @@ init navKey url flags =
 
 type Msg
     = HomeMsg Home.Msg
+    | BrowseMsg Browse.Msg
     | SearchMsg Search.Msg
+    | AnalyzeMsg Analyze.Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
 
@@ -94,8 +94,14 @@ toSession page =
         Home home ->
             Home.toSession home
 
+        Browse browse ->
+            Browse.toSession browse
+
         Search search ->
             Search.toSession search
+
+        Analyze analyze ->
+            Analyze.toSession analyze
 
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
@@ -112,9 +118,17 @@ changeRouteTo maybeRoute model =
             Home.init session
                 |> updateWith Home HomeMsg model
 
+        Just Route.Browse ->
+            Browse.init session
+                |> updateWith Browse BrowseMsg model
+
         Just Route.Search ->
             Search.init session
                 |> updateWith Search SearchMsg model
+
+        Just Route.Analyze ->
+            Analyze.init session
+                |> updateWith Analyze AnalyzeMsg model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -148,9 +162,17 @@ update msg model =
         ( ChangedUrl url, _ ) ->
             changeRouteTo (Route.fromUrl url) model
 
+        ( BrowseMsg subMsg, Browse subModel ) ->
+            Browse.update subMsg subModel
+                |> updateWith Browse BrowseMsg model
+
         ( SearchMsg subMsg, Search subModel ) ->
             Search.update subMsg subModel
                 |> updateWith Search SearchMsg model
+
+        ( AnalyzeMsg subMsg, Analyze subModel ) ->
+            Analyze.update subMsg subModel
+                |> updateWith Analyze AnalyzeMsg model
 
         ( _, _ ) ->
             -- Disregard messages that arrived for the wrong page.
@@ -193,6 +215,11 @@ view model =
         Home subModel ->
             viewPage Page.Home HomeMsg (Home.view subModel)
 
+        Browse subModel ->
+            Page.view Page.Browse (Browse.view subModel |> Html.map BrowseMsg)
+
         Search subModel ->
---            Search.view subModel |> Html.map SearchMsg
             Page.view Page.Search (Search.view subModel |> Html.map SearchMsg)
+
+        Analyze subModel ->
+            Page.view Page.Analyze (Analyze.view subModel |> Html.map AnalyzeMsg)

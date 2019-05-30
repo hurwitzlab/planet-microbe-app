@@ -23,7 +23,9 @@ under Other.
 type Page
     = Other
     | Home
+    | Browse
     | Search
+    | Analyze
 --    | Login
 --    | Register
 --    | Settings
@@ -118,7 +120,7 @@ viewHeader page = --page maybeViewer =
             , div [ class "navbar-collapse collapse", id "navbarNav" ]
                 [ ul [ class "navbar-nav" ]
                     [ li [ class "nav-item", style "width" "9em" ]
-                        [ a [ class "nav-link", classList [ ("active", False) ] ]
+                        [ a [ class "nav-link", classList [ ("active", page == Browse) ], Route.href Route.Browse ]
                             [ i [ class "fa fa-table" ] []
                             , text " Browse"
                             ]
@@ -130,7 +132,7 @@ viewHeader page = --page maybeViewer =
                             ]
                         ]
                     , li [ class "nav-item", style "width" "9em" ]
-                        [ a [ class "nav-link", classList [ ("active", False) ] ]
+                        [ a [ class "nav-link", classList [ ("active", page == Analyze) ], Route.href Route.Analyze  ]
                             [ i [ class "fa fa-chart-bar" ] []
                             , text " Analyze"
                             ]
