@@ -80,7 +80,6 @@ type alias Model =
     { session : Session
     , projectCounts : List ProjectCount
     , allParams : List SearchTerm -- list of available params to add
---    , availableParams : List String -- based on params already selected
     , selectedParams : List PURL -- added params, for maintaining order
     , selectedTerms : Dict PURL SearchTerm
     , selectedVals : Dict PURL FilterValue
@@ -110,7 +109,6 @@ init session =
         { session = session
         , projectCounts = []
         , allParams = []
---        , availableParams = []
         , selectedParams = initialParams
         , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
@@ -232,9 +230,12 @@ update msg model =
         ClearFilters ->
             let
                 newVals =
-                    Dict.map (\k v -> NoValue) model.selectedVals
+                    model.selectedVals
+                    |> Dict.remove purlDepth
+                    |> Dict.remove purlDateTime
+                    |> Dict.map (\k v -> NoValue)
             in
-            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = newVals }, GMap.setLocation Nothing )
+            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = newVals, sortPos = 0 }, GMap.setLocation Nothing )
 
         AddFilter id ->
             let
@@ -528,8 +529,8 @@ validLocationParam val =
 generateQueryParams : LocationFilterValue -> List String -> List PURL -> Dict PURL FilterValue -> Result String (List (String, String))
 generateQueryParams locationVal projectVals params vals =
     let
-        range min max =
-            "[" ++ min ++ "," ++ max ++ "]"
+        range from to =
+            "[" ++ from ++ "," ++ to ++ "]"
 
         offset val ofs =
             val ++ "," ++ ofs
@@ -598,16 +599,14 @@ generateQueryParams locationVal projectVals params vals =
     --FIXME refactor section below
     if locationVal == NoLocationValue && projectVals == [] && Dict.isEmpty vals then
         Ok [(purlSampleID, "")]
-    else if vals |> Dict.toList |> List.map Tuple.second |> List.all validParam then
+    else --else if vals |> Dict.toList |> List.map Tuple.second |> List.all validParam then
         let
-            queryParams =
+            userParams =
                 params -- maintain filter order
                     |> List.map (\id ->
                         (id, (Dict.get id vals |> Maybe.withDefault NoValue))
                     )
                     |> List.map (Tuple.mapSecond formatParam)
-                    |> List.sortWith (sortFirst purlDateTime) --FIXME kinda kludgey, another way to order time/space params properly
-                    |> List.sortWith (sortFirst purlDepth)
 
             locParam =
                 if validLocationParam locationVal then
@@ -615,15 +614,31 @@ generateQueryParams locationVal projectVals params vals =
                 else
                     []
 
+            depthParam =
+                case Dict.get purlDepth vals of
+                    Nothing ->
+                        []
+
+                    Just val ->
+                        [ (purlDepth, if validParam val then formatParam val else "") ]
+
+            datetimeParam =
+                case Dict.get purlDateTime vals of
+                    Nothing ->
+                        []
+
+                    Just val ->
+                        [ (purlDateTime, if validParam val then formatParam val else "") ]
+
             projectParam =
                 if projectVals /= [] then
                     [ ("project", formatProjectParam projectVals) ]
                 else
                     []
         in
-        List.concat [ projectParam, [(purlSampleID, "")], locParam, queryParams ] |> Ok
-    else
-        Err "Invalid query parameter"
+        List.concat [ projectParam, [(purlSampleID, "")], locParam, depthParam, datetimeParam, userParams ] |> Ok
+--    else
+--        Err "Invalid query parameter"
 
 
 searchRequest : List (String, String) -> Int -> Int -> Int -> Bool -> Http.Request SearchResponse
@@ -1411,11 +1426,11 @@ viewResults model =
                 "Location"
               else
                 ""
-            , if depthVal /= NoValue && validParam depthVal then
+            , if depthVal /= NoValue then --&& validParam depthVal then
                 "Depth"
               else
                 ""
-            , if datetimeVal /= NoValue && validParam datetimeVal then
+            , if datetimeVal /= NoValue then --&& validParam datetimeVal then
                 "Date/Time"
               else
                 ""
