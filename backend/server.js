@@ -227,6 +227,7 @@ async function generateTermIndex(db, ontologyDescriptors) {
             let field = schema.fields.fields[i];
 
             let purl = field.rdfType;
+            let unitPurl = field['pm:unitRdfType'];
             if (!purl || !field["pm:searchable"])
                 continue; // skip this field if no PURL value (not in term catalog)
 
@@ -235,6 +236,8 @@ async function generateTermIndex(db, ontologyDescriptors) {
             else { // Check type consistency
                 if (index[purl].type && index[purl].type != field.type)
                     console.log("WARNING: type mismatch for", purl, index[purl].type, field.type);
+                if (index[purl].unitId && index[purl].unitId != unitPurl)
+                    console.log("WARNING: unit mismatch for", purl, index[purl].unitId, unitPurl);
             }
 
             if (!('schemas' in index[purl]))
@@ -245,9 +248,10 @@ async function generateTermIndex(db, ontologyDescriptors) {
             index[purl]['schemas'][schema.schema_id][field.name] = i+1
             index[purl]['type'] = field.type;
 
-            let unitPurl = field['pm:unitRdfType'];
-            if (unitPurl && unitPurl in index)
+            if (unitPurl && unitPurl in index) {
+                index[purl]['unitId'] = unitPurl;
                 index[purl]['unitLabel'] = index[unitPurl]['label'];
+            }
         }
     });
 
