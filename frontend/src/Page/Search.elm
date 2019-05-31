@@ -80,6 +80,7 @@ type alias Model =
     { session : Session
     , projectCounts : List ProjectCount
     , allParams : List SearchTerm -- list of available params to add
+    --TODO combine selectedParams/Terms/Vals into list of records, use get and set routines to access by PURL
     , selectedParams : List PURL -- added params, for maintaining order
     , selectedTerms : Dict PURL SearchTerm
     , selectedVals : Dict PURL FilterValue
@@ -751,7 +752,7 @@ type LocationFilterValue
 
 type alias ProjectCount  =
     { name : String
-    , count : Int
+    , sampleCount : Int
     }
 
 
@@ -838,7 +839,7 @@ decodeProjectCount : Decoder ProjectCount
 decodeProjectCount =
     Decode.succeed ProjectCount
         |> required "name" Decode.string
-        |> required "count" Decode.int
+        |> required "sample_count" Decode.int
 
 
 
@@ -1059,11 +1060,11 @@ viewProjectPanel projectCounts =
                     [ input [ class "form-check-input", type_ "checkbox", onCheck (SetProjectFilterValue projectCount.name) ] []
                     , label [ class "form-check-label" ] [ text projectCount.name ]
                     ]
-                , div [ class "badge badge-secondary float-right" ] [ projectCount.count |> toFloat |> format myLocale |> text ]
+                , div [ class "badge badge-secondary float-right" ] [ projectCount.sampleCount |> toFloat |> format myLocale |> text ]
                 ]
 
         sortByCount a b =
-            case compare a.count b.count of
+            case compare a.sampleCount b.sampleCount of
                 LT -> GT
                 EQ -> EQ
                 GT -> LT
