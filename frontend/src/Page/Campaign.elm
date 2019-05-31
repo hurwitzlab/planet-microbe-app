@@ -70,7 +70,7 @@ view model =
 
         Just campaign ->
             div [ class "container" ]
-                [ Page.viewTitle "Campaign" campaign.name
+                [ Page.viewTitle (String.Extra.toSentenceCase campaign.type_) campaign.name
                 , div []
                     [ viewCampaign campaign ]
                 ]
@@ -83,6 +83,10 @@ viewCampaign campaign =
             [ tr []
                 [ th [] [ text "Name" ]
                 , td [] [ text campaign.name ]
+                ]
+            , tr []
+                [ th [] [ text "Description" ]
+                , td [] [ text campaign.description ]
                 ]
             ]
         ]

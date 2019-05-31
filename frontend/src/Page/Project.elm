@@ -103,7 +103,7 @@ view model =
                             text (toString numSamples)
                         ]
                     ]
-                , div []
+                , div [ class "pt-2" ]
                     [ viewSamples model.samples ]
                 ]
 

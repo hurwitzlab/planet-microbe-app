@@ -19,6 +19,8 @@ import Debug exposing (toString)
 type alias Campaign  =
     { id : Int
     , name : String
+    , description : String
+    , type_ : String
     }
 
 
@@ -31,6 +33,8 @@ campaignDecoder =
     Decode.succeed Campaign
         |> required "campaign_id" Decode.int
         |> required "name" Decode.string
+        |> optional "description" Decode.string ""
+        |> required "campaign_type" Decode.string
 
 
 

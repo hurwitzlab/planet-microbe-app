@@ -4,10 +4,12 @@ import Session exposing (Session)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Page
+import Route
 import Sample exposing (Sample)
 import Http
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
+import String.Extra
 import Debug exposing (toString)
 
 
@@ -62,8 +64,38 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    div [ class "container" ]
-        [ Page.viewTitleWithoutBorder "Sample"
-        , div [ class "row" ]
-            []
+    case model.sample of
+        Nothing ->
+            text ""
+
+        Just sample ->
+            div [ class "container" ]
+                [ Page.viewTitle "Sample" sample.accn
+                , div []
+                    [ viewSample sample ]
+                ]
+
+
+viewSample : Sample -> Html Msg
+viewSample sample =
+    table [ class "table table-borderless table-sm" ]
+        [ tbody []
+            [ tr []
+                [ th [] [ text "Accession" ]
+                , td [] [  a [ href ("https://www.ncbi.nlm.nih.gov/biosample/?term=" ++ sample.accn), target "_blank" ] [ text sample.accn ] ]
+                ]
+            , tr []
+                [ th [] [ text "Project" ]
+                , td [] [ a [ Route.href (Route.Project sample.projectId) ] [ text sample.projectName ] ]
+                ]
+            , tr []
+                [ th [] [ text (String.Extra.toSentenceCase sample.campaignType) ]
+                , td [] [ a [ Route.href (Route.Campaign sample.campaignId) ] [ text sample.campaignName ] ]
+                ]
+            , tr []
+                [ th [] [ text (String.Extra.toSentenceCase sample.samplingEventType) ]
+                , td [] [ text "" ]
+                ]
+            ]
         ]
+
