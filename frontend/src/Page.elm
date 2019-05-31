@@ -28,6 +28,7 @@ type Page
     | Analyze
     | Project
     | Sample
+    | Campaign
 --    | Login
 --    | Register
 --    | Settings
@@ -217,7 +218,7 @@ viewTitle title subTitle =
 
 viewTitleWithoutBorder : String -> Html msg
 viewTitleWithoutBorder title =
-    h1 [ class "pb-2 mt-4 mb-2 font-weight-bold", style "color" "dimgray" ]
+    h1 [ class "pb-2 mt-5 mb-2 font-weight-bold", style "color" "dimgray" ]
         [ text title ]
 
 

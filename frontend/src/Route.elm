@@ -19,15 +19,7 @@ type Route
     | Analyze
     | Project Int
     | Sample Int
---    | Root
---    | Login
---    | Logout
---    | Register
---    | Settings
---    | Article Slug
---    | Profile Username
---    | NewArticle
---    | EditArticle Slug
+    | Campaign Int
 
 
 parser : Parser (Route -> a) a
@@ -39,14 +31,7 @@ parser =
         , Parser.map Analyze (s "analyze")
         , Parser.map Project (s "project" </> int)
         , Parser.map Sample (s "sample" </> int)
---        , Parser.map Login (s "login")
---        , Parser.map Logout (s "logout")
---        , Parser.map Settings (s "settings")
---        , Parser.map Profile (s "profile" </> Username.urlParser)
---        , Parser.map Register (s "register")
---        , Parser.map Article (s "article" </> Slug.urlParser)
---        , Parser.map NewArticle (s "editor")
---        , Parser.map EditArticle (s "editor" </> Slug.urlParser)
+        , Parser.map Campaign (s "campaign" </> int)
         ]
 
 
@@ -100,31 +85,7 @@ routeToString page =
                 Sample id ->
                     [ "sample", toString id ]
 
---                Root ->
---                    []
---
---                Login ->
---                    [ "login" ]
---
---                Logout ->
---                    [ "logout" ]
---
---                Register ->
---                    [ "register" ]
---
---                Settings ->
---                    [ "settings" ]
---
---                Article slug ->
---                    [ "article", Slug.toString slug ]
---
---                Profile username ->
---                    [ "profile", Username.toString username ]
---
---                NewArticle ->
---                    [ "editor" ]
---
---                EditArticle slug ->
---                    [ "editor", Slug.toString slug ]
+                Campaign id ->
+                    [ "campaign", toString id ]
     in
     "#/" ++ String.join "/" pieces

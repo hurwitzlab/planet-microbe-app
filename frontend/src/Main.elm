@@ -13,6 +13,7 @@ import Page.Search as Search
 import Page.Analyze as Analyze
 import Page.Project as Project
 import Page.Sample as Sample
+import Page.Campaign as Campaign
 import Session exposing (Session)
 import Route exposing (Route)
 
@@ -58,6 +59,7 @@ type Model
     | Analyze Analyze.Model
     | Project Project.Model
     | Sample Sample.Model
+    | Campaign Campaign.Model
 
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -84,6 +86,7 @@ type Msg
     | AnalyzeMsg Analyze.Msg
     | ProjectMsg Project.Msg
     | SampleMsg Sample.Msg
+    | CampaignMsg Campaign.Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
 
@@ -114,6 +117,9 @@ toSession page =
 
         Sample sample ->
             Sample.toSession sample
+
+        Campaign campaign ->
+            Campaign.toSession campaign
 
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
@@ -149,6 +155,10 @@ changeRouteTo maybeRoute model =
         Just (Route.Sample id) ->
             Sample.init session id
                 |> updateWith Sample SampleMsg model
+
+        Just (Route.Campaign id) ->
+            Campaign.init session id
+                |> updateWith Campaign CampaignMsg model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -201,6 +211,10 @@ update msg model =
         ( SampleMsg subMsg, Sample subModel ) ->
             Sample.update subMsg subModel
                 |> updateWith Sample SampleMsg model
+
+        ( CampaignMsg subMsg, Campaign subModel ) ->
+            Campaign.update subMsg subModel
+                |> updateWith Campaign CampaignMsg model
 
         ( _, _ ) ->
             -- Disregard messages that arrived for the wrong page.
@@ -257,3 +271,6 @@ view model =
 
         Sample subModel ->
             Page.view Page.Sample (Sample.view subModel |> Html.map SampleMsg)
+
+        Campaign subModel ->
+            Page.view Page.Campaign (Campaign.view subModel |> Html.map CampaignMsg)
