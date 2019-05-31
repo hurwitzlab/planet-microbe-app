@@ -21,6 +21,7 @@ type alias Project  =
     , name : String
     , accn : String
     , description : String
+    , type_ : String
     , sampleCount : Int
     }
 
@@ -36,6 +37,7 @@ projectDecoder =
         |> required "name" Decode.string
         |> required "accn" Decode.string
         |> required "description" Decode.string
+        |> required "type" Decode.string
         |> required "sample_count" Decode.int
 
 

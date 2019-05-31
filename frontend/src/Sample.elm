@@ -1,4 +1,4 @@
-module Sample exposing (Sample, fetch, fetchAll)
+module Sample exposing (Sample, fetch, fetchAll, fetchAllByProject)
 
 {-| The interface to the Sample data structure.
 -}
@@ -18,9 +18,7 @@ import Debug exposing (toString)
 
 type alias Sample  =
     { id : Int
-    , name : String
     , accn : String
-    , description : String
     }
 
 
@@ -32,9 +30,7 @@ sampleDecoder : Decoder Sample
 sampleDecoder =
     Decode.succeed Sample
         |> required "sample_id" Decode.int
-        |> required "name" Decode.string
         |> required "accn" Decode.string
-        |> required "description" Decode.string
 
 
 
@@ -57,6 +53,17 @@ fetchAll =
     let
         url =
             apiBaseUrl ++ "/samples"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchAllByProject : Int -> Http.Request (List Sample)
+fetchAllByProject id =
+    let
+        url =
+            apiBaseUrl ++ "/projects/" ++ (toString id) ++ "/samples"
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))

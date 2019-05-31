@@ -1,9 +1,9 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitleWithoutBorder)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitleWithoutBorder, viewTitle2)
 
 --import Api exposing (Cred)
 --import Avatar
 import Browser exposing (Document)
-import Html exposing (Html, a, button, h1, div, img, i, li, nav, p, text, ul)
+import Html exposing (Html, a, button, h1, h2, div, span, img, i, li, nav, p, text, ul, small)
 import Html.Attributes exposing (id, class, classList, src, style, title)
 import Html.Events exposing (onClick)
 --import Profile
@@ -207,13 +207,21 @@ viewErrors dismissErrors errors =
                 ++ [ button [ onClick dismissErrors ] [ text "Ok" ] ]
 
 
-viewTitle : String -> Html msg
-viewTitle title =
-    h1 [ class "row pb-2 mt-4 mb-2 font-weight-bold border-bottom", style "color" "dimgray" ]
-        [ text title ]
+viewTitle : String -> String -> Html msg
+viewTitle title subTitle =
+    h1 [ class "pb-2 mt-5 mb-2 font-weight-bold border-bottom", style "width" "100%" ]
+        [ span [ style "color" "dimgray" ] [ text title ]
+        , small [ class "ml-3", style "color" "gray" ] [ text subTitle ]
+        ]
 
 
 viewTitleWithoutBorder : String -> Html msg
 viewTitleWithoutBorder title =
-    h1 [ class "row pb-2 mt-4 mb-2 font-weight-bold", style "color" "dimgray" ]
+    h1 [ class "pb-2 mt-4 mb-2 font-weight-bold", style "color" "dimgray" ]
+        [ text title ]
+
+
+viewTitle2 : String -> Bool -> Html msg
+viewTitle2 title border =
+    span [ class "h2 pb-2 mt-4 mb-2 font-weight-bold align-middle", classList [("border-bottom", border)], style "color" "dimgray" ]
         [ text title ]
