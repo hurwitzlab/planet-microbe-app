@@ -10,6 +10,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
+import String.Extra
 import Debug exposing (toString)
 import Project exposing (Project)
 
@@ -71,6 +72,7 @@ view model =
                 [ td [ style "white-space" "nowrap" ]
                     [ a [ Route.href (Route.Project project.id) ] [ text project.name ] ]
                 , td [] [ text project.description ]
+                , td [] [ text (String.Extra.toSentenceCase project.type_) ]
                 , td [] [ text (toString project.sampleCount) ]
                 ]
 
@@ -86,6 +88,7 @@ view model =
                         [ tr []
                             [ th [] [ text "Name" ]
                             , th [] [ text "Description" ]
+                            , th [] [ text "Type" ]
                             , th [] [ text "Samples" ]
                             ]
                         ]
@@ -95,7 +98,7 @@ view model =
     in
     div [ class "container" ]
         [ Page.viewTitleWithoutBorder "Projects"
-        , div [ class "row" ]
+        , div []
             [ content
             ]
         ]
