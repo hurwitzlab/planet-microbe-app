@@ -21,6 +21,7 @@ import List.Extra
 import Set
 import GMap
 import Dict exposing (Dict)
+import Route
 import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
 
@@ -1442,7 +1443,6 @@ viewResults model =
             List.concat
                 [ [ "Project Name"
                   , "Sample ID"
-                  --, "Sample Name"
                   ]
                 , timeSpaceParamNames
                 , (model.selectedParams
@@ -1485,12 +1485,10 @@ viewResults model =
 
         mkRow result =
             tr []
-                (List.concat
-                    [
-                    --[ mkTd (toString result.sampleId) ]
-                    --, [ mkTd "" ] -- sample name
-                      [ mkTd result.projectName ]
-                    ,  List.map (formatVal >> mkTd) result.values
+                (List.concat --FIXME kludgey
+                    [ [ mkTd result.projectName ]
+                    , [ td [] [ a [ Route.href (Route.Sample result.sampleId)  ] [ text (List.head result.values |> Maybe.withDefault NoResultValue |> formatVal) ] ] ]
+                    , result.values |> List.tail |> Maybe.withDefault [] |> List.map (formatVal >> mkTd)
                     , [ td [] [ addToCartButton ] ]
                     ])
 
