@@ -29,6 +29,7 @@ type Page
     | Project
     | Sample
     | Campaign
+    | SamplingEvent
 --    | Login
 --    | Register
 --    | Settings

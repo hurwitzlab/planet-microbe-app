@@ -94,7 +94,7 @@ viewSample sample =
                 ]
             , tr []
                 [ th [] [ text (String.Extra.toSentenceCase sample.samplingEventType) ]
-                , td [] [ text "" ]
+                , td [] [ a [ Route.href (Route.SamplingEvent sample.samplingEventId) ] [ text sample.samplingEventName ] ]
                 ]
             ]
         ]

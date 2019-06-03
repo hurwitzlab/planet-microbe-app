@@ -14,6 +14,7 @@ import Page.Analyze as Analyze
 import Page.Project as Project
 import Page.Sample as Sample
 import Page.Campaign as Campaign
+import Page.SamplingEvent as SamplingEvent
 import Session exposing (Session)
 import Route exposing (Route)
 
@@ -60,6 +61,7 @@ type Model
     | Project Project.Model
     | Sample Sample.Model
     | Campaign Campaign.Model
+    | SamplingEvent SamplingEvent.Model
 
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -87,6 +89,7 @@ type Msg
     | ProjectMsg Project.Msg
     | SampleMsg Sample.Msg
     | CampaignMsg Campaign.Msg
+    | SamplingEventMsg SamplingEvent.Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
 
@@ -120,6 +123,9 @@ toSession page =
 
         Campaign campaign ->
             Campaign.toSession campaign
+
+        SamplingEvent samplingEvent ->
+            SamplingEvent.toSession samplingEvent
 
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
@@ -159,6 +165,10 @@ changeRouteTo maybeRoute model =
         Just (Route.Campaign id) ->
             Campaign.init session id
                 |> updateWith Campaign CampaignMsg model
+
+        Just (Route.SamplingEvent id) ->
+            SamplingEvent.init session id
+                |> updateWith SamplingEvent SamplingEventMsg model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -215,6 +225,10 @@ update msg model =
         ( CampaignMsg subMsg, Campaign subModel ) ->
             Campaign.update subMsg subModel
                 |> updateWith Campaign CampaignMsg model
+
+        ( SamplingEventMsg subMsg, SamplingEvent subModel ) ->
+            SamplingEvent.update subMsg subModel
+                |> updateWith SamplingEvent SamplingEventMsg model
 
         ( _, _ ) ->
             -- Disregard messages that arrived for the wrong page.
@@ -274,3 +288,6 @@ view model =
 
         Campaign subModel ->
             Page.view Page.Campaign (Campaign.view subModel |> Html.map CampaignMsg)
+
+        SamplingEvent subModel ->
+            Page.view Page.SamplingEvent (SamplingEvent.view subModel |> Html.map SamplingEventMsg)

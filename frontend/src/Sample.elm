@@ -21,6 +21,7 @@ type alias Sample  =
     , accn : String
     , samplingEventId : Int
     , samplingEventType : String
+    , samplingEventName : String
     , campaignId : Int
     , campaignName : String
     , campaignType : String
@@ -40,6 +41,7 @@ sampleDecoder =
         |> required "accn" Decode.string
         |> optional "sampling_event_id" Decode.int 0
         |> optional "sampling_event_type" Decode.string ""
+        |> optional "sampling_event_name" Decode.string ""
         |> optional "campaign_id" Decode.int 0
         |> optional "campaign_name" Decode.string ""
         |> optional "campaign_type" Decode.string ""

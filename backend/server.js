@@ -198,7 +198,7 @@ app.get('/search', async (req, res) => {
 });
 
 app.get('/projects', async (req, res) => {
-    let result = await query({ text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name as type,(SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count FROM project p JOIN project_type pt ON p.project_type_id=pt.project_type_id"});
+    let result = await query({ text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type,(SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count FROM project p JOIN project_type pt ON p.project_type_id=pt.project_type_id"});
     result.rows.forEach(row => row.sample_count *= 1); // convert count to int
     res.json(result.rows);
 //    .catch(err => {
@@ -210,7 +210,7 @@ app.get('/projects', async (req, res) => {
 app.get('/projects/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name as type,(SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count FROM project p JOIN project_type pt ON p.project_type_id=pt.project_type_id WHERE p.project_id=$1",
+        text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type,(SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count FROM project p JOIN project_type pt ON p.project_type_id=pt.project_type_id WHERE p.project_id=$1",
         values: [id]
     });
     result.rows.forEach(row => row.sample_count *= 1); // convert count to int
@@ -230,7 +230,7 @@ app.get('/projects/:id(\\d+)/samples', async (req, res) => {
 app.get('/samples/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT s.sample_id,s.accn,se.sampling_event_id,se.sampling_event_type,c.campaign_id,c.name AS campaign_name,c.campaign_type,p.project_id,p.name AS project_name \
+        text: "SELECT s.sample_id,s.accn,se.sampling_event_id,se.sampling_event_type,se.name as sampling_event_name,c.campaign_id,c.name AS campaign_name,c.campaign_type,p.project_id,p.name AS project_name \
             FROM sample s \
             JOIN sampling_event se ON se.sampling_event_id=s.sampling_event_id \
             JOIN campaign c ON c.campaign_id=se.campaign_id \
@@ -245,9 +245,33 @@ app.get('/samples/:id(\\d+)', async (req, res) => {
 app.get('/campaigns/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT c.campaign_id,c.name,c.description,c.campaign_type \
+        text: "SELECT c.campaign_id,c.campaign_type,c.name,c.description,c.deployment,c.start_location,c.end_location,c.start_time,c.end_time,c.urls \
             FROM campaign c \
             WHERE c.campaign_id=$1",
+        values: [id]
+    });
+    res.json(result.rows[0]);
+});
+
+app.get('/campaigns/:id(\\d+)/sampling_events', async (req, res) => {
+    let id = req.params.id;
+    let result = await query({
+        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsText(se.locations) AS locations,se.start_time,se.end_time \
+            FROM sampling_event se \
+            JOIN campaign c ON c.campaign_id=se.campaign_id \
+            WHERE c.campaign_id=$1",
+        values: [id]
+    });
+    res.json(result.rows);
+});
+
+app.get('/sampling_events/:id(\\d+)', async (req, res) => {
+    let id = req.params.id;
+    let result = await query({
+        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsText(se.locations) AS locations,se.start_time,se.end_time,c.campaign_id,c.campaign_type,c.name AS campaign_name \
+            FROM sampling_event se \
+            JOIN campaign c ON c.campaign_id=se.campaign_id \
+            WHERE se.sampling_event_id=$1",
         values: [id]
     });
     res.json(result.rows[0]);

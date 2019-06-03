@@ -20,6 +20,7 @@ type Route
     | Project Int
     | Sample Int
     | Campaign Int
+    | SamplingEvent Int
 
 
 parser : Parser (Route -> a) a
@@ -29,9 +30,10 @@ parser =
         , Parser.map Browse (s "browse")
         , Parser.map Search (s "search")
         , Parser.map Analyze (s "analyze")
-        , Parser.map Project (s "project" </> int)
-        , Parser.map Sample (s "sample" </> int)
-        , Parser.map Campaign (s "campaign" </> int)
+        , Parser.map Project (s "projects" </> int)
+        , Parser.map Sample (s "samples" </> int)
+        , Parser.map Campaign (s "campaigns" </> int)
+        , Parser.map SamplingEvent (s "sampling_events" </> int)
         ]
 
 
@@ -80,12 +82,15 @@ routeToString page =
                     [ "analyze" ]
 
                 Project id ->
-                    [ "project", toString id ]
+                    [ "projects", toString id ]
 
                 Sample id ->
-                    [ "sample", toString id ]
+                    [ "samples", toString id ]
 
                 Campaign id ->
-                    [ "campaign", toString id ]
+                    [ "campaigns", toString id ]
+
+                SamplingEvent id ->
+                    [ "sampling_events", toString id ]
     in
     "#/" ++ String.join "/" pieces
