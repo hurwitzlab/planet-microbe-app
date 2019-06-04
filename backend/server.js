@@ -164,7 +164,6 @@ app.get('/searchTerms/:id(\\S+)', async (req, res) => {
             });
         });
 
-
         res.json({
             id: term.id,
             label: term.label,
@@ -252,6 +251,7 @@ app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
     });
 
     let row = result.rows[0];
+    let terms = [];
     let values = [];
     for (i = 0;  i < row.fields.length;  i++) {
         let field = row.fields[i];
@@ -264,7 +264,6 @@ app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
             val = row.datetime_vals[i];
         else
             ; //TODO error
-
         values.push(val);
     }
 

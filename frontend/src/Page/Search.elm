@@ -22,6 +22,7 @@ import Set
 import GMap
 import Dict exposing (Dict)
 import Route
+import Sample exposing (SearchTerm, PURL)
 import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
 
@@ -71,10 +72,6 @@ initialParams =
 
 
 -- MODEL
-
-
-type alias PURL =
-    String
 
 
 type alias Model =
@@ -132,8 +129,8 @@ init session =
         , showMap = False
         }
     , Cmd.batch
-        [ getSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
-        , initialParams |> List.map getSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
+        [ Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
+        , initialParams |> List.map Sample.fetchSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         ]
     )
@@ -245,7 +242,7 @@ update msg model =
                     List.singleton id |> List.append model.selectedParams |> List.Extra.unique -- cannot use Set because it doesn't preserve order
 
                 getTerm =
-                    getSearchTerm id |> Http.toTask
+                    Sample.fetchSearchTerm id |> Http.toTask
             in
             ( { model | showParamSearchDropdown = False, paramSearchInputVal = "", selectedParams = params }, Task.attempt GetSearchTermCompleted getTerm )
 
@@ -452,28 +449,6 @@ update msg model =
                             NoLocationValue
             in
             ( { model | doSearch = True, locationVal = newLocationVal }, Cmd.none )
-
-
-getSearchTerms : Http.Request (List SearchTerm)
-getSearchTerms =
-    let
-        url =
-            apiBaseUrl ++ "/searchTerms"
-    in
-    HttpBuilder.get url
-        |> HttpBuilder.withExpect (Http.expectJson (Decode.list decodeSearchTerm))
-        |> HttpBuilder.toRequest
-
-
-getSearchTerm : PURL -> Http.Request SearchTerm
-getSearchTerm id =
-    let
-        url =
-            apiBaseUrl ++ "/searchTerms/" ++ id
-    in
-    HttpBuilder.get url
-        |> HttpBuilder.withExpect (Http.expectJson decodeSearchTerm)
-        |> HttpBuilder.toRequest
 
 
 defined : String -> Bool
@@ -719,19 +694,6 @@ type alias Location =
     }
 
 
-type alias SearchTerm =
-    { type_ : String
-    , id : String
-    , label : String
-    , unitLabel : String
-    , aliases : List String
-    , min : Float
-    , max : Float
-    , values : Dict String Int --FIXME change to List (String, Int)
---    , viewType : String -- "range", "offset", "exact"
-    }
-
-
 type FilterValue
     = NoValue
     | SingleValue String -- numeric/string value
@@ -820,20 +782,6 @@ decodeLocation =
     Decode.succeed Location
         |> required "type" Decode.string
         |> required "coordinates" (Decode.list Decode.float)
-
-
-decodeSearchTerm : Decoder SearchTerm
-decodeSearchTerm =
-    Decode.succeed SearchTerm
-        |> required "type" Decode.string
-        |> required "id" Decode.string
-        |> required "label" Decode.string
-        |> optional "unitLabel" Decode.string ""
-        |> optional "aliases" (Decode.list Decode.string) []
-        |> optional "min" Decode.float 0
-        |> optional "max" Decode.float 0
-        |> optional "values" (Decode.dict Decode.int) Dict.empty
---        |> optional "viewType" Decode.string ""
 
 
 decodeProjectCount : Decoder ProjectCount
