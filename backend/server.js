@@ -275,8 +275,8 @@ app.get('/samples/:id(\\d+)', async (req, res) => {
     let result = await query({
         text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations) AS locations,se.sampling_event_id,se.sampling_event_type,se.name AS sampling_event_name,c.campaign_id,c.name AS campaign_name,c.campaign_type,p.project_id,p.name AS project_name \
             FROM sample s \
-            JOIN sampling_event se ON se.sampling_event_id=s.sampling_event_id \
-            JOIN campaign c ON c.campaign_id=se.campaign_id \
+            LEFT JOIN sampling_event se ON se.sampling_event_id=s.sampling_event_id \
+            LEFT JOIN campaign c ON c.campaign_id=se.campaign_id \
             JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
             JOIN project p ON p.project_id=pts.project_id \
             WHERE s.sample_id=$1",

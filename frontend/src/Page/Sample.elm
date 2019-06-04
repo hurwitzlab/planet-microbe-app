@@ -111,6 +111,31 @@ view model =
 
 viewSample : Sample -> Html Msg
 viewSample sample =
+    let
+        campaignRow =
+            if sample.campaignId == 0 then
+                tr []
+                    [ th [] [ text "Campaign" ]
+                    , td [] [ text "None" ]
+                    ]
+            else
+                tr []
+                    [ th [] [ text "Campaign (", text (String.Extra.toSentenceCase sample.campaignType), text ")" ]
+                    , td [] [ a [ Route.href (Route.Campaign sample.campaignId) ] [ text sample.campaignName ] ]
+                    ]
+
+        samplingEventRow =
+            if sample.samplingEventId == 0 then
+                tr []
+                    [ th [] [ text "Sampling Event" ]
+                    , td [] [ text "None" ]
+                    ]
+            else
+                tr []
+                    [ th [] [ text "Sampling Event (", text (String.Extra.toSentenceCase sample.samplingEventType), text ")" ]
+                    , td [] [ a [ Route.href (Route.SamplingEvent sample.samplingEventId) ] [ text sample.samplingEventName ] ]
+                    ]
+    in
     table [ class "table table-borderless table-sm" ]
         [ tbody []
             [ tr []
@@ -121,16 +146,10 @@ viewSample sample =
                 [ th [] [ text "Project" ]
                 , td [] [ a [ Route.href (Route.Project sample.projectId) ] [ text sample.projectName ] ]
                 ]
+            , campaignRow
+            , samplingEventRow
             , tr []
-                [ th [] [ text "Campaign (", text (String.Extra.toSentenceCase sample.campaignType), text ")" ]
-                , td [] [ a [ Route.href (Route.Campaign sample.campaignId) ] [ text sample.campaignName ] ]
-                ]
-            , tr []
-                [ th [] [ text "Sampling Event (", text (String.Extra.toSentenceCase sample.samplingEventType), text ")" ]
-                , td [] [ a [ Route.href (Route.SamplingEvent sample.samplingEventId) ] [ text sample.samplingEventName ] ]
-                ]
-            , tr []
-                [ th [] [ text "Lat/Lng" ]
+                [ th [] [ text "Lat/Lng (deg)" ]
                 , td [] [ text (LatLng.formatList sample.locations) ]
                 ]
             ]

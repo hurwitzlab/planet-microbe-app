@@ -113,16 +113,26 @@ view model =
 
 viewSamplingEvent : SamplingEvent -> Html Msg
 viewSamplingEvent samplingEvent =
+    let
+        campaignRow =
+            if samplingEvent.campaignId == 0 then
+                tr []
+                    [ th [] [ text "Campaign" ]
+                    , td [] [ text "None" ]
+                    ]
+            else
+                tr []
+                    [ th [] [ text "Campaign (", text (String.Extra.toSentenceCase samplingEvent.campaignType), text ")" ]
+                    , td [] [ a [ Route.href (Route.Campaign samplingEvent.campaignId) ] [ text samplingEvent.campaignName ] ]
+                    ]
+    in
     table [ class "table table-borderless table-sm" ]
         [ tbody []
             [ tr []
                 [ th [] [ text "Name/ID" ]
                 , td [] [ text samplingEvent.name ]
                 ]
-            , tr []
-                [ th [] [ text "Campaign (", text (String.Extra.toSentenceCase samplingEvent.campaignType), text ")" ]
-                , td [] [ a [ Route.href (Route.Campaign samplingEvent.campaignId) ] [ text samplingEvent.campaignName ] ]
-                ]
+            , campaignRow
             , tr []
                 [ th [] [ text "Location(s)" ]
                 , td [] [ text (LatLng.formatList samplingEvent.locations) ]
@@ -155,11 +165,11 @@ viewSamples maybeSamples =
         sortByAccn a b =
             compare a.accn b.accn
     in
-    case maybeSamples of
-        Nothing ->
+    case maybeSamples |> Maybe.withDefault [] of
+        [] ->
             text "None"
 
-        Just samples ->
+        samples ->
             table [ class "table" ]
                 [ thead []
                     [ tr []

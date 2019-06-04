@@ -196,11 +196,11 @@ viewCampaigns maybeCampaigns =
         sortByName a b =
             compare a.name b.name
     in
-    case maybeCampaigns of
-        Nothing ->
+    case maybeCampaigns |> Maybe.withDefault [] of
+        [] ->
             text "None"
 
-        Just samples ->
+        samples ->
             table [ class "table" ]
                 [ thead []
                     [ tr []
@@ -224,11 +224,11 @@ viewSamplingEvents maybeSamplingEvents =
         sortByName a b =
             compare a.name b.name
     in
-    case maybeSamplingEvents of
-        Nothing ->
+    case maybeSamplingEvents |> Maybe.withDefault [] of
+        [] ->
             text "None"
 
-        Just samples ->
+        samples ->
             table [ class "table" ]
                 [ thead []
                     [ tr []
@@ -252,11 +252,11 @@ viewSamples maybeSamples =
         sortByAccn a b =
             compare a.accn b.accn
     in
-    case maybeSamples of
-        Nothing ->
+    case maybeSamples |> Maybe.withDefault [] of
+        [] ->
             text "None"
 
-        Just samples ->
+        samples ->
             table [ class "table" ]
                 [ thead []
                     [ tr []
