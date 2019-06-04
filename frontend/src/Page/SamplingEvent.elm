@@ -129,7 +129,7 @@ viewSamplingEvent samplingEvent =
     table [ class "table table-borderless table-sm" ]
         [ tbody []
             [ tr []
-                [ th [] [ text "Name/ID" ]
+                [ th [ class "w-25" ] [ text "Name/ID" ]
                 , td [] [ text samplingEvent.name ]
                 ]
             , campaignRow

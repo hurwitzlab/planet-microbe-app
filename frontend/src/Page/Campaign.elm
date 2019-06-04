@@ -143,7 +143,7 @@ viewCampaign campaign =
     table [ class "table table-borderless table-sm" ]
         [ tbody []
             [ tr []
-                [ th [] [ text "Name" ]
+                [ th [ class "w-25" ] [ text "Name" ]
                 , td [] [ text campaign.name ]
                 ]
             , tr []
