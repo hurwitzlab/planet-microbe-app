@@ -158,6 +158,12 @@ viewMetadata maybeMetadata maybeTerms =
                 getTermProperty id prop =
                     List.filter (\t -> t.id == id) terms |> List.map prop |> List.head
 
+                mkValue val =
+                    if String.startsWith "http://" val || String.startsWith "https://" val || String.startsWith "ftp://" val then
+                        a [ href val, target "_blank" ] [ text val ]
+                    else
+                        text val
+
                 mkRow (field, maybeValue) =
                     tr []
                         [ td []
@@ -165,7 +171,7 @@ viewMetadata maybeMetadata maybeTerms =
                                 [ getTermProperty field.rdfType .label |> Maybe.withDefault "" |> text ]
                             ]
                         , td [] [ text field.name ]
-                        , td [] [ maybeValue |> valueToString |> text ]
+                        , td [] [ maybeValue |> valueToString |> mkValue ]
                         , td []
                             [ a [ href field.unitRdfType, title field.unitRdfType, target "_blank" ]
                                 [ getTermProperty field.rdfType .unitLabel |> Maybe.withDefault "" |> text ]
