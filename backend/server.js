@@ -216,19 +216,64 @@ app.get('/projects/:id(\\d+)', async (req, res) => {
     res.json(result.rows[0]);
 });
 
+app.get('/projects/:id(\\d+)/campaigns', async (req, res) => {
+    let id = req.params.id;
+    let result = await query({
+        text: "SELECT c.campaign_id,c.campaign_type,c.name,c.description,c.deployment,c.start_location,c.end_location,c.start_time,c.end_time,c.urls \
+            FROM project_to_sample pts \
+            JOIN sample s ON s.sample_id=pts.sample_id \
+            JOIN sampling_event se ON se.sampling_event_id=s.sampling_event_id \
+            JOIN campaign c ON c.campaign_id=se.campaign_id \
+            WHERE pts.project_id=$1 \
+            GROUP BY c.campaign_id",
+        values: [id]
+    });
+    res.json(result.rows);
+});
+
+app.get('/projects/:id(\\d+)/sampling_events', async (req, res) => {
+    let id = req.params.id;
+    let result = await query({
+        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations) AS locations,se.start_time,se.end_time \
+            FROM project_to_sample pts \
+            JOIN sample s ON s.sample_id=pts.sample_id \
+            JOIN sampling_event se ON se.sampling_event_id=s.sampling_event_id \
+            WHERE pts.project_id=$1 \
+            GROUP BY se.sampling_event_id",
+        values: [id]
+    });
+
+    // Format location
+    result.rows.forEach(row => {
+        row.locations = JSON.parse(row.locations)['coordinates'];
+    });
+
+
+    res.json(result.rows);
+});
+
 app.get('/projects/:id(\\d+)/samples', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT s.sample_id,s.accn,ST_AsText(s.locations) AS locations FROM sample s JOIN project_to_sample pts ON pts.sample_id=s.sample_id WHERE pts.project_id=$1",
+        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations) AS locations \
+            FROM sample s \
+            JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
+            WHERE pts.project_id=$1",
         values: [id]
     });
+
+    // Format location
+    result.rows.forEach(row => {
+        row.locations = JSON.parse(row.locations)['coordinates'];
+    });
+
     res.json(result.rows);
 });
 
 app.get('/samples/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT s.sample_id,s.accn,ST_AsText(s.locations) AS locations,se.sampling_event_id,se.sampling_event_type,se.name AS sampling_event_name,c.campaign_id,c.name AS campaign_name,c.campaign_type,p.project_id,p.name AS project_name \
+        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations) AS locations,se.sampling_event_id,se.sampling_event_type,se.name AS sampling_event_name,c.campaign_id,c.name AS campaign_name,c.campaign_type,p.project_id,p.name AS project_name \
             FROM sample s \
             JOIN sampling_event se ON se.sampling_event_id=s.sampling_event_id \
             JOIN campaign c ON c.campaign_id=se.campaign_id \
@@ -237,6 +282,10 @@ app.get('/samples/:id(\\d+)', async (req, res) => {
             WHERE s.sample_id=$1",
         values: [id]
     });
+
+    // Format location
+    result.rows[0].locations = JSON.parse(result.rows[0].locations)['coordinates'];
+
     res.json(result.rows[0]);
 });
 
@@ -277,8 +326,12 @@ app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
 app.get('/campaigns/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT c.campaign_id,c.campaign_type,c.name,c.description,c.deployment,c.start_location,c.end_location,c.start_time,c.end_time,c.urls \
+        text: "SELECT c.campaign_id,c.campaign_type,c.name,c.description,c.deployment,c.start_location,c.end_location,c.start_time,c.end_time,c.urls,p.project_id,p.name AS project_name \
             FROM campaign c \
+            JOIN sampling_event se ON se.campaign_id=c.campaign_id \
+            JOIN sample s ON s.sampling_event_id=se.sampling_event_id \
+            JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
+            JOIN project p ON p.project_id=pts.project_id \
             WHERE c.campaign_id=$1",
         values: [id]
     });
@@ -288,25 +341,69 @@ app.get('/campaigns/:id(\\d+)', async (req, res) => {
 app.get('/campaigns/:id(\\d+)/sampling_events', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsText(se.locations) AS locations,se.start_time,se.end_time \
+        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations) AS locations,se.start_time,se.end_time \
             FROM sampling_event se \
             JOIN campaign c ON c.campaign_id=se.campaign_id \
             WHERE c.campaign_id=$1",
         values: [id]
     });
+
+    // Format location
+    result.rows.forEach(row => {
+        row.locations = JSON.parse(row.locations)['coordinates'];
+    });
+
+    res.json(result.rows);
+});
+
+app.get('/campaigns/:id(\\d+)/samples', async (req, res) => {
+    let id = req.params.id;
+    let result = await query({
+        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations) AS locations \
+            FROM campaign c \
+            JOIN sampling_event se ON se.campaign_id=c.campaign_id \
+            JOIN sample s ON s.sampling_event_id=se.sampling_event_id \
+            WHERE c.campaign_id=$1",
+        values: [id]
+    });
+
+    // Format location
+    result.rows.forEach(row => {
+        row.locations = JSON.parse(row.locations)['coordinates'];
+    });
+
     res.json(result.rows);
 });
 
 app.get('/sampling_events/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsText(se.locations) AS locations,se.start_time,se.end_time,c.campaign_id,c.campaign_type,c.name AS campaign_name \
+        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations) AS locations,se.start_time,se.end_time,c.campaign_id,c.campaign_type,c.name AS campaign_name \
             FROM sampling_event se \
             JOIN campaign c ON c.campaign_id=se.campaign_id \
             WHERE se.sampling_event_id=$1",
         values: [id]
     });
+
+    // Format location
+    result.rows[0].locations = JSON.parse(result.rows[0].locations)['coordinates'];
+
     res.json(result.rows[0]);
+});
+
+app.get('/sampling_events/:id(\\d+)/samples', async (req, res) => {
+    let id = req.params.id;
+    let result = await query({
+        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations) AS locations FROM sample s WHERE s.sampling_event_id=$1",
+        values: [id]
+    });
+
+    // Format location
+    result.rows.forEach(row => {
+        row.locations = JSON.parse(row.locations)['coordinates'];
+    });
+
+    res.json(result.rows);
 });
 
 //----------------------------------------------------------------------------------------------------------------------

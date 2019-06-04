@@ -7,6 +7,7 @@ import Page
 import Route
 import Campaign exposing (Campaign)
 import SamplingEvent exposing (SamplingEvent)
+import Sample exposing (Sample)
 import Http
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
@@ -22,6 +23,7 @@ type alias Model =
     { session : Session
     , campaign : Maybe Campaign
     , samplingEvents : Maybe (List SamplingEvent)
+    , samples : Maybe (List Sample)
     }
 
 
@@ -30,10 +32,12 @@ init session id =
     ( { session = session
       , campaign = Nothing
       , samplingEvents = Nothing
+      , samples = Nothing
       }
       , Cmd.batch
         [ Campaign.fetch id |> Http.toTask |> Task.attempt GetCampaignCompleted
         , SamplingEvent.fetchAllByCampaign id |> Http.toTask |> Task.attempt GetSamplingEventsCompleted
+        , Sample.fetchAllByCampaign id |> Http.toTask |> Task.attempt GetSamplesCompleted
         ]
     )
 
@@ -50,6 +54,7 @@ toSession model =
 type Msg
     = GetCampaignCompleted (Result Http.Error Campaign)
     | GetSamplingEventsCompleted (Result Http.Error (List SamplingEvent))
+    | GetSamplesCompleted (Result Http.Error (List Sample))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -73,6 +78,15 @@ update msg model =
             in
             ( model, Cmd.none )
 
+        GetSamplesCompleted (Ok samples) ->
+            ( { model | samples = Just samples }, Cmd.none )
+
+        GetSamplesCompleted (Err error) -> --TODO
+            let
+                _ = Debug.log "GetSamplesCompleted" (toString error)
+            in
+            ( model, Cmd.none )
+
 
 
 -- VIEW --
@@ -86,11 +100,17 @@ view model =
 
         Just campaign ->
             let
+                pageTitle =
+                    "Campaign (" ++ (String.Extra.toSentenceCase campaign.type_) ++ ")"
+
                 numSamplingEvents =
                     model.samplingEvents |> Maybe.map List.length |> Maybe.withDefault 0
+
+                numSamples =
+                    model.samples |> Maybe.map List.length |> Maybe.withDefault 0
             in
             div [ class "container" ]
-                [ Page.viewTitle (String.Extra.toSentenceCase campaign.type_) campaign.name
+                [ Page.viewTitle pageTitle campaign.name
                 , div []
                     [ viewCampaign campaign ]
                 , div [ class "pt-3" ]
@@ -104,6 +124,17 @@ view model =
                     ]
                 , div [ class "pt-2" ]
                     [ viewSamplingEvents model.samplingEvents ]
+                , div [ class "pt-3" ]
+                    [ Page.viewTitle2 "Samples" False
+                    , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
+                        [ if numSamples == 0 then
+                            text ""
+                          else
+                            text (toString numSamples)
+                        ]
+                    ]
+                , div [ class "pt-2" ]
+                    [ viewSamples model.samples ]
                 ]
 
 
@@ -114,6 +145,10 @@ viewCampaign campaign =
             [ tr []
                 [ th [] [ text "Name" ]
                 , td [] [ text campaign.name ]
+                ]
+            , tr []
+                [ th [] [ text "Project" ]
+                , td [] [ a [ Route.href (Route.Project campaign.projectId) ] [ text campaign.projectName ] ]
                 ]
             , tr []
                 [ th [] [ text "Description" ]
@@ -172,4 +207,32 @@ viewSamplingEvents maybeSamplingEvents =
                     ]
                 , tbody []
                     (samplingEvents |> List.sortWith sortByName |> List.map mkRow)
+                ]
+
+
+viewSamples : Maybe (List Sample) -> Html Msg
+viewSamples maybeSamples =
+    let
+        mkRow sample =
+            tr []
+                [ td [ style "white-space" "nowrap" ]
+                    [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
+                ]
+
+        sortByAccn a b =
+            compare a.accn b.accn
+    in
+    case maybeSamples of
+        Nothing ->
+            text "None"
+
+        Just samples ->
+            table [ class "table" ]
+                [ thead []
+                    [ tr []
+                        [ th [] [ text "Accn" ]
+                        ]
+                    ]
+                , tbody []
+                    (samples |> List.sortWith sortByAccn |> List.map mkRow)
                 ]

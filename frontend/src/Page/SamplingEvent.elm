@@ -87,11 +87,14 @@ view model =
 
         Just samplingEvent ->
             let
+                pageTitle =
+                    "Sampling Event (" ++ (String.Extra.toSentenceCase samplingEvent.type_) ++ ")"
+
                 numSamples =
                     model.samples |> Maybe.map List.length |> Maybe.withDefault 0
             in
             div [ class "container" ]
-                [ Page.viewTitle (String.Extra.toSentenceCase samplingEvent.type_) samplingEvent.name
+                [ Page.viewTitle pageTitle samplingEvent.name
                 , div []
                     [ viewSamplingEvent samplingEvent ]
                 , div [ class "pt-3" ]
@@ -117,7 +120,7 @@ viewSamplingEvent samplingEvent =
                 , td [] [ text samplingEvent.name ]
                 ]
             , tr []
-                [ th [] [ text (String.Extra.toSentenceCase samplingEvent.campaignType) ]
+                [ th [] [ text "Campaign (", text (String.Extra.toSentenceCase samplingEvent.campaignType), text ")" ]
                 , td [] [ a [ Route.href (Route.Campaign samplingEvent.campaignId) ] [ text samplingEvent.campaignName ] ]
                 ]
             , tr []

@@ -1,4 +1,4 @@
-module Campaign exposing (Campaign, fetch)
+module Campaign exposing (Campaign, fetch, fetchAllByProject)
 
 {-| The interface to the Sample data structure.
 -}
@@ -27,6 +27,8 @@ type alias Campaign  =
     , startTime : String
     , endTime : String
     , urls : List String
+    , projectId : Int
+    , projectName : String
     }
 
 
@@ -47,6 +49,8 @@ campaignDecoder =
         |> optional "start_time" Decode.string ""
         |> optional "end_time" Decode.string ""
         |> optional "urls" (Decode.list Decode.string) []
+        |> optional "project_id" Decode.int 0
+        |> optional "project_name" Decode.string ""
 
 
 
@@ -61,4 +65,15 @@ fetch id  =
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson campaignDecoder)
+        |> HttpBuilder.toRequest
+
+
+fetchAllByProject : Int -> Http.Request (List Campaign)
+fetchAllByProject id =
+    let
+        url =
+            apiBaseUrl ++ "/projects/" ++ (toString id) ++ "/campaigns"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list campaignDecoder))
         |> HttpBuilder.toRequest
