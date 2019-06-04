@@ -1,4 +1,4 @@
-module Sample exposing (Sample, PURL, Metadata, Field, Value(..), SearchTerm, fetch, fetchAll, fetchAllByProject, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
+module Sample exposing (Sample, PURL, Metadata, Field, Value(..), SearchTerm, fetch, fetchAll, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
 
 {-| The interface to the Sample data structure.
 -}
@@ -9,6 +9,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
 import Json.Encode as Encode
 import Dict exposing (Dict)
+import LatLng exposing (LatLng)
 import Config exposing (apiBaseUrl)
 import Debug exposing (toString)
 
@@ -20,7 +21,7 @@ import Debug exposing (toString)
 type alias Sample  =
     { id : Int
     , accn : String
-    , locations : String
+    , locations : List LatLng
     , samplingEventId : Int
     , samplingEventType : String
     , samplingEventName : String
@@ -85,7 +86,7 @@ sampleDecoder =
     Decode.succeed Sample
         |> required "sample_id" Decode.int
         |> required "accn" Decode.string
-        |> required "locations" Decode.string
+        |> required "locations" (Decode.list LatLng.decoder)
         |> optional "sampling_event_id" Decode.int 0
         |> optional "sampling_event_type" Decode.string ""
         |> optional "sampling_event_name" Decode.string ""
@@ -168,6 +169,28 @@ fetchAllByProject id =
     let
         url =
             apiBaseUrl ++ "/projects/" ++ (toString id) ++ "/samples"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchAllBySamplingEvent : Int -> Http.Request (List Sample)
+fetchAllBySamplingEvent id =
+    let
+        url =
+            apiBaseUrl ++ "/sampling_events/" ++ (toString id) ++ "/samples"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchAllByCampaign : Int -> Http.Request (List Sample)
+fetchAllByCampaign id =
+    let
+        url =
+            apiBaseUrl ++ "/campaigns/" ++ (toString id) ++ "/samples"
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))

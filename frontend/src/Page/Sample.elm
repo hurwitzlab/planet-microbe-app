@@ -6,6 +6,7 @@ import Html.Attributes exposing (..)
 import Page
 import Route
 import Sample exposing (Sample, Metadata, Value(..), SearchTerm)
+import LatLng
 import Http
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
@@ -121,16 +122,16 @@ viewSample sample =
                 , td [] [ a [ Route.href (Route.Project sample.projectId) ] [ text sample.projectName ] ]
                 ]
             , tr []
-                [ th [] [ text (String.Extra.toSentenceCase sample.campaignType) ]
+                [ th [] [ text "Campaign (", text (String.Extra.toSentenceCase sample.campaignType), text ")" ]
                 , td [] [ a [ Route.href (Route.Campaign sample.campaignId) ] [ text sample.campaignName ] ]
                 ]
             , tr []
-                [ th [] [ text (String.Extra.toSentenceCase sample.samplingEventType) ]
+                [ th [] [ text "Sampling Event (", text (String.Extra.toSentenceCase sample.samplingEventType), text ")" ]
                 , td [] [ a [ Route.href (Route.SamplingEvent sample.samplingEventId) ] [ text sample.samplingEventName ] ]
                 ]
             , tr []
-                [ th [] [ text "Location(s)" ]
-                , td [] [ text sample.locations ]
+                [ th [] [ text "Lat/Lng" ]
+                , td [] [ text (LatLng.formatList sample.locations) ]
                 ]
             ]
         ]
