@@ -219,9 +219,8 @@ app.get('/projects/:id(\\d+)', async (req, res) => {
 
 app.get('/projects/:id(\\d+)/samples', async (req, res) => {
     let id = req.params.id;
-//    let result = await query({ text: "SELECT s.sample_id,s.accn FROM sample s JOIN sampling_event se ON se.sampling_event_id=s.sampling_event_id WHERE p.project_id=" + id});
     let result = await query({
-        text: "SELECT s.sample_id,s.accn FROM sample s JOIN project_to_sample pts ON pts.sample_id=s.sample_id WHERE pts.project_id=$1",
+        text: "SELECT s.sample_id,s.accn,ST_AsText(s.locations) AS locations FROM sample s JOIN project_to_sample pts ON pts.sample_id=s.sample_id WHERE pts.project_id=$1",
         values: [id]
     });
     res.json(result.rows);
@@ -230,7 +229,7 @@ app.get('/projects/:id(\\d+)/samples', async (req, res) => {
 app.get('/samples/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT s.sample_id,s.accn,se.sampling_event_id,se.sampling_event_type,se.name as sampling_event_name,c.campaign_id,c.name AS campaign_name,c.campaign_type,p.project_id,p.name AS project_name \
+        text: "SELECT s.sample_id,s.accn,ST_AsText(s.locations) AS locations,se.sampling_event_id,se.sampling_event_type,se.name AS sampling_event_name,c.campaign_id,c.name AS campaign_name,c.campaign_type,p.project_id,p.name AS project_name \
             FROM sample s \
             JOIN sampling_event se ON se.sampling_event_id=s.sampling_event_id \
             JOIN campaign c ON c.campaign_id=se.campaign_id \
@@ -240,6 +239,40 @@ app.get('/samples/:id(\\d+)', async (req, res) => {
         values: [id]
     });
     res.json(result.rows[0]);
+});
+
+app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
+    let id = req.params.id;
+    let result = await query({
+        text: "SELECT s.schema_id,schema.fields->'fields' AS fields,s.number_vals,s.string_vals,s.datetime_vals \
+            FROM sample s \
+            JOIN schema ON schema.schema_id=s.schema_id \
+            WHERE s.sample_id=$1",
+        values: [id]
+    });
+
+    let row = result.rows[0];
+    let values = [];
+    for (i = 0;  i < row.fields.length;  i++) {
+        let field = row.fields[i];
+        let val = "";
+        if (field.type == "number")
+            val = row.number_vals[i];
+        else if (field.type == "string")
+            val = row.string_vals[i];
+        else if (field.type == "datetime" || field.type == "date")
+            val = row.datetime_vals[i];
+        else
+            ; //TODO error
+
+        values.push(val);
+    }
+
+    res.json({
+        schema_id: row.schema_id,
+        fields: row.fields,
+        values: values
+    });
 });
 
 app.get('/campaigns/:id(\\d+)', async (req, res) => {
