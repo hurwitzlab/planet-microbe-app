@@ -11,6 +11,7 @@ import Route exposing (Route)
 --import Session exposing (Session)
 --import Username exposing (Username)
 --import Viewer exposing (Viewer)
+import Config
 
 
 {-| Determines which navbar link (if any) will be rendered as active.
@@ -117,35 +118,48 @@ viewHeader page = --page maybeViewer =
                     [ i [ class "fa fa-question-circle fa-lg" ] [] ]
                 ]
     in
-    div [ style "background-color" "#f8f8f8", style "border-bottom" "1px solid lightgray" ]
-        [ nav [ class "navbar navbar-expand-lg navbar-light bg-light" ]
-            [ a [ class "navbar-brand", style "margin-right" "5em", Route.href Route.Home ]
-                [ img [ src "/assets/images/pm-logo.png", style "width" "238px", style "height" "49px" ] [] ]
-            , div [ class "navbar-collapse collapse", id "navbarNav" ]
-                [ ul [ class "navbar-nav" ]
-                    [ li [ class "nav-item", style "width" "9em" ]
-                        [ a [ class "nav-link", classList [ ("active", page == Browse) ], Route.href Route.Browse ]
-                            [ i [ class "fa fa-table" ] []
-                            , text " Browse"
-                            ]
-                        ]
-                    , li [ class "nav-item", style "width" "9em" ]
-                        [ a [ class "nav-link", classList [ ("active", page == Search) ], Route.href Route.Search ]
-                            [ i [ class "fa fa-search" ] []
-                            , text " Search"
-                            ]
-                        ]
-                    , li [ class "nav-item", style "width" "9em" ]
-                        [ a [ class "nav-link", classList [ ("active", page == Analyze) ], Route.href Route.Analyze  ]
-                            [ i [ class "fa fa-chart-bar" ] []
-                            , text " Analyze"
-                            ]
-                        ]
+    div []
+        [ (case Config.alertBannerText of
+            Nothing ->
+                text ""
+
+            Just alertBannerText ->
+                div [ class "text-center border-bottom", style "color" "gray", style "background-color" "PowderBlue" ]
+                    [ i [ class "fas fa-exclamation-triangle" ] []
+                    , text " "
+                    , text alertBannerText
                     ]
-                , ul [ class "navbar-nav ml-auto" ]
-                    [ helpButton
---                    , dashboardButton
---                    , cartButton
+          )
+        , div [ style "background-color" "#f8f8f8", style "border-bottom" "1px solid lightgray" ]
+            [ nav [ class "navbar navbar-expand-lg navbar-light bg-light" ]
+                [ a [ class "navbar-brand", style "margin-right" "5em", Route.href Route.Home ]
+                    [ img [ src "/assets/images/pm-logo.png", style "width" "238px", style "height" "49px" ] [] ]
+                , div [ class "navbar-collapse collapse", id "navbarNav" ]
+                    [ ul [ class "navbar-nav" ]
+                        [ li [ class "nav-item", style "width" "9em" ]
+                            [ a [ class "nav-link", classList [ ("active", page == Browse) ], Route.href Route.Browse ]
+                                [ i [ class "fa fa-table" ] []
+                                , text " Browse"
+                                ]
+                            ]
+                        , li [ class "nav-item", style "width" "9em" ]
+                            [ a [ class "nav-link", classList [ ("active", page == Search) ], Route.href Route.Search ]
+                                [ i [ class "fa fa-search" ] []
+                                , text " Search"
+                                ]
+                            ]
+                        , li [ class "nav-item", style "width" "9em" ]
+                            [ a [ class "nav-link", classList [ ("active", page == Analyze) ], Route.href Route.Analyze  ]
+                                [ i [ class "fa fa-chart-bar" ] []
+                                , text " Analyze"
+                                ]
+                            ]
+                        ]
+                    , ul [ class "navbar-nav ml-auto" ]
+                        [ helpButton
+--                            , dashboardButton
+--                            , cartButton
+                        ]
                     ]
                 ]
             ]
