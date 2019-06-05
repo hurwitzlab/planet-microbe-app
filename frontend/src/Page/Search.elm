@@ -135,6 +135,7 @@ init session =
         , initialParams |> List.map Sample.fetchSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         , GMap.removeMap "" -- workaround for blank map on navigating back to this page
+        , GMap.changeMapSettings (GMap.Settings True True False |> GMap.encodeSettings)
         ]
     )
 

@@ -7,11 +7,13 @@ import Page
 import Route
 import Sample exposing (Sample, Metadata, Value(..), SearchTerm)
 import LatLng
+import GMap
 import Http
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
 import String.Extra
 import List.Extra
+import Json.Encode as Encode
 import Debug exposing (toString)
 
 
@@ -35,7 +37,9 @@ init session id =
       , metadata = Nothing
       }
       , Cmd.batch
-        [ Sample.fetch id |> Http.toTask |> Task.attempt GetSampleCompleted
+        [ GMap.removeMap "" -- workaround for blank map on navigating back to this page
+        , GMap.changeMapSettings (GMap.Settings False False True |> GMap.encodeSettings)
+        , Sample.fetch id |> Http.toTask |> Task.attempt GetSampleCompleted
         , Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetSearchTermsCompleted
         , Sample.fetchMetadata id |> Http.toTask |> Task.attempt GetMetadataCompleted
         ]
@@ -61,7 +65,11 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GetSampleCompleted (Ok sample) ->
-            ( { model | sample = Just sample }, Cmd.none )
+            let
+                map =
+                    sample.locations |> Encode.list LatLng.encode
+            in
+            ( { model | sample = Just sample }, GMap.loadMap map )
 
         GetSampleCompleted (Err error) -> --TODO
             let
@@ -127,33 +135,46 @@ viewSample sample =
         samplingEventRow =
             if sample.samplingEventId == 0 then
                 tr []
-                    [ th [] [ text "Sampling Event" ]
+                    [ th [ class "text-nowrap" ] [ text "Sampling Event" ]
                     , td [] [ text "None" ]
                     ]
             else
                 tr []
-                    [ th [] [ text "Sampling Event (", text (String.Extra.toSentenceCase sample.samplingEventType), text ")" ]
+                    [ th [ class "text-nowrap" ] [ text "Sampling Event (", text (String.Extra.toSentenceCase sample.samplingEventType), text ")" ]
                     , td [] [ a [ Route.href (Route.SamplingEvent sample.samplingEventId) ] [ text sample.samplingEventName ] ]
                     ]
     in
-    table [ class "table table-borderless table-sm" ]
-        [ tbody []
-            [ tr []
-                [ th [ class "w-25" ] [ text "Accession" ]
-                , td [] [  a [ href ("https://www.ncbi.nlm.nih.gov/biosample/?term=" ++ sample.accn), target "_blank" ] [ text sample.accn ] ]
+    table [] -- ugh, use table for layout
+        [ tr []
+            [ td [ style "min-width" "50vw" ]
+                [ table [ class "table table-borderless table-sm" ]
+                    [ tbody []
+                        [ tr []
+                            [ th [ class "w-25" ] [ text "Accession" ]
+                            , td [class "w-50"] [  a [ href ("https://www.ncbi.nlm.nih.gov/biosample/?term=" ++ sample.accn), target "_blank" ] [ text sample.accn ] ]
+                            ]
+                        , tr []
+                            [ th [] [ text "Project" ]
+                            , td [] [ a [ Route.href (Route.Project sample.projectId) ] [ text sample.projectName ] ]
+                            ]
+                        , campaignRow
+                        , samplingEventRow
+                        , tr []
+                            [ th [] [ text "Lat/Lng (deg)" ]
+                            , td [] [ text (LatLng.formatList sample.locations) ]
+                            ]
+                        ]
+                    ]
                 ]
-            , tr []
-                [ th [] [ text "Project" ]
-                , td [] [ a [ Route.href (Route.Project sample.projectId) ] [ text sample.projectName ] ]
-                ]
-            , campaignRow
-            , samplingEventRow
-            , tr []
-                [ th [] [ text "Lat/Lng (deg)" ]
-                , td [] [ text (LatLng.formatList sample.locations) ]
-                ]
+            , td []
+                [ viewMap ]
             ]
         ]
+
+
+viewMap : Html Msg
+viewMap =
+    GMap.view [ class "border", style "display" "block", style "width" "20em", style "height" "12em" ] []
 
 
 viewMetadata : Maybe Metadata -> Maybe (List SearchTerm) -> Html Msg
