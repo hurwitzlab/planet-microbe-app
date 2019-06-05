@@ -1,4 +1,4 @@
-port module GMap exposing (Location, loadMap, setLocation, getLocation, view)
+port module GMap exposing (Location, loadMap, mapLoaded, removeMap, setLocation, getLocation, view)
 
 import Html exposing (Html, Attribute, node)
 import Json.Encode exposing (Value)
@@ -12,6 +12,12 @@ type alias Location =
 
 
 port loadMap : Value -> Cmd msg
+
+
+port mapLoaded : (Bool -> msg) -> Sub msg
+
+
+port removeMap : String -> Cmd msg
 
 
 port setLocation : Maybe Location -> Cmd msg

@@ -98,6 +98,7 @@ type alias Model =
     , pageNum : Int
     , pageSize : Int
     , showMap : Bool
+    , mapLoaded : Bool
     }
 
 
@@ -126,12 +127,14 @@ init session =
         , errorMsg = Nothing
         , pageNum = 0
         , pageSize = defaultPageSize
-        , showMap = False
+        , showMap = True
+        , mapLoaded = False
         }
     , Cmd.batch
         [ Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map Sample.fetchSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
+        , GMap.removeMap "" -- workaround for blank map on navigating back to this page
         ]
     )
 
@@ -141,6 +144,7 @@ subscriptions model =
     Sub.batch
         [ Time.every 1000 InputTimerTick -- milliseconds
         , GMap.getLocation UpdateLocationFromMap
+        , GMap.mapLoaded MapLoaded
         ]
 
 
@@ -178,6 +182,7 @@ type Msg
     | MapTick
 --    | JSMap Value
     | UpdateLocationFromMap (Maybe GMap.Location)
+    | MapLoaded Bool
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -449,6 +454,9 @@ update msg model =
                             NoLocationValue
             in
             ( { model | doSearch = True, locationVal = newLocationVal }, Cmd.none )
+
+        MapLoaded success ->
+            ( { model | mapLoaded = True }, Cmd.none )
 
 
 defined : String -> Bool
@@ -804,7 +812,7 @@ view model =
         , div [ class "float-right", style "width" "74%", style "padding-left" "1em" ]
 --            [ viewSearchSummary model
 --            , br [] []
-            [ viewMap model.showMap
+            [ viewMap model.showMap model.mapLoaded
             , viewResults model
             ]
         , case model.stringFilterDialogTerm of
@@ -1540,8 +1548,9 @@ viewResults model =
         ]
 
 
-viewMap : Bool -> Html Msg
-viewMap showMap =
+viewMap : Bool -> Bool -> Html Msg
+viewMap showMap mapLoaded =
+    -- Map element must always be rendered for port to work properly
     let
         hideOrShow =
             if showMap then
@@ -1549,7 +1558,7 @@ viewMap showMap =
             else
                 style "display" "none"
     in
-    GMap.view [ hideOrShow, style "height" "50vh", style "width" "100%", style "margin-bottom" "0.85em", style "border" "1px solid lightgray" ] []
+    GMap.view [ hideOrShow, style "height" "50vh", style "width" "100%", style "margin-bottom" "0.85em", classList [("border", mapLoaded)] ] []
 
 
 viewBlank : Html Msg
