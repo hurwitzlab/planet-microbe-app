@@ -176,7 +176,8 @@ viewCampaign campaign =
                 ]
             , tr []
                 [ th [] [ text "References" ]
-                , td [] (List.map (\url -> div [] [ a [ href url, target "_blank" ] [ text url ] ]) campaign.urls)
+                , td []
+                    (List.map (\url -> div [] [ a [ href url, target "_blank" ] [ text url ] ]) campaign.urls)
                 ]
             ]
         ]

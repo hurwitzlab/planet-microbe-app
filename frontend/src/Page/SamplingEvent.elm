@@ -134,7 +134,7 @@ viewSamplingEvent samplingEvent =
                 ]
             , campaignRow
             , tr []
-                [ th [] [ text "Location(s)" ]
+                [ th [] [ text "Lat/Lng (deg)" ]
                 , td [] [ text (LatLng.formatList samplingEvent.locations) ]
                 ]
             , tr []
