@@ -34,10 +34,16 @@ var app = Elm.Main.init({
 });
 
 var gmap,
+  drawingManager,
   markerClusterer,
   markers = [],
   shapes = [],
-  features = [];
+  features = [],
+  mapSettings = {
+    showDrawingManager: true,
+    showMarkerClusters: true,
+    fitBounds: false,
+  };
 
 function initMap() {
   console.log("initMap");
@@ -52,9 +58,9 @@ function initMap() {
       streetViewControl: false
   });
 
-  var drawingManager = new google.maps.drawing.DrawingManager({
+  drawingManager = new google.maps.drawing.DrawingManager({
     drawingMode: null,
-    drawingControl: true,
+    drawingControl: mapSettings.showDrawingManager,
     drawingControlOptions: {
       position: google.maps.ControlPosition.TOP_CENTER,
       drawingModes: ['circle'] //['marker', 'circle', 'polygon', 'polyline', 'rectangle']
@@ -105,7 +111,9 @@ function initMap() {
       if (zoom >= 4) {
         for (var i = 0; i < markers.length; i++) {
           let marker = markers[i];
-          let label = marker.customData.project_name + " - " + marker.customData.sample_accn
+          let label = "";
+          if (marker.customData.project_name && marker.customData.sample_accn)
+            marker.customData.project_name + " - " + marker.customData.sample_accn
           marker.setLabel(label);
         }
       }
@@ -127,28 +135,36 @@ function initMap() {
 }
 
 function resetMap(results) { // TODO only clear markers that aren't in new results
-    // Clear all markers
-    for (var i = 0; i < markers.length; i++) {
-      markers[i].setMap(null);
-    }
-    markers = [];
+  // Clear all markers
+  for (var i = 0; i < markers.length; i++) {
+    markers[i].setMap(null);
+  }
+  markers = [];
+  if (markerClusterer)
     markerClusterer.clearMarkers();
 
-    /*for (var i = 0; i < features.length; i++) {
-      gmap.data.remove(features[i]);
-    }
-    features = [];*/
+  /*for (var i = 0; i < features.length; i++) {
+    gmap.data.remove(features[i]);
+  }
+  features = [];*/
 
+  if (gmap)
     google.maps.event.clearListeners(gmap, 'radius_changed');
 }
 
 app.ports.removeMap.subscribe(function() {
   console.log("removeMap");
+  resetMap();
   gmap = null;
 });
 
+app.ports.changeMapSettings.subscribe(function(settings) {
+  console.log("changeMapSettings");
+  mapSettings = settings;
+});
+
 app.ports.loadMap.subscribe(function(results) {
-  console.log("loadMap"); //: results:", results);
+  console.log("loadMap");//: results:", results);
 
   if (!gmap)
     initMap();
@@ -185,7 +201,7 @@ app.ports.loadMap.subscribe(function(results) {
           sample_accn: result.sample_accn,
           project_name: result.project_name
         }
-        //map: gmap
+        //map: gmap // set below
     });
     marker.addListener("click",
       function() {
@@ -196,13 +212,19 @@ app.ports.loadMap.subscribe(function(results) {
 
     bounds.extend(marker.position);
   });
-  markerClusterer.addMarkers(markers);
-  console.log("markers:", markerClusterer.getMarkers().length);
 
-  /*if (initMap) {
-    gmap.fitBounds(bounds);
-    gmap.setZoom(2);
-  }*/
+  if (mapSettings.showMarkerClusters)
+    markerClusterer.addMarkers(markers);
+  else {
+    for (i = 0; i < markers.length; i++)
+      markers[i].setMap(gmap);
+  }
+  console.log("markers:", markers.length); //markerClusterer.getMarkers().length);
+
+  if (mapSettings.fitBounds) {
+    //gmap.fitBounds(bounds);
+    gmap.setZoom(0);
+  }
 
   app.ports.mapLoaded.send(true);
 });
