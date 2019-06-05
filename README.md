@@ -7,7 +7,7 @@ Quick Start:
 cd backend
 npm install
 dev: $(npm bin)/nodemon
-prod: pm2 start --name planet-microbe-search-app server.js
+prod: pm2 start --name planet-microbe-app server.js
 ```
 
 ## Frontend
