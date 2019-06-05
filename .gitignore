@@ -1,5 +1,7 @@
 backend/node_modules
+backend/config.json
 frontend/node_modules
 frontend/elm-stuff
+frontend/src/Config.elm
 .idea
 elm.js
