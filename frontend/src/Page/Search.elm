@@ -179,8 +179,7 @@ type Msg
     | InputTimerTick Time.Posix
     | Search Int
     | SearchCompleted (Result Http.Error SearchResponse)
-    | MapTick
---    | JSMap Value
+    | ToggleMap
     | UpdateLocationFromMap (Maybe GMap.Location)
     | MapLoaded Bool
 
@@ -430,18 +429,12 @@ update msg model =
             in
             ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
 
---        JSMap gmap ->
---            ( { model | mapState = GMap.MapState gmap model.mapState.center }, Cmd.none )
-
-        MapTick ->
+        ToggleMap ->
             let
                 showMap =
                     not model.showMap
             in
-            if showMap then
-                ( { model | doSearch = True, showMap = True }, GMap.loadMap model.mapResults ) --(Encode.list encodeMapResult model.mapResults) ) --GMap.loadMap model.mapState.center )
-            else
-                ( { model | showMap = False }, Cmd.none )
+            ( { model | showMap = showMap }, Cmd.none )
 
         UpdateLocationFromMap maybeLoc ->
             let
@@ -866,7 +859,7 @@ viewLocationPanel model =
                 [ h6 [ style "color" "darkblue"]
                     [ text (String.fromChar (Char.fromCode 9660))
                     , text " Time/Space"
-                    , small [] [ a [ class "alert-link float-right", href "", onClick MapTick ]
+                    , small [] [ a [ class "alert-link float-right", href "", onClick ToggleMap ]
                         [ if model.showMap then text "Close Map" else text "View Map" ] ]
                     ]
                 , Html.form [ style "padding-top" "0.5em" ]
