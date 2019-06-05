@@ -6,6 +6,15 @@
         "password": ""
     },
     "ontologies": [
-        "./test/ENVO.json"
+        {
+            "name": "PMO",
+            "type": "term",
+            "path": "test/pmo_owl.json"
+        },
+        {
+            "name": "UO",
+            "type": "unit",
+            "path": "test/uo.csv"
+        }
     ]
 }
