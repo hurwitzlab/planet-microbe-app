@@ -1,4 +1,4 @@
-# Planet Microbe Search App
+# Planet Microbe
 
 ## Backend 
 
