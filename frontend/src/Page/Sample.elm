@@ -1,4 +1,4 @@
-module Page.Sample exposing (Model, Msg, init, toSession, update, view)
+module Page.Sample exposing (Model, Msg, init, subscriptions, toSession, update, view)
 
 import Session exposing (Session)
 import Html exposing (..)
@@ -11,6 +11,7 @@ import GMap
 import Http
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
+import Time
 import String.Extra
 import List.Extra
 import Json.Encode as Encode
@@ -26,6 +27,7 @@ type alias Model =
     , sample : Maybe Sample
     , terms : Maybe (List SearchTerm)
     , metadata : Maybe Metadata
+    , mapLoaded : Bool
     }
 
 
@@ -35,6 +37,7 @@ init session id =
       , sample = Nothing
       , terms = Nothing
       , metadata = Nothing
+      , mapLoaded = False
       }
       , Cmd.batch
         [ GMap.removeMap "" -- workaround for blank map on navigating back to this page
@@ -51,6 +54,15 @@ toSession model =
     model.session
 
 
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    -- Workaround for race condition between view and Sample.fetch causing map creation to fail on missing gmap element
+    Sub.batch
+        [ Time.every 100 TimerTick -- milliseconds
+        , GMap.mapLoaded MapLoaded
+        ]
+
+
 
 -- UPDATE --
 
@@ -59,17 +71,15 @@ type Msg
     = GetSampleCompleted (Result Http.Error Sample)
     | GetSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | GetMetadataCompleted (Result Http.Error Metadata)
+    | MapLoaded Bool
+    | TimerTick Time.Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GetSampleCompleted (Ok sample) ->
-            let
-                map =
-                    sample.locations |> Encode.list LatLng.encode
-            in
-            ( { model | sample = Just sample }, GMap.loadMap map )
+            ( { model | sample = Just sample }, Cmd.none )
 
         GetSampleCompleted (Err error) -> --TODO
             let
@@ -94,6 +104,21 @@ update msg model =
                 _ = Debug.log "GetMetadataCompleted" (toString error)
             in
             ( model, Cmd.none )
+
+        MapLoaded success ->
+            ( { model | mapLoaded = success }, Cmd.none )
+
+        TimerTick time ->
+            case (model.mapLoaded, model.sample) of
+                (False, Just sample) ->
+                    let
+                        map =
+                            sample.locations |> Encode.list LatLng.encode
+                    in
+                    ( model, GMap.loadMap map )
+
+                (_, _) ->
+                    ( model, Cmd.none )
 
 
 

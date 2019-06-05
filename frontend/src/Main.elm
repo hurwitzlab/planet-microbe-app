@@ -43,6 +43,9 @@ subscriptions model =
         Search search ->
             Sub.map SearchMsg (Search.subscriptions search)
 
+        Sample sample ->
+            Sub.map SampleMsg (Sample.subscriptions sample)
+
         _ ->
             Sub.none
 
