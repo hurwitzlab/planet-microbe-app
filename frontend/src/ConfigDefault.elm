@@ -6,4 +6,9 @@ module Config exposing (apiBaseUrl)
 
 apiBaseUrl : String
 apiBaseUrl =
-    "http://localhost:3010"
+    "http://localhost:3020"
+
+
+alertBannerText : Maybe String
+alertBannerText =
+    Nothing
