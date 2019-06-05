@@ -190,6 +190,7 @@ viewSamplingEvents maybeSamplingEvents =
             tr []
                 [ td [ style "white-space" "nowrap" ]
                     [ a [ Route.href (Route.SamplingEvent samplingEvent.id) ] [ text samplingEvent.name ] ]
+                , td [] [ text (String.Extra.toSentenceCase samplingEvent.type_) ]
                 ]
 
         sortByName a b =
@@ -204,6 +205,7 @@ viewSamplingEvents maybeSamplingEvents =
                 [ thead []
                     [ tr []
                         [ th [] [ text "Name/ID" ]
+                        , th [] [ text "Type" ]
                         ]
                     ]
                 , tbody []
