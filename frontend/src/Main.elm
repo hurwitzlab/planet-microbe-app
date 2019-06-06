@@ -46,6 +46,9 @@ subscriptions model =
         Sample sample ->
             Sub.map SampleMsg (Sample.subscriptions sample)
 
+        SamplingEvent samplingEvent ->
+            Sub.map SamplingEventMsg (SamplingEvent.subscriptions samplingEvent)
+
         _ ->
             Sub.none
 

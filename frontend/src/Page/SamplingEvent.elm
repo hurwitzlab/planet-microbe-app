@@ -1,4 +1,4 @@
-module Page.SamplingEvent exposing (Model, Msg, init, toSession, update, view)
+module Page.SamplingEvent exposing (Model, Msg, init, toSession, subscriptions, update, view)
 
 import Session exposing (Session)
 import Html exposing (..)
@@ -8,10 +8,13 @@ import Route
 import SamplingEvent exposing (SamplingEvent)
 import Sample exposing (Sample)
 import LatLng
+import GMap
+import Time
 import Http
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
 import String.Extra
+import Json.Encode as Encode
 import Debug exposing (toString)
 
 
@@ -23,6 +26,7 @@ type alias Model =
     { session : Session
     , samplingEvent : Maybe SamplingEvent
     , samples : Maybe (List Sample)
+    , mapLoaded : Bool
     }
 
 
@@ -31,9 +35,12 @@ init session id =
     ( { session = session
       , samplingEvent = Nothing
       , samples = Nothing
+      , mapLoaded = False
       }
       , Cmd.batch
-        [ SamplingEvent.fetch id |> Http.toTask |> Task.attempt GetSamplingEventCompleted
+        [ GMap.removeMap "" -- workaround for blank map on navigating back to this page
+        , GMap.changeMapSettings (GMap.Settings False False True |> GMap.encodeSettings)
+        , SamplingEvent.fetch id |> Http.toTask |> Task.attempt GetSamplingEventCompleted
         , Sample.fetchAllBySamplingEvent id |> Http.toTask |> Task.attempt GetSamplesCompleted
         ]
     )
@@ -44,6 +51,15 @@ toSession model =
     model.session
 
 
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    -- Workaround for race condition between view and Sample.fetch causing map creation to fail on missing gmap element
+    Sub.batch
+        [ Time.every 100 TimerTick -- milliseconds
+        , GMap.mapLoaded MapLoaded
+        ]
+
+
 
 -- UPDATE --
 
@@ -51,6 +67,8 @@ toSession model =
 type Msg
     = GetSamplingEventCompleted (Result Http.Error SamplingEvent)
     | GetSamplesCompleted (Result Http.Error (List Sample))
+    | MapLoaded Bool
+    | TimerTick Time.Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -73,6 +91,21 @@ update msg model =
                 _ = Debug.log "GetSamplesCompleted" (toString error)
             in
             ( model, Cmd.none )
+
+        MapLoaded success ->
+            ( { model | mapLoaded = success }, Cmd.none )
+
+        TimerTick time ->
+            case (model.mapLoaded, model.samplingEvent) of
+                (False, Just samplingEvent) ->
+                    let
+                        map =
+                            samplingEvent.locations |> Encode.list LatLng.encode
+                    in
+                    ( model, GMap.loadMap map )
+
+                (_, _) ->
+                    ( model, Cmd.none )
 
 
 
@@ -126,35 +159,48 @@ viewSamplingEvent samplingEvent =
                     , td [] [ a [ Route.href (Route.Campaign samplingEvent.campaignId) ] [ text samplingEvent.campaignName ] ]
                     ]
     in
-    table [ class "table table-borderless table-sm" ]
-        [ tbody []
-            [ tr []
-                [ th [ class "w-25" ] [ text "Name/ID" ]
-                , td [] [ text samplingEvent.name ]
+    table [] -- ugh, use table for layout
+        [ tr []
+            [ td [ style "min-width" "50vw" ]
+                [ table [ class "table table-borderless table-sm" ]
+                    [ tbody []
+                        [ tr []
+                            [ th [ class "w-25" ] [ text "Name/ID" ]
+                            , td [] [ text samplingEvent.name ]
+                            ]
+                        , tr []
+                            [ th [] [ text "Project" ]
+                            , td [] [ a [ Route.href (Route.Project samplingEvent.projectId) ] [ text samplingEvent.projectName ] ]
+                            ]
+                        , campaignRow
+                        , tr []
+                            [ th [] [ text "Lat/Lng (deg)" ]
+                            , td [] [ text (LatLng.formatList samplingEvent.locations) ]
+                            ]
+                        , tr []
+                            [ th [] [ text "Start Time" ]
+                            , td [] [ text samplingEvent.startTime ]
+                            ]
+                        , tr []
+                            [ th [] [ text "End Time" ]
+                            , td [] [ text samplingEvent.endTime ]
+                            ]
+                        , tr []
+                            [ th [] [ text "Data File(s)" ]
+                            , td [] [ em [] [ text "(coming soon)"] ]
+                            ]
+                        ]
+                    ]
                 ]
-            , tr []
-                [ th [] [ text "Project" ]
-                , td [] [ a [ Route.href (Route.Project samplingEvent.projectId) ] [ text samplingEvent.projectName ] ]
-                ]
-            , campaignRow
-            , tr []
-                [ th [] [ text "Lat/Lng (deg)" ]
-                , td [] [ text (LatLng.formatList samplingEvent.locations) ]
-                ]
-            , tr []
-                [ th [] [ text "Start Time" ]
-                , td [] [ text samplingEvent.startTime ]
-                ]
-            , tr []
-                [ th [] [ text "End Time" ]
-                , td [] [ text samplingEvent.endTime ]
-                ]
-            , tr []
-                [ th [] [ text "Data File(s)" ]
-                , td [] [ em [] [ text "(coming soon)"] ]
-                ]
+            , td []
+                [ viewMap ]
             ]
         ]
+
+
+viewMap : Html Msg
+viewMap =
+    GMap.view [ class "border", style "display" "block", style "width" "20em", style "height" "12em" ] []
 
 
 viewSamples : Maybe (List Sample) -> Html Msg
