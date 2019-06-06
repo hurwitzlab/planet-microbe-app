@@ -378,9 +378,12 @@ app.get('/campaigns/:id(\\d+)/samples', async (req, res) => {
 app.get('/sampling_events/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations) AS locations,se.start_time,se.end_time,c.campaign_id,c.campaign_type,c.name AS campaign_name \
+        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations) AS locations,se.start_time,se.end_time,c.campaign_id,c.campaign_type,c.name AS campaign_name,p.project_id,p.name AS project_name \
             FROM sampling_event se \
             JOIN campaign c ON c.campaign_id=se.campaign_id \
+            JOIN sample s ON s.sampling_event_id=se.sampling_event_id \
+            JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
+            JOIN project p ON p.project_id=pts.project_id \
             WHERE se.sampling_event_id=$1",
         values: [id]
     });

@@ -132,6 +132,10 @@ viewSamplingEvent samplingEvent =
                 [ th [ class "w-25" ] [ text "Name/ID" ]
                 , td [] [ text samplingEvent.name ]
                 ]
+            , tr []
+                [ th [] [ text "Project" ]
+                , td [] [ a [ Route.href (Route.Project samplingEvent.projectId) ] [ text samplingEvent.projectName ] ]
+                ]
             , campaignRow
             , tr []
                 [ th [] [ text "Lat/Lng (deg)" ]

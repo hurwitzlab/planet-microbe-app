@@ -27,6 +27,8 @@ type alias SamplingEvent  =
     , campaignId : Int
     , campaignType : String
     , campaignName : String
+    , projectId : Int
+    , projectName : String
     }
 
 
@@ -46,6 +48,8 @@ samplingEventDecoder =
         |> optional "campaign_id" Decode.int 0
         |> optional "campaign_type" Decode.string ""
         |> optional "campaign_name" Decode.string ""
+        |> optional "project_id" Decode.int 0
+        |> optional "project_name" Decode.string ""
 
 
 
