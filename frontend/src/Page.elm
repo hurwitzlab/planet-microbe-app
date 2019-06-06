@@ -133,7 +133,7 @@ viewHeader page = --page maybeViewer =
         , div [ style "background-color" "#f8f8f8", style "border-bottom" "1px solid lightgray" ]
             [ nav [ class "navbar navbar-expand-lg navbar-light bg-light" ]
                 [ a [ class "navbar-brand", style "margin-right" "5em", Route.href Route.Home ]
-                    [ img [ src "/assets/images/pm-logo.png", style "width" "238px", style "height" "49px" ] [] ]
+                    [ img [ src "assets/images/pm-logo.png", style "width" "238px", style "height" "49px" ] [] ]
                 , div [ class "navbar-collapse collapse", id "navbarNav" ]
                     [ ul [ class "navbar-nav" ]
                         [ li [ class "nav-item", style "width" "9em" ]
