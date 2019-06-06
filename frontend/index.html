@@ -202,7 +202,7 @@ app.ports.loadMap.subscribe(function(results) {
           sample_accn: result.sample_accn,
           project_name: result.project_name
         },
-        url: "/#/samples/" + result.sample_id
+        url: "#/samples/" + result.sample_id
         //map: gmap // set below
     });
     marker.addListener("click",
