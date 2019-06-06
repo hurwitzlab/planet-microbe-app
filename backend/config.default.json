@@ -14,7 +14,7 @@
         {
             "name": "UO",
             "type": "unit",
-            "path": "test/uo.csv"
+            "path": "test/UO.csv"
         }
     ]
 }
