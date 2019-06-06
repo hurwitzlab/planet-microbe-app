@@ -18,5 +18,5 @@ cd frontend
 npm install
 elm package install
 dev: npm start
-prod: npm build
+prod: npm run build
 ```
