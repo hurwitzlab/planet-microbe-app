@@ -1,4 +1,4 @@
-module Config exposing (apiBaseUrl)
+module Config exposing (apiBaseUrl, alertBannerText)
 
 
 -- Backend REST API
