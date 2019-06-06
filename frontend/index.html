@@ -114,7 +114,7 @@ function initMap() {
           let marker = markers[i];
           let label = "";
           if (marker.customData.project_name && marker.customData.sample_accn)
-            marker.customData.project_name + " - " + marker.customData.sample_accn
+            label = marker.customData.project_name + " - " + marker.customData.sample_accn
           marker.setLabel(label);
         }
       }
