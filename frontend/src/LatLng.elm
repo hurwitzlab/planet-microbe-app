@@ -45,4 +45,4 @@ formatList locs =
             format loc
 
         _ ->
-            locs |> List.map (\(LatLng (lng, lat)) -> "(" ++ (toString lat) ++ "," ++ (toString lng) ++ ")" ) |> String.join ", "
+            locs |> List.map (\(LatLng (lat, lng)) -> "(" ++ (toString lat) ++ "," ++ (toString lng) ++ ")" ) |> String.join ", "
