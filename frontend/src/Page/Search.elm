@@ -1041,6 +1041,9 @@ viewStringFilterPanel term val =
         numOptions =
             Dict.size term.values
 
+        numSelected =
+            Dict.toList term.values |> List.filter (\a -> isStringFilterSelected (Tuple.first a) val) |> List.length
+
         sortByCount a b =
             case compare (Tuple.second a) (Tuple.second b) of
                 LT -> GT
@@ -1059,10 +1062,10 @@ viewStringFilterPanel term val =
                     sortByCount a b
 
         truncatedOptions =
-            Dict.toList term.values |> List.sortWith sortBySelected |> List.take maxNumPanelOptions
+            Dict.toList term.values |> List.sortWith sortBySelected |> List.take (Basics.max maxNumPanelOptions numSelected)
     in
     viewTermPanel term
-        [ div [ style "max-height" "5em", style "overflow-y" "auto" ] (viewStringFilterOptions term val truncatedOptions)
+        [ div [] (viewStringFilterOptions term val truncatedOptions)
         , if numOptions > maxNumPanelOptions then
             button [ class "btn btn-sm btn-link float-right", onClick (OpenStringFilterDialog term) ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
           else
