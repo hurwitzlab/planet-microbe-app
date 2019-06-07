@@ -1,9 +1,9 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle2)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2)
 
 --import Api exposing (Cred)
 --import Avatar
 import Browser exposing (Document)
-import Html exposing (Html, a, button, h1, h2, div, span, img, i, li, nav, p, text, ul, small)
+import Html exposing (Html, a, button, h1, h2, div, span, img, i, li, nav, p, text, ul, small, footer)
 import Html.Attributes exposing (id, class, classList, src, style, title)
 import Html.Events exposing (onClick)
 --import Profile
@@ -105,6 +105,7 @@ view page content =
         [ viewHeader page
 --        , br [] []
         , content
+        , viewFooter
         ]
     }
 
@@ -166,9 +167,9 @@ viewHeader page = --page maybeViewer =
         ]
 
 
---viewFooter : Html msg
---viewFooter =
---    footer [] []
+viewFooter : Html msg
+viewFooter =
+    footer [ style "min-height" "3em" ] []
 
 
 --navbarLink : Page -> Route -> List (Html msg) -> Html msg
@@ -229,6 +230,12 @@ viewTitle title subTitle =
         [ span [ style "color" "dimgray" ] [ text title ]
         , small [ class "ml-3", style "color" "gray" ] [ text subTitle ]
         ]
+
+
+viewTitle1 : String -> Bool -> Html msg
+viewTitle1 title border =
+    h1 [ class "pb-2 mt-4 mb-2 font-weight-bold align-middle d-inline", classList [("border-bottom", border)], style "color" "dimgray" ]
+        [ text title ]
 
 
 viewTitle2 : String -> Bool -> Html msg

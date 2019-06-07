@@ -91,7 +91,7 @@ view model =
     in
     div [ class "container" ]
         [ div [ class "pt-5" ]
-            [ Page.viewTitle2 "Projects" False
+            [ Page.viewTitle1 "Projects" False
             , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
                 [ if numProjects == 0 then
                     text ""
@@ -103,7 +103,7 @@ view model =
             [ viewProjects model.projects
             ]
         , div [ class "pt-4" ]
-            [ Page.viewTitle2 "Samples" False
+            [ Page.viewTitle1 "Samples" False
             , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
                 [ if numSamples == 0 then
                     text ""
