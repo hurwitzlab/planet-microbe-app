@@ -202,7 +202,12 @@ app.get('/search', async (req, res) => {
 });
 
 app.get('/projects', async (req, res) => {
-    let result = await query({ text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type,(SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count FROM project p JOIN project_type pt ON p.project_type_id=pt.project_type_id"});
+    let result = await query({
+        text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type, \
+                (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count \
+            FROM project p \
+            JOIN project_type pt ON p.project_type_id=pt.project_type_id"
+    });
     result.rows.forEach(row => row.sample_count *= 1); // convert count to int
     res.json(result.rows);
 //    .catch(err => {
@@ -259,6 +264,17 @@ app.get('/projects/:id(\\d+)/samples', async (req, res) => {
             JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
             WHERE pts.project_id=$1",
         values: [id]
+    });
+
+    res.json(result.rows);
+});
+
+app.get('/samples', async (req, res) => {
+    let result = await query({
+        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name \
+            FROM sample s \
+            JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
+            JOIN project p ON p.project_id=pts.project_id"
     });
 
     res.json(result.rows);

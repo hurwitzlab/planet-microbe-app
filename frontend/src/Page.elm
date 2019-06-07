@@ -1,4 +1,4 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitleWithoutBorder, viewTitle2)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle2)
 
 --import Api exposing (Cred)
 --import Avatar
@@ -231,13 +231,7 @@ viewTitle title subTitle =
         ]
 
 
-viewTitleWithoutBorder : String -> Html msg
-viewTitleWithoutBorder title =
-    h1 [ class "pb-2 mt-5 mb-2 font-weight-bold", style "color" "dimgray" ]
-        [ text title ]
-
-
 viewTitle2 : String -> Bool -> Html msg
 viewTitle2 title border =
-    span [ class "h2 pb-2 mt-4 mb-2 font-weight-bold align-middle", classList [("border-bottom", border)], style "color" "dimgray" ]
+    h2 [ class "pb-2 mt-4 mb-2 font-weight-bold align-middle d-inline", classList [("border-bottom", border)], style "color" "dimgray" ]
         [ text title ]
