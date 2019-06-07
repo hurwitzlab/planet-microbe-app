@@ -2,6 +2,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 const logger = require('morgan');
+const bodyParser = require('body-parser');
 const Promise = require('promise');
 const {Client} = require('pg');
 const shortid = require('shortid');
@@ -33,6 +34,7 @@ var db;
 
 app.use(logger('dev'));
 app.use(cors());
+app.use(bodyParser.json()); // support json encoded bodies
 
 app.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog of terms
     res.json(rdfTermIndex);
@@ -399,7 +401,7 @@ app.get('/sampling_events/:id(\\d+)/samples', async (req, res) => {
     res.json(result.rows);
 });
 
-app.post('/contact', function(req, res, next) {
+app.post('/contact', (req, res) => {
     console.log(req.body);
 
     if (!config.supportEmail) {
@@ -414,25 +416,19 @@ app.post('/contact', function(req, res, next) {
     var email = req.body.email || "Unknown";
     var message = req.body.message || "";
 
-    logAdd(req, {
-        title: "Sent support email",
-        type: "contact"
-    })
-    .then( () => {
-        sendmail({
-            from: email,
-            to: config.supportEmail,
-            subject: 'Support request',
-            html: message,
-        }, (err, reply) => {
-            console.log(err && err.stack);
-            console.dir(reply);
-        });
+    sendmail({
+        from: email,
+        to: config.supportEmail,
+        subject: 'Support request',
+        html: message,
+    }, (err, reply) => {
+        console.log(err && err.stack);
+        console.dir(reply);
+    });
 
-        res.json({
-            status: "success"
-        });
-    })
+    res.json({
+        status: "success"
+    });
 });
 
 //----------------------------------------------------------------------------------------------------------------------
