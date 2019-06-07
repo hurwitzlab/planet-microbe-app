@@ -56,7 +56,8 @@ function initMap() {
       zoom: 2,
       //minZoom: 1,
       center: new google.maps.LatLng(0, 0),
-      streetViewControl: false
+      streetViewControl: false,
+      mapTypeId: 'satellite'
   });
 
   drawingManager = new google.maps.drawing.DrawingManager({
