@@ -1113,10 +1113,10 @@ viewStringFilterDialog : SearchTerm -> FilterValue -> Html Msg
 viewStringFilterDialog term val =
     let
         sortByName a b =
-            case compare (String.toLower (Tuple.first a)) (String.toLower (Tuple.first b)) of
-                LT -> GT
-                EQ -> EQ
+            case compare (String.toLower (Tuple.first b)) (String.toLower (Tuple.first a)) of
                 GT -> LT
+                EQ -> EQ
+                LT -> GT
 
         options =
             Dict.toList term.values |> List.sortWith sortByName
