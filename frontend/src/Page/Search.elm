@@ -1065,9 +1065,11 @@ viewStringFilterPanel term val =
             Dict.toList term.values |> List.sortWith sortBySelected |> List.take (Basics.max maxNumPanelOptions numSelected)
     in
     viewTermPanel term
-        [ div [] (viewStringFilterOptions term val truncatedOptions)
+        [ div []
+            (viewStringFilterOptions term val truncatedOptions)
         , if numOptions > maxNumPanelOptions then
-            button [ class "btn btn-sm btn-link float-right", onClick (OpenStringFilterDialog term) ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
+            button [ class "btn btn-sm btn-link float-right", onClick (OpenStringFilterDialog term) ]
+                [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
           else
             viewBlank
         ]
@@ -1077,12 +1079,17 @@ viewStringFilterOptions : SearchTerm -> FilterValue -> List (String, Int) -> Lis
 viewStringFilterOptions term val options =
     let
         viewRow (name, count) =
-            div []
-                [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked (isStringFilterSelected name val), onCheck (SetStringFilterValue term.id name) ] []
-                    , label [ class "form-check-label" ] [ name |> String.Extra.toSentenceCase |> text]
+            -- Using table layout to fix issue with wrapping rows
+            table [ style "width" "100%" ]
+                [ tr []
+                    [ td []
+                        [ div [ class "form-check form-check-inline" ]
+                            [ input [ class "form-check-input", type_ "checkbox", checked (isStringFilterSelected name val), onCheck (SetStringFilterValue term.id name) ] []
+                            , label [ class "form-check-label" ] [ name |> String.Extra.toSentenceCase |> text]
+                            ]
+                        ]
+                    , td [ style "max-width" "3em" ] [ div [ class "badge badge-secondary float-right align-top" ] [ count |> toFloat |> format myLocale |> text ] ]
                     ]
-                , div [ class "badge badge-secondary float-right" ] [ count |> toFloat |> format myLocale |> text ]
                 ]
     in
     List.map viewRow options
@@ -1299,7 +1306,8 @@ viewPanel id title unit removable nodes =
                   else
                     viewBlank
                 , if removable then
-                    span [ class "float-right", style "cursor" "pointer", onClick (RemoveFilter id) ] [ text (String.fromChar (Char.fromCode 10005)) ]
+                    span [ class "float-right", style "cursor" "pointer", onClick (RemoveFilter id) ]
+                        [ text (String.fromChar (Char.fromCode 10005)) ]
                   else
                     viewBlank
                 ]
