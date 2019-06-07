@@ -52,8 +52,8 @@ view : Model -> Html Msg
 view model =
     div [ class "container" ]
         [ div [ class "jumbotron", style "margin-top" "10vh" ]
-            [ div [ class "row h3" ] [ text "Coming soon ..." ]
-            , div [ class "row" ]
+            [ div [ class "h1" ] [ text "Coming soon ..." ]
+            , div []
                 [ p [] [ text "In the near future you will be able to run common tools and visualize the results here.  Check back often!" ] ]
             ]
         ]
