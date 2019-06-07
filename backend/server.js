@@ -66,10 +66,15 @@ app.get('/searchTerms', (req, res) => {
     }
 });
 
-app.get('/searchTerms/:id(\\S+)', async (req, res) => {
-    let id = req.params.id;
-    let term = getTerm(id);
+app.get('/searchTerms/:id(*)', async (req, res) => {
+    let id = decodeURIComponent(req.params.id);
 
+    // Workaround for http:// in id changed to http:/ on MYO (NGINX?)
+    if (id.startsWith('http:/'))
+	id = id.replace(/^http:\//, '');
+
+    let term = getTerm(id);
+ 
     if (!term) {
         res.status(404).json({ error: "Term not found" });
         return;
