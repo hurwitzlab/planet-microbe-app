@@ -31,11 +31,7 @@ type Page
     | Sample
     | Campaign
     | SamplingEvent
---    | Login
---    | Register
---    | Settings
---    | Profile Username
---    | NewArticle
+    | Contact
 
 
 {-| Take a page's Html and frames it with a header and footer.
@@ -52,50 +48,6 @@ in the header. (This comes up during slow page transitions.)
 --    { title = title ++ " - Conduit"
 --    , body = viewHeader page maybeViewer :: content --:: [ viewFooter ]
 --    }
-
-
---viewHeader : Page -> Maybe Viewer -> Html msg
---viewHeader page maybeViewer =
---    nav [ class "navbar navbar-light" ]
---        [ div [ class "container" ]
---            [ a [ class "navbar-brand", Route.href Route.Home ]
---                [ text "conduit" ]
---            , ul [ class "nav navbar-nav pull-xs-right" ] <|
---                navbarLink page Route.Home [ text "Home" ]
---                    :: viewMenu page maybeViewer
---            ]
---        ]
-
-
---viewMenu : Page -> Maybe Viewer -> List (Html msg)
---viewMenu page maybeViewer =
---    let
---        linkTo =
---            navbarLink page
---    in
---    case maybeViewer of
---        Just viewer ->
---            let
---                username =
---                    Viewer.username viewer
---
---                avatar =
---                    Viewer.avatar viewer
---            in
---            [ linkTo Route.NewArticle [ i [ class "ion-compose" ] [], text "\u{00A0}New Post" ]
---            , linkTo Route.Settings [ i [ class "ion-gear-a" ] [], text "\u{00A0}Settings" ]
---            , linkTo
---                (Route.Profile username)
---                [ img [ class "user-pic", Avatar.src avatar ] []
---                , Username.toHtml username
---                ]
---            , linkTo Route.Logout [ text "Sign out" ]
---            ]
---
---        Nothing ->
---            [ linkTo Route.Login [ text "Sign in" ]
---            , linkTo Route.Register [ text "Sign up" ]
---            ]
 
 
 view : Page -> Html msg -> Document msg
@@ -115,7 +67,7 @@ viewHeader page = --page maybeViewer =
     let
         helpButton =
             li [ class "nav-item" ]
-                [ a [ class "nav-link", title "Get Help" ]
+                [ a [ class "nav-link", title "Get Help", Route.href Route.Contact ]
                     [ i [ class "fa fa-question-circle fa-lg" ] [] ]
                 ]
     in

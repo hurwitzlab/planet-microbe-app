@@ -15,18 +15,13 @@ import Page.Project as Project
 import Page.Sample as Sample
 import Page.Campaign as Campaign
 import Page.SamplingEvent as SamplingEvent
+import Page.Contact as Contact
 import Session exposing (Session)
 import Route exposing (Route)
 
 
 
 main =
---    Browser.element
---        { init = init
---        , update = update
---        , view = view
---        , subscriptions = subscriptions
---        }
     Browser.application
         { init = init
         , update = update
@@ -68,6 +63,7 @@ type Model
     | Sample Sample.Model
     | Campaign Campaign.Model
     | SamplingEvent SamplingEvent.Model
+    | Contact Contact.Model
 
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -96,6 +92,7 @@ type Msg
     | SampleMsg Sample.Msg
     | CampaignMsg Campaign.Msg
     | SamplingEventMsg SamplingEvent.Msg
+    | ContactMsg Contact.Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
 
@@ -132,6 +129,9 @@ toSession page =
 
         SamplingEvent samplingEvent ->
             SamplingEvent.toSession samplingEvent
+
+        Contact contact ->
+            Contact.toSession contact
 
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
@@ -175,6 +175,10 @@ changeRouteTo maybeRoute model =
         Just (Route.SamplingEvent id) ->
             SamplingEvent.init session id
                 |> updateWith SamplingEvent SamplingEventMsg model
+
+        Just Route.Contact ->
+            Contact.init session
+                |> updateWith Contact ContactMsg model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -235,6 +239,10 @@ update msg model =
         ( SamplingEventMsg subMsg, SamplingEvent subModel ) ->
             SamplingEvent.update subMsg subModel
                 |> updateWith SamplingEvent SamplingEventMsg model
+
+        ( ContactMsg subMsg, Contact subModel ) ->
+            Contact.update subMsg subModel
+                |> updateWith Contact ContactMsg model
 
         ( _, _ ) ->
             -- Disregard messages that arrived for the wrong page.
@@ -297,3 +305,6 @@ view model =
 
         SamplingEvent subModel ->
             Page.view Page.SamplingEvent (SamplingEvent.view subModel |> Html.map SamplingEventMsg)
+
+        Contact subModel ->
+            Page.view Page.Contact (Contact.view subModel |> Html.map ContactMsg)

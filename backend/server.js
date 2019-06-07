@@ -7,6 +7,7 @@ const {Client} = require('pg');
 const shortid = require('shortid');
 const fs = require('fs');
 const stringSimilarity = require('string-similarity');
+const sendmail = require('sendmail')();
 const config = require('./config.json');
 
 var rdfTermIndex = {};
@@ -396,6 +397,42 @@ app.get('/sampling_events/:id(\\d+)/samples', async (req, res) => {
     });
 
     res.json(result.rows);
+});
+
+app.post('/contact', function(req, res, next) {
+    console.log(req.body);
+
+    if (!config.supportEmail) {
+        console.log("Error: missing supportEmail in config");
+        res.status(500).json({
+            status: "failed"
+        });
+        return;
+    }
+
+    var name = req.body.name || "Unknown";
+    var email = req.body.email || "Unknown";
+    var message = req.body.message || "";
+
+    logAdd(req, {
+        title: "Sent support email",
+        type: "contact"
+    })
+    .then( () => {
+        sendmail({
+            from: email,
+            to: config.supportEmail,
+            subject: 'Support request',
+            html: message,
+        }, (err, reply) => {
+            console.log(err && err.stack);
+            console.dir(reply);
+        });
+
+        res.json({
+            status: "success"
+        });
+    })
 });
 
 //----------------------------------------------------------------------------------------------------------------------

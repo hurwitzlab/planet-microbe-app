@@ -5,6 +5,7 @@
         "username": "",
         "password": ""
     },
+    "supportEmail": "",
     "ontologies": [
         {
             "name": "PMO",

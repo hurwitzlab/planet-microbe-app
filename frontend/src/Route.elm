@@ -21,6 +21,7 @@ type Route
     | Sample Int
     | Campaign Int
     | SamplingEvent Int
+    | Contact
 
 
 parser : Parser (Route -> a) a
@@ -34,6 +35,7 @@ parser =
         , Parser.map Sample (s "samples" </> int)
         , Parser.map Campaign (s "campaigns" </> int)
         , Parser.map SamplingEvent (s "sampling_events" </> int)
+        , Parser.map Contact (s "contact")
         ]
 
 
@@ -92,5 +94,8 @@ routeToString page =
 
                 SamplingEvent id ->
                     [ "sampling_events", toString id ]
+
+                Contact ->
+                    [ "contact" ]
     in
     "#/" ++ String.join "/" pieces

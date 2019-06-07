@@ -179,6 +179,7 @@ view model =
                     , a [ href "http://www.cyverse.org/", target "_blank" ]
                         [ img [ attribute "height" "50", src "assets/images/powered-by-cyverse-logo.png", attribute "width" "50" ] [] ]
                     ]
+                , br [] []
                 ]
             ]
         ]
