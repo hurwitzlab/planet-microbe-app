@@ -1113,7 +1113,7 @@ viewStringFilterDialog : SearchTerm -> FilterValue -> Html Msg
 viewStringFilterDialog term val =
     let
         sortByName a b =
-            case compare (Tuple.first a) (Tuple.first b) of
+            case compare (String.toLower (Tuple.first a)) (String.toLower (Tuple.first b)) of
                 LT -> GT
                 EQ -> EQ
                 GT -> LT
