@@ -9,6 +9,7 @@
     "morgan": "^1.9.1",
     "pg": "^7.7.1",
     "promise": "^8.0.1",
+    "sendmail": "^1.4.1",
     "shortid": "^2.2.14",
     "string-similarity": "^3.0.0"
   },
