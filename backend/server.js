@@ -234,7 +234,7 @@ app.get('/projects/:id(\\d+)/campaigns', async (req, res) => {
 app.get('/projects/:id(\\d+)/sampling_events', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations) AS locations,se.start_time,se.end_time \
+        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations)::json->'coordinates' AS locations,se.start_time,se.end_time \
             FROM project_to_sample pts \
             JOIN sample s ON s.sample_id=pts.sample_id \
             JOIN sampling_event se ON se.sampling_event_id=s.sampling_event_id \
@@ -243,28 +243,17 @@ app.get('/projects/:id(\\d+)/sampling_events', async (req, res) => {
         values: [id]
     });
 
-    // Format location
-    result.rows.forEach(row => {
-        row.locations = JSON.parse(row.locations)['coordinates'];
-    });
-
-
     res.json(result.rows);
 });
 
 app.get('/projects/:id(\\d+)/samples', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations) AS locations \
+        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations \
             FROM sample s \
             JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
             WHERE pts.project_id=$1",
         values: [id]
-    });
-
-    // Format location
-    result.rows.forEach(row => {
-        row.locations = JSON.parse(row.locations)['coordinates'];
     });
 
     res.json(result.rows);
@@ -273,7 +262,7 @@ app.get('/projects/:id(\\d+)/samples', async (req, res) => {
 app.get('/samples/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations) AS locations,se.sampling_event_id,se.sampling_event_type,se.name AS sampling_event_name,c.campaign_id,c.name AS campaign_name,c.campaign_type,p.project_id,p.name AS project_name \
+        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,se.sampling_event_id,se.sampling_event_type,se.name AS sampling_event_name,c.campaign_id,c.name AS campaign_name,c.campaign_type,p.project_id,p.name AS project_name \
             FROM sample s \
             LEFT JOIN sampling_event se ON se.sampling_event_id=s.sampling_event_id \
             LEFT JOIN campaign c ON c.campaign_id=se.campaign_id \
@@ -282,9 +271,6 @@ app.get('/samples/:id(\\d+)', async (req, res) => {
             WHERE s.sample_id=$1",
         values: [id]
     });
-
-    // Format location
-    result.rows[0].locations = JSON.parse(result.rows[0].locations)['coordinates'];
 
     res.json(result.rows[0]);
 });
@@ -341,16 +327,11 @@ app.get('/campaigns/:id(\\d+)', async (req, res) => {
 app.get('/campaigns/:id(\\d+)/sampling_events', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations) AS locations,se.start_time,se.end_time \
+        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations)::json->'coordinates' AS locations,se.start_time,se.end_time \
             FROM sampling_event se \
             JOIN campaign c ON c.campaign_id=se.campaign_id \
             WHERE c.campaign_id=$1",
         values: [id]
-    });
-
-    // Format location
-    result.rows.forEach(row => {
-        row.locations = JSON.parse(row.locations)['coordinates'];
     });
 
     res.json(result.rows);
@@ -359,17 +340,12 @@ app.get('/campaigns/:id(\\d+)/sampling_events', async (req, res) => {
 app.get('/campaigns/:id(\\d+)/samples', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations) AS locations \
+        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations \
             FROM campaign c \
             JOIN sampling_event se ON se.campaign_id=c.campaign_id \
             JOIN sample s ON s.sampling_event_id=se.sampling_event_id \
             WHERE c.campaign_id=$1",
         values: [id]
-    });
-
-    // Format location
-    result.rows.forEach(row => {
-        row.locations = JSON.parse(row.locations)['coordinates'];
     });
 
     res.json(result.rows);
@@ -378,7 +354,7 @@ app.get('/campaigns/:id(\\d+)/samples', async (req, res) => {
 app.get('/sampling_events/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations) AS locations,se.start_time,se.end_time,c.campaign_id,c.campaign_type,c.name AS campaign_name,p.project_id,p.name AS project_name \
+        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations)::json->'coordinates' AS locations,se.start_time,se.end_time,c.campaign_id,c.campaign_type,c.name AS campaign_name,p.project_id,p.name AS project_name \
             FROM sampling_event se \
             JOIN campaign c ON c.campaign_id=se.campaign_id \
             JOIN sample s ON s.sampling_event_id=se.sampling_event_id \
@@ -388,22 +364,14 @@ app.get('/sampling_events/:id(\\d+)', async (req, res) => {
         values: [id]
     });
 
-    // Format location
-    result.rows[0].locations = JSON.parse(result.rows[0].locations)['coordinates'];
-
     res.json(result.rows[0]);
 });
 
 app.get('/sampling_events/:id(\\d+)/samples', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations) AS locations FROM sample s WHERE s.sampling_event_id=$1",
+        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations FROM sample s WHERE s.sampling_event_id=$1",
         values: [id]
-    });
-
-    // Format location
-    result.rows.forEach(row => {
-        row.locations = JSON.parse(row.locations)['coordinates'];
     });
 
     res.json(result.rows);
@@ -536,7 +504,7 @@ async function search(db, params) {
             if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // [lat, lng, radius] in meters
                 let bounds = JSON.parse(val);
                 console.log("location:", bounds);
-                selections.push("ST_AsText(locations::geography)");
+                selections.push("replace(replace(replace(replace(ST_AsGeoJson(locations::geography)::json->>'coordinates', '[[', '['), ']]', ']'), '[', '('), ']', ')')"); // ugly af
                 gisClause = "ST_DWithin(ST_MakePoint(" + bounds[1] + "," + bounds[0] + ")::geography, locations, " + bounds[2] + ")";
             }
         }
