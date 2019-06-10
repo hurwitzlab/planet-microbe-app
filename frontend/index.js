@@ -1,4 +1,9 @@
-import { Elm } from './src/Main.elm'
+import './assets/scss/bootstrap_custom.scss'
+import $ from "jquery";
+import popper from "popper.js";
+import bootstrap from "bootstrap";
+import "@fortawesome/fontawesome-free/js/all.min.js"
+import { Elm } from './src/Main.elm';
 
 var app = Elm.Main.init({
   node: document.getElementById('main')
