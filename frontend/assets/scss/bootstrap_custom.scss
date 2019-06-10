@@ -1,0 +1,13 @@
+$theme-colors: (
+  "primary": #00bbcc
+);
+
+$link-color: #008d97;
+$link-hover-color: #00bbcc;
+
+$headings-color: #008d97; /* why not working? */
+h6 {
+    color: #008d97 !important;
+}
+
+@import "../../node_modules/bootstrap/scss/bootstrap"
