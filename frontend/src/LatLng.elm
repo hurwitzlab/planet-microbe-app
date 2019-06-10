@@ -2,7 +2,7 @@ module LatLng exposing (LatLng, decoder, encode, format, formatList)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -35,7 +35,7 @@ encode (LatLng (lat, lng)) =
 
 format : LatLng -> String
 format (LatLng (lat, lng)) =
-    (toString lat) ++ "," ++ (toString lng)
+    (String.fromFloat lat) ++ "," ++ (String.fromFloat lng)
 
 
 formatList : List LatLng -> String
@@ -45,4 +45,4 @@ formatList locs =
             format loc
 
         _ ->
-            locs |> List.map (\(LatLng (lat, lng)) -> "(" ++ (toString lat) ++ "," ++ (toString lng) ++ ")" ) |> String.join ", "
+            locs |> List.map (\(LatLng (lat, lng)) -> "(" ++ (String.fromFloat lat) ++ "," ++ (String.fromFloat lng) ++ ")" ) |> String.join ", "

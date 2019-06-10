@@ -23,7 +23,7 @@ import GMap
 import Dict exposing (Dict)
 import Route
 import Sample exposing (SearchTerm, PURL)
-import Debug exposing (toString)
+--import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
 
 
@@ -193,18 +193,18 @@ update msg model =
 
 
         GetProjectCountsCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetProjectCountsCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetProjectCountsCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetAllSearchTermsCompleted (Ok terms) ->
             ( { model | allParams = terms }, Cmd.none )
 
         GetAllSearchTermsCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetAllSearchTermsCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetAllSearchTermsCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetSearchTermCompleted (Ok term) ->
@@ -215,7 +215,7 @@ update msg model =
                 val =
                     case term.type_ of
                         "number" ->
-                            RangeValue (toString term.min) (toString term.max)
+                            RangeValue (String.fromFloat term.min) (String.fromFloat term.max)
 
                         _ ->
                             NoValue
@@ -226,9 +226,9 @@ update msg model =
             ( { model | doSearch = True, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
 
         GetSearchTermCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetSearchTermCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetSearchTermCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         ClearFilters ->
@@ -294,7 +294,7 @@ update msg model =
 
         SetStringFilterValue id val enable ->
             let
-                _ = Debug.log "SetStringFilterValue" (toString (id, val, enable))
+--                _ = Debug.log "SetStringFilterValue" (toString (id, val, enable))
 
                 newVal =
                     case Dict.get id model.selectedVals of
@@ -332,7 +332,7 @@ update msg model =
 
         SetFilterValue id val ->
             let
-                _ = Debug.log "SetFilterValue" (toString (id, val))
+--                _ = Debug.log "SetFilterValue" (toString (id, val))
 
                 newVals =
                     Dict.insert id val model.selectedVals
@@ -404,9 +404,9 @@ update msg model =
                 ( model, Cmd.none )
 
         Search newPageNum ->
-            let
-                _ = Debug.log "Search" (toString model.selectedVals)
-            in
+--            let
+--                _ = Debug.log "Search" (toString model.selectedVals)
+--            in
             case generateQueryParams model.locationVal model.projectVals model.selectedParams model.selectedVals of
                 Ok queryParams ->
                     let
@@ -416,19 +416,20 @@ update msg model =
                     ( { model | doSearch = False, isSearching = True, pageNum = newPageNum }, Task.attempt SearchCompleted searchTask )
 
                 Err error ->
-                    let
-                        _ = Debug.log "Error generating query params:" (toString error)
-                    in
+--                    let
+--                        _ = Debug.log "Error generating query params" "" --(toString error)
+--                    in
                     ( model, Cmd.none )
 
         SearchCompleted (Ok response) ->
             ( { model | count = response.count, results = Just response.results, mapResults = response.map, isSearching = False }, GMap.loadMap response.map )
 
         SearchCompleted (Err error) ->
-            let
-                _ = Debug.log "SearchCompleted" (toString error)
-            in
-            ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
+--            let
+--                _ = Debug.log "SearchCompleted" (toString error)
+--            in
+--            ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
+            ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
 
         ToggleMap ->
             let
@@ -442,7 +443,7 @@ update msg model =
                 newLocationVal =
                     case maybeLoc of
                         Just loc ->
-                            LatLngRadiusValue (toString loc.lat, toString loc.lng) (toString loc.radius)
+                            LatLngRadiusValue (String.fromFloat loc.lat, String.fromFloat loc.lng) (String.fromFloat loc.radius)
 
                         Nothing ->
                             NoLocationValue
@@ -628,9 +629,9 @@ searchRequest queryParams sortPos limit offset showMap =
 
         queryParams2 =
             queryParams
-                |> List.append [ ("sort", toString sortPos) ]
-                |> List.append [ ("limit", toString limit) ]
-                |> List.append [ ("offset", toString offset) ]
+                |> List.append [ ("sort", String.fromInt sortPos) ]
+                |> List.append [ ("limit", String.fromInt limit) ]
+                |> List.append [ ("offset", String.fromInt offset) ]
                 |> List.append [ ("map", if showMap then "1" else "0") ]
     in
     HttpBuilder.get url
@@ -1029,7 +1030,7 @@ viewProjectPanel projectCounts =
     viewPanel "" "Project" "" False
         [ div [] (List.map viewRow truncatedOptions)
         , if numOptions > maxNumPanelOptions then
-            button [ class "btn btn-sm btn-link float-right" ] [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
+            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
           else
             viewBlank
         ]
@@ -1069,7 +1070,7 @@ viewStringFilterPanel term val =
             (viewStringFilterOptions term val truncatedOptions)
         , if numOptions > maxNumPanelOptions then
             button [ class "btn btn-sm btn-link float-right", onClick (OpenStringFilterDialog term) ]
-                [ toString (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
+                [ String.fromInt (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
           else
             viewBlank
         ]
@@ -1333,7 +1334,7 @@ viewPanel id title unit removable nodes =
 --                    String.join "," list
 --
 --                Just (NumberValue (min, max)) ->
---                    param ++ " between [" ++ (toString min) ++ "," ++ (toString max) ++ "]"
+--                    param ++ " between [" ++ (String.fromInt min) ++ "," ++ (String.fromInt max) ++ "]"
 --
 --        searchStr =
 --            model.selectedParams |> List.map format |> String.join " AND "
@@ -1436,7 +1437,7 @@ viewResults model =
                     s
 
                 NumberResultValue n ->
-                    toString n
+                    String.fromFloat n
 
                 NoResultValue ->
                     ""
@@ -1459,9 +1460,9 @@ viewResults model =
         pageInfo =
             div [ class "small", style "color" "dimgray" ]
                 [ text "Showing "
-                , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> toString |> text
+                , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
                 , text " - "
-                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.count |> toString |> text
+                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.count |> String.fromInt |> text
                 , text " of "
                 , model.count |> toFloat |> format myLocale |> text
                 , text " sample"
@@ -1474,7 +1475,7 @@ viewResults model =
         pageControls =
             let
                 sizeOption size =
-                    a [ class "dropdown-item", href "", onClick (SetPageSize size) ] [ text (toString size) ]
+                    a [ class "dropdown-item", href "", onClick (SetPageSize size) ] [ text (String.fromInt size) ]
 
                 pageOption label num =
                     let
@@ -1490,7 +1491,7 @@ viewResults model =
                 [ div [ class "float-left" ]
                     [ text "Show "
                     , div [ class "dropup", style "display" "inline" ]
-                        [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (toString model.pageSize) ]
+                        [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (String.fromInt model.pageSize) ]
                         , div [ class "dropdown-menu" ]
                             (List.map sizeOption [20, 40, 60, 80, 100])
                         ]
@@ -1501,9 +1502,9 @@ viewResults model =
                         --FIXME code below is a little kludgey
                         [ pageOption "First" 0
                         , pageOption "Previous" (model.pageNum - 1)
-                        , pageOption (toString (model.pageNum + 1)) model.pageNum
-                        , if model.pageNum + 1 > lastPageNum then text "" else pageOption (toString (model.pageNum + 2)) (model.pageNum + 1)
-                        , if model.pageNum + 2 > lastPageNum then text "" else pageOption (toString (model.pageNum + 3)) (model.pageNum + 2)
+                        , pageOption (String.fromInt (model.pageNum + 1)) model.pageNum
+                        , if model.pageNum + 1 > lastPageNum then text "" else pageOption (String.fromInt (model.pageNum + 2)) (model.pageNum + 1)
+                        , if model.pageNum + 2 > lastPageNum then text "" else pageOption (String.fromInt (model.pageNum + 3)) (model.pageNum + 2)
                         , if model.pageNum + 3 > lastPageNum then text "" else pageOption "..." (model.pageNum + 3)
                         , pageOption "Next" (model.pageNum + 1)
                         , pageOption "Last" lastPageNum

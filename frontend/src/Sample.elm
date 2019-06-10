@@ -11,7 +11,6 @@ import Json.Encode as Encode
 import Dict exposing (Dict)
 import LatLng exposing (LatLng)
 import Config exposing (apiBaseUrl)
-import Debug exposing (toString)
 
 
 
@@ -146,7 +145,7 @@ fetch : Int -> Http.Request Sample
 fetch id  =
     let
         url =
-            apiBaseUrl ++ "/samples/" ++ (toString id)
+            apiBaseUrl ++ "/samples/" ++ (String.fromInt id)
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson sampleDecoder)
@@ -168,7 +167,7 @@ fetchAllByProject : Int -> Http.Request (List Sample)
 fetchAllByProject id =
     let
         url =
-            apiBaseUrl ++ "/projects/" ++ (toString id) ++ "/samples"
+            apiBaseUrl ++ "/projects/" ++ (String.fromInt id) ++ "/samples"
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))
@@ -179,7 +178,7 @@ fetchAllBySamplingEvent : Int -> Http.Request (List Sample)
 fetchAllBySamplingEvent id =
     let
         url =
-            apiBaseUrl ++ "/sampling_events/" ++ (toString id) ++ "/samples"
+            apiBaseUrl ++ "/sampling_events/" ++ (String.fromInt id) ++ "/samples"
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))
@@ -190,7 +189,7 @@ fetchAllByCampaign : Int -> Http.Request (List Sample)
 fetchAllByCampaign id =
     let
         url =
-            apiBaseUrl ++ "/campaigns/" ++ (toString id) ++ "/samples"
+            apiBaseUrl ++ "/campaigns/" ++ (String.fromInt id) ++ "/samples"
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))
@@ -201,7 +200,7 @@ fetchMetadata : Int -> Http.Request Metadata
 fetchMetadata id =
     let
         url =
-            apiBaseUrl ++ "/samples/" ++ (toString id) ++ "/metadata"
+            apiBaseUrl ++ "/samples/" ++ (String.fromInt id) ++ "/metadata"
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson metadataDecoder)

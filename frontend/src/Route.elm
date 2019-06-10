@@ -5,7 +5,6 @@ import Html exposing (Attribute)
 import Html.Attributes as Attr
 import Url exposing (Url)
 import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, int, string)
-import Debug exposing (toString)
 
 
 
@@ -84,16 +83,16 @@ routeToString page =
                     [ "analyze" ]
 
                 Project id ->
-                    [ "projects", toString id ]
+                    [ "projects", String.fromInt id ]
 
                 Sample id ->
-                    [ "samples", toString id ]
+                    [ "samples", String.fromInt id ]
 
                 Campaign id ->
-                    [ "campaigns", toString id ]
+                    [ "campaigns", String.fromInt id ]
 
                 SamplingEvent id ->
-                    [ "sampling_events", toString id ]
+                    [ "sampling_events", String.fromInt id ]
 
                 Contact ->
                     [ "contact" ]

@@ -12,7 +12,7 @@ import Http
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
 import String.Extra
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -64,27 +64,27 @@ update msg model =
             ( { model | campaign = Just campaign }, Cmd.none )
 
         GetCampaignCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetCampaignCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetCampaignCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetSamplingEventsCompleted (Ok samplingEvents) ->
             ( { model | samplingEvents = Just samplingEvents }, Cmd.none )
 
         GetSamplingEventsCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetSamplingEventsCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetSamplingEventsCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetSamplesCompleted (Ok samples) ->
             ( { model | samples = Just samples }, Cmd.none )
 
         GetSamplesCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetSamplesCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetSamplesCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
 
@@ -119,7 +119,7 @@ view model =
                         [ if numSamplingEvents == 0 then
                             text ""
                           else
-                            text (toString numSamplingEvents)
+                            text (String.fromInt numSamplingEvents)
                         ]
                     ]
                 , div [ class "pt-2" ]
@@ -130,7 +130,7 @@ view model =
                         [ if numSamples == 0 then
                             text ""
                           else
-                            text (toString numSamples)
+                            text (String.fromInt numSamples)
                         ]
                     ]
                 , div [ class "pt-2" ]

@@ -78,9 +78,9 @@ update msg model =
             ( { model | message = message }, Cmd.none )
 
         Submit ->
-            let
-                _ = Debug.log "Contact.Submit" model
-            in
+--            let
+--                _ = Debug.log "Contact.Submit" model
+--            in
             ( { model | sent = True }, submit model )
 
         SubmitDone response ->

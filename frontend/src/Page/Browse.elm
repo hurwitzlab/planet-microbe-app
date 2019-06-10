@@ -11,7 +11,7 @@ import Json.Decode.Pipeline exposing (optional, required)
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
 import String.Extra
-import Debug exposing (toString)
+--import Debug exposing (toString)
 import Project exposing (Project)
 import Sample exposing (Sample)
 
@@ -61,18 +61,18 @@ update msg model =
             ( { model | projects = projects }, Cmd.none )
 
         GetProjectsCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetProjectsCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetProjectsCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetSamplesCompleted (Ok samples) ->
             ( { model | samples = samples }, Cmd.none )
 
         GetSamplesCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetSamplesCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetSamplesCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
 
@@ -96,7 +96,7 @@ view model =
                 [ if numProjects == 0 then
                     text ""
                   else
-                    text (toString numProjects)
+                    text (String.fromInt numProjects)
                 ]
             ]
         , div [ class "pt-2" ]
@@ -108,7 +108,7 @@ view model =
                 [ if numSamples == 0 then
                     text ""
                   else
-                    text (toString numSamples)
+                    text (String.fromInt numSamples)
                 ]
             ]
         , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh"]
@@ -126,7 +126,7 @@ viewProjects projects =
                     [ a [ Route.href (Route.Project project.id) ] [ text project.name ] ]
                 , td [] [ text project.description ]
                 , td [] [ text (String.Extra.toSentenceCase project.type_) ]
-                , td [] [ text (toString project.sampleCount) ]
+                , td [] [ text (String.fromInt project.sampleCount) ]
                 ]
 
         sortByName a b =

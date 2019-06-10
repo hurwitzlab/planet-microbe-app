@@ -15,7 +15,7 @@ import Http
 import Task exposing (Task)
 import String.Extra
 import Json.Encode as Encode
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -78,18 +78,18 @@ update msg model =
             ( { model | samplingEvent = Just samplingEvent }, Cmd.none )
 
         GetSamplingEventCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetSamplingEventCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetSamplingEventCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetSamplesCompleted (Ok samples) ->
             ( { model | samples = Just samples }, Cmd.none )
 
         GetSamplesCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetSamplesCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetSamplesCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         MapLoaded success ->
@@ -136,7 +136,7 @@ view model =
                         [ if numSamples == 0 then
                             text ""
                           else
-                            text (toString numSamples)
+                            text (String.fromInt numSamples)
                         ]
                     ]
                 , div [ class "pt-2" ]

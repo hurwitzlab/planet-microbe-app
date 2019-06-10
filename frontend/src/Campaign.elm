@@ -9,7 +9,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
 import Json.Encode as Encode
 import Config exposing (apiBaseUrl)
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -61,7 +61,7 @@ fetch : Int -> Http.Request Campaign
 fetch id  =
     let
         url =
-            apiBaseUrl ++ "/campaigns/" ++ (toString id)
+            apiBaseUrl ++ "/campaigns/" ++ (String.fromInt id)
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson campaignDecoder)
@@ -72,7 +72,7 @@ fetchAllByProject : Int -> Http.Request (List Campaign)
 fetchAllByProject id =
     let
         url =
-            apiBaseUrl ++ "/projects/" ++ (toString id) ++ "/campaigns"
+            apiBaseUrl ++ "/projects/" ++ (String.fromInt id) ++ "/campaigns"
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list campaignDecoder))

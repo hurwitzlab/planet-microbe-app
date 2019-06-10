@@ -13,7 +13,7 @@ import Http
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
 import String.Extra
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -69,36 +69,36 @@ update msg model =
             ( { model | project = Just project }, Cmd.none )
 
         GetProjectCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetProjectCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetProjectCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetCampaignsCompleted (Ok campaigns) ->
             ( { model | campaigns = Just campaigns }, Cmd.none )
 
         GetCampaignsCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetCampaignsCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetCampaignsCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetSamplingEventsCompleted (Ok samplingEvents) ->
             ( { model | samplingEvents = Just samplingEvents }, Cmd.none )
 
         GetSamplingEventsCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetSamplingEventsCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetSamplingEventsCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetSamplesCompleted (Ok samples) ->
             ( { model | samples = Just samples }, Cmd.none )
 
         GetSamplesCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetSamplesCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetSamplesCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
 
@@ -134,7 +134,7 @@ view model =
                         [ if numCampaigns == 0 then
                             text ""
                           else
-                            text (toString numCampaigns)
+                            text (String.fromInt numCampaigns)
                         ]
                     ]
                 , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
@@ -145,7 +145,7 @@ view model =
                         [ if numSamplingEvents == 0 then
                             text ""
                           else
-                            text (toString numSamplingEvents)
+                            text (String.fromInt numSamplingEvents)
                         ]
                     ]
                 , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
@@ -156,7 +156,7 @@ view model =
                         [ if numSamples == 0 then
                             text ""
                           else
-                            text (toString numSamples)
+                            text (String.fromInt numSamples)
                         ]
                     ]
                 , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]

@@ -1,8 +1,11 @@
 module Page.Sample exposing (Model, Msg, init, subscriptions, toSession, update, view)
 
 import Session exposing (Session)
+import Browser.Dom exposing (Error(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Html.Events exposing (onMouseOver)
+import Json.Decode as Decode exposing (Decoder, at)
 import Page
 import Route
 import Sample exposing (Sample, Metadata, Value(..), SearchTerm)
@@ -15,7 +18,7 @@ import Time
 import String.Extra
 import List.Extra
 import Json.Encode as Encode
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -28,6 +31,14 @@ type alias Model =
     , terms : Maybe (List SearchTerm)
     , metadata : Maybe Metadata
     , mapLoaded : Bool
+    , tooltip : Maybe ToolTip
+    }
+
+
+type alias ToolTip = --TODO move tooltip code into own module
+    { x : Float
+    , y : Float
+    , purl : String
     }
 
 
@@ -38,6 +49,7 @@ init session id =
       , terms = Nothing
       , metadata = Nothing
       , mapLoaded = False
+      , tooltip = Nothing
       }
       , Cmd.batch
         [ GMap.removeMap "" -- workaround for blank map on navigating back to this page
@@ -73,6 +85,8 @@ type Msg
     | GetMetadataCompleted (Result Http.Error Metadata)
     | MapLoaded Bool
     | TimerTick Time.Posix
+    | ShowTooltip String
+    | GotElement String (Result Browser.Dom.Error Browser.Dom.Element)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -82,27 +96,27 @@ update msg model =
             ( { model | sample = Just sample }, Cmd.none )
 
         GetSampleCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetSampleCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetSampleCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetSearchTermsCompleted (Ok terms) ->
             ( { model | terms = Just terms }, Cmd.none )
 
         GetSearchTermsCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetSearchTermsCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetSearchTermsCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetMetadataCompleted (Ok metadata) ->
             ( { model | metadata = Just metadata }, Cmd.none )
 
         GetMetadataCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetMetadataCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetMetadataCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         MapLoaded success ->
@@ -119,6 +133,26 @@ update msg model =
 
                 (_, _) ->
                     ( model, Cmd.none )
+
+        ShowTooltip purl ->
+            let
+                getElement =
+                    Browser.Dom.getElement purl |> Task.attempt (GotElement purl)
+            in
+            ( model, getElement )
+
+        GotElement purl (Ok element) ->
+            let
+                tooltip =
+                    ToolTip (element.element.x + element.element.width) element.element.y purl
+            in
+            ( { model | tooltip = Just tooltip }, Cmd.none )
+
+        GotElement _ (Err error) ->
+--            let
+--                _ = Debug.log "GotElement" (toString error)
+--            in
+            ( model, Cmd.none )
 
 
 
@@ -139,6 +173,12 @@ view model =
                 , div [ class "pt-3 pb-2" ]
                     [ Page.viewTitle2 "Metadata" False ]
                 , viewMetadata model.metadata model.terms
+                , case model.tooltip of
+                    Nothing ->
+                        text ""
+
+                    Just tooltip ->
+                        viewTooltip tooltip
                 ]
 
 
@@ -203,7 +243,7 @@ viewMap =
 
 
 viewMetadata : Maybe Metadata -> Maybe (List SearchTerm) -> Html Msg
-viewMetadata maybeMetadata maybeTerms =
+viewMetadata maybeMetadata maybeTerms  =
     case (maybeMetadata, maybeTerms) of
         (Just metadata, Just terms) ->
             let
@@ -216,10 +256,10 @@ viewMetadata maybeMetadata maybeTerms =
                             v
 
                         Just (IntValue i) ->
-                            toString i
+                            String.fromInt i
 
                         Just (FloatValue f) ->
-                            toString f
+                            String.fromFloat f
 
                 getTermProperty id prop =
                     List.filter (\t -> t.id == id) terms |> List.map prop |> List.head
@@ -230,18 +270,28 @@ viewMetadata maybeMetadata maybeTerms =
                     else
                         text val
 
-                mkRow (field, maybeValue) =
-                    tr []
-                        [ td []
-                            [ a [ href field.rdfType, title field.rdfType, target "_blank" ]
+                mkRdf field =
+                    if field.rdfType /= "" then
+                        div []
+                            [ a [ href field.rdfType, target "_blank", id field.rdfType, onMouseOver (ShowTooltip field.rdfType) ]
                                 [ getTermProperty field.rdfType .label |> Maybe.withDefault "" |> text ]
                             ]
+                    else
+                        text ""
+
+                mkUnitRdf field =
+                    if field.unitRdfType /= "" then
+                        a [ href field.unitRdfType, title field.unitRdfType, target "_blank" ]
+                                [ getTermProperty field.rdfType .unitLabel |> Maybe.withDefault "" |> text ]
+                    else
+                        text ""
+
+                mkRow index (field, maybeValue) =
+                    tr []
+                        [ td [] [ mkRdf field ]
                         , td [] [ text field.name ]
                         , td [] [ maybeValue |> valueToString |> mkValue ]
-                        , td []
-                            [ a [ href field.unitRdfType, title field.unitRdfType, target "_blank" ]
-                                [ getTermProperty field.rdfType .unitLabel |> Maybe.withDefault "" |> text ]
-                            ]
+                        , td [] [ mkUnitRdf field ]
                         ]
             in
             table [ class "table table-sm" ]
@@ -254,10 +304,21 @@ viewMetadata maybeMetadata maybeTerms =
                         ]
                     ]
                 , tbody []
-                    (List.Extra.zip metadata.fields metadata.values |> List.map mkRow )
+                    (List.Extra.zip metadata.fields metadata.values |> List.indexedMap mkRow )
                 ]
 
         _ ->
             text "None"
 
 
+viewTooltip : ToolTip -> Html msg
+viewTooltip tooltip =
+    let
+        top =
+            (String.fromFloat tooltip.y) ++ "px"
+
+        left =
+            (String.fromFloat tooltip.x) ++ "px"
+    in
+    div [ class "border", style "background-color" "#e0e0e0", style "z-index" "1000", style "position" "absolute", style "top" top, style "left" left ]
+        [ text "foo" ]

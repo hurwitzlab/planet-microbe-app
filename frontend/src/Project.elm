@@ -9,7 +9,6 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode
 import Config exposing (apiBaseUrl)
-import Debug exposing (toString)
 
 
 
@@ -49,7 +48,7 @@ fetch : Int -> Http.Request Project
 fetch id  =
     let
         url =
-            apiBaseUrl ++ "/projects/" ++ (toString id)
+            apiBaseUrl ++ "/projects/" ++ (String.fromInt id)
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson projectDecoder)

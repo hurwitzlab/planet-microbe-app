@@ -10,7 +10,7 @@ import Json.Decode.Pipeline exposing (required, optional)
 import Json.Encode as Encode
 import LatLng exposing (LatLng)
 import Config exposing (apiBaseUrl)
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -60,7 +60,7 @@ fetch : Int -> Http.Request SamplingEvent
 fetch id  =
     let
         url =
-            apiBaseUrl ++ "/sampling_events/" ++ (toString id)
+            apiBaseUrl ++ "/sampling_events/" ++ (String.fromInt id)
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson samplingEventDecoder)
@@ -71,7 +71,7 @@ fetchAllByCampaign : Int -> Http.Request (List SamplingEvent)
 fetchAllByCampaign id =
     let
         url =
-            apiBaseUrl ++ "/campaigns/" ++ (toString id) ++ "/sampling_events"
+            apiBaseUrl ++ "/campaigns/" ++ (String.fromInt id) ++ "/sampling_events"
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list samplingEventDecoder))
@@ -82,7 +82,7 @@ fetchAllByProject : Int -> Http.Request (List SamplingEvent)
 fetchAllByProject id =
     let
         url =
-            apiBaseUrl ++ "/projects/" ++ (toString id) ++ "/sampling_events"
+            apiBaseUrl ++ "/projects/" ++ (String.fromInt id) ++ "/sampling_events"
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list samplingEventDecoder))
