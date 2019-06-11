@@ -22,6 +22,7 @@ import Set
 import GMap
 import Dict exposing (Dict)
 import Route
+import Page exposing (viewBlank, viewSpinner)
 import Sample exposing (SearchTerm, PURL)
 --import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
@@ -1569,26 +1570,3 @@ viewMap showMap mapLoaded =
                 style "display" "none"
     in
     GMap.view [ hideOrShow, style "height" "50vh", style "width" "100%", style "margin-bottom" "0.85em", classList [("border", mapLoaded)] ] []
-
-
-viewBlank : Html Msg
-viewBlank =
-    text ""
-
-
-viewSpinner : Html Msg
-viewSpinner =
-    div [ class "ml-loader", style "position" "absolute", style "height" "100vh", style "top" "50%", style "left" "60%" ]
-        [ div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        ]

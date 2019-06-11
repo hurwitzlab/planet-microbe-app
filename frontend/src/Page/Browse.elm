@@ -22,16 +22,16 @@ import Sample exposing (Sample)
 
 type alias Model =
     { session : Session
-    , projects : List Project
-    , samples : List Sample
+    , projects : Maybe (List Project)
+    , samples : Maybe (List Sample)
     }
 
 
 init : Session -> ( Model, Cmd Msg )
 init session =
     ( { session = session
-      , projects = []
-      , samples = []
+      , projects = Nothing
+      , samples = Nothing
       }
       , Cmd.batch
         [ Project.fetchAll |> Http.toTask |> Task.attempt GetProjectsCompleted
@@ -58,7 +58,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GetProjectsCompleted (Ok projects) ->
-            ( { model | projects = projects }, Cmd.none )
+            ( { model | projects = Just projects }, Cmd.none )
 
         GetProjectsCompleted (Err error) -> --TODO
 --            let
@@ -67,7 +67,7 @@ update msg model =
             ( model, Cmd.none )
 
         GetSamplesCompleted (Ok samples) ->
-            ( { model | samples = samples }, Cmd.none )
+            ( { model | samples = Just samples }, Cmd.none )
 
         GetSamplesCompleted (Err error) -> --TODO
 --            let
@@ -84,10 +84,10 @@ view : Model -> Html Msg
 view model =
     let
         numProjects =
-            List.length model.projects
+            model.projects |> Maybe.withDefault [] |> List.length
 
         numSamples =
-            List.length model.samples
+            model.samples |> Maybe.withDefault [] |> List.length
     in
     div [ class "container" ]
         [ div [ class "pt-5" ]
@@ -117,8 +117,8 @@ view model =
         ]
 
 
-viewProjects : List Project -> Html Msg
-viewProjects projects =
+viewProjects : Maybe (List Project) -> Html Msg
+viewProjects maybeProjects =
     let
         mkRow project =
             tr []
@@ -132,25 +132,30 @@ viewProjects projects =
         sortByName a b =
             compare a.name b.name
     in
-    if projects == [] then
-        text "None"
-    else
-        table [ class "table" ]
-            [ thead []
-                [ tr []
-                    [ th [] [ text "Name" ]
-                    , th [] [ text "Description" ]
-                    , th [] [ text "Type" ]
-                    , th [] [ text "Samples" ]
+    case maybeProjects of
+        Nothing ->
+            Page.viewSpinner
+
+        Just projects ->
+            if projects == [] then
+                text "None"
+            else
+                table [ class "table" ]
+                    [ thead []
+                        [ tr []
+                            [ th [] [ text "Name" ]
+                            , th [] [ text "Description" ]
+                            , th [] [ text "Type" ]
+                            , th [] [ text "Samples" ]
+                            ]
+                        ]
+                    , tbody []
+                        (projects |> List.sortWith sortByName |> List.map mkRow)
                     ]
-                ]
-            , tbody []
-                (projects |> List.sortWith sortByName |> List.map mkRow)
-            ]
 
 
-viewSamples : List Sample -> Html Msg
-viewSamples samples =
+viewSamples : Maybe (List Sample) -> Html Msg
+viewSamples maybeSamples =
     let
         mkRow sample =
             tr []
@@ -163,16 +168,21 @@ viewSamples samples =
         sortByAccn a b =
             compare a.accn b.accn
     in
-    if samples == [] then
-        text "None"
-    else
-        table [ class "table" ]
-            [ thead []
-                [ tr []
-                    [ th [] [ text "Accn" ]
-                    , th [] [ text "Project" ]
+    case maybeSamples of
+        Nothing ->
+            Page.viewSpinner
+
+        Just samples ->
+            if samples == [] then
+                text "None"
+            else
+                table [ class "table" ]
+                    [ thead []
+                        [ tr []
+                            [ th [] [ text "Accn" ]
+                            , th [] [ text "Project" ]
+                            ]
+                        ]
+                    , tbody []
+                        (samples |> List.sortWith sortByAccn |> List.map mkRow)
                     ]
-                ]
-            , tbody []
-                (samples |> List.sortWith sortByAccn |> List.map mkRow)
-            ]

@@ -1,4 +1,4 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner)
 
 --import Api exposing (Cred)
 --import Avatar
@@ -194,3 +194,26 @@ viewTitle2 : String -> Bool -> Html msg
 viewTitle2 title border =
     h2 [ class "pb-2 mt-4 mb-2 font-weight-bold align-middle d-inline", classList [("border-bottom", border)], style "color" "dimgray" ]
         [ text title ]
+
+
+viewBlank : Html msg
+viewBlank =
+    text ""
+
+
+viewSpinner : Html msg
+viewSpinner =
+    div [ class "ml-loader", style "position" "absolute", style "height" "100vh", style "top" "50%", style "left" "60%" ]
+        [ div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        , div [] []
+        ]
