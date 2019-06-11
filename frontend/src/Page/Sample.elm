@@ -286,12 +286,19 @@ viewMetadata maybeMetadata maybeTerms  =
                     else
                         text ""
 
+                mkSourceUrl url =
+                    if url == "" then
+                        text ""
+                    else
+                        a [ href url, target "_blank" ] [ text "Link" ]
+
                 mkRow index (field, maybeValue) =
                     tr []
                         [ td [] [ mkRdf field ]
                         , td [] [ text field.name ]
                         , td [] [ maybeValue |> valueToString |> mkValue ]
                         , td [] [ mkUnitRdf field ]
+                        , td [] [ mkSourceUrl field.sourceUrl ]
                         ]
             in
             table [ class "table table-sm" ]
@@ -301,6 +308,7 @@ viewMetadata maybeMetadata maybeTerms  =
                         , th [] [ text "Dataset Label" ]
                         , th [] [ text "Value" ]
                         , th [] [ text "Unit" ]
+                        , th [] [ text "Source" ]
                         ]
                     ]
                 , tbody []

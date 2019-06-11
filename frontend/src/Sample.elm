@@ -54,6 +54,7 @@ type alias Field =
     , type_ : String
     , rdfType : PURL
     , unitRdfType : PURL
+    , sourceUrl : String
     }
 
 
@@ -111,6 +112,7 @@ fieldDecoder =
         |> required "type" Decode.string
         |> optional "rdfType" Decode.string ""
         |> optional "pm:unitRdfType" Decode.string ""
+        |> optional "pm:sourceUrl" Decode.string ""
 
 
 valueDecoder : Decoder (Maybe Value)
