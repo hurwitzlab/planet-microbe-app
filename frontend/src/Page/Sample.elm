@@ -173,12 +173,12 @@ view model =
                 , div [ class "pt-3 pb-2" ]
                     [ Page.viewTitle2 "Metadata" False ]
                 , viewMetadata model.metadata model.terms
-                , case model.tooltip of
-                    Nothing ->
-                        text ""
-
-                    Just tooltip ->
-                        viewTooltip tooltip
+--                , case model.tooltip of
+--                    Nothing ->
+--                        text ""
+--
+--                    Just tooltip ->
+--                        viewTooltip tooltip
                 ]
 
 
@@ -311,14 +311,14 @@ viewMetadata maybeMetadata maybeTerms  =
             text "None"
 
 
-viewTooltip : ToolTip -> Html msg
-viewTooltip tooltip =
-    let
-        top =
-            (String.fromFloat tooltip.y) ++ "px"
-
-        left =
-            (String.fromFloat tooltip.x) ++ "px"
-    in
-    div [ class "border", style "background-color" "#e0e0e0", style "z-index" "1000", style "position" "absolute", style "top" top, style "left" left ]
-        [ text "foo" ]
+--viewTooltip : ToolTip -> Html msg
+--viewTooltip tooltip =
+--    let
+--        top =
+--            (String.fromFloat tooltip.y) ++ "px"
+--
+--        left =
+--            (String.fromFloat tooltip.x) ++ "px"
+--    in
+--    div [ class "border", style "background-color" "#e0e0e0", style "z-index" "1000", style "position" "absolute", style "top" top, style "left" left ]
+--        [ text "foo" ]
