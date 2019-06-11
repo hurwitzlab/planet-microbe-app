@@ -364,7 +364,10 @@ update msg model =
         SetProjectFilterValue val enable ->
             let
                 vals =
-                    val :: model.projectVals |> List.Extra.unique
+                    model.projectVals
+                        |> Set.fromList
+                        |> (if enable then Set.insert val else Set.remove val)
+                        |> Set.toList
             in
             ( { model | doSearch = True, projectVals = vals }, Cmd.none )
 
