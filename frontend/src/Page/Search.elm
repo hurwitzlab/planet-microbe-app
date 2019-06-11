@@ -239,7 +239,7 @@ update msg model =
                     |> Dict.remove purlDateTime
                     |> Dict.map (\k v -> NoValue)
             in
-            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = newVals, sortPos = 1 }, GMap.setLocation Nothing )
+            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = newVals, projectVals = [], sortPos = 1 }, GMap.setLocation Nothing )
 
         AddFilter id ->
             let
@@ -364,10 +364,7 @@ update msg model =
         SetProjectFilterValue val enable ->
             let
                 vals =
-                    model.projectVals
-                        |> Set.fromList
-                        |> (if enable then Set.insert val else Set.remove val)
-                        |> Set.toList
+                    val :: model.projectVals |> List.Extra.unique
             in
             ( { model | doSearch = True, projectVals = vals }, Cmd.none )
 
@@ -838,7 +835,7 @@ viewSearchPanel model =
                 ]
             , div []
                 [ viewLocationPanel model
-                , viewProjectPanel model.projectCounts
+                , viewProjectPanel model.projectCounts model.projectVals
                 , viewAddedFiltersPanel model model.selectedParams model.selectedTerms model.selectedVals
                 , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allParams model.selectedParams
                 ]
@@ -1003,16 +1000,20 @@ viewSearchFilterPanel term val =
         ]
 
 
-viewProjectPanel : List ProjectCount -> Html Msg --TODO merge with viewStringFilterPanel
-viewProjectPanel projectCounts =
+viewProjectPanel : List ProjectCount -> List String -> Html Msg --TODO merge with viewStringFilterPanel
+viewProjectPanel counts selectedVals =
     let
-        viewRow projectCount =
+        viewRow vals count =
+            let
+                isChecked =
+                    List.member count.name vals
+            in
             div []
                 [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", onCheck (SetProjectFilterValue projectCount.name) ] []
-                    , label [ class "form-check-label" ] [ text projectCount.name ]
+                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetProjectFilterValue count.name) ] []
+                    , label [ class "form-check-label" ] [ text count.name ]
                     ]
-                , div [ class "badge badge-secondary float-right" ] [ projectCount.sampleCount |> toFloat |> format myLocale |> text ]
+                , div [ class "badge badge-secondary float-right" ] [ count.sampleCount |> toFloat |> format myLocale |> text ]
                 ]
 
         sortByCount a b =
@@ -1022,13 +1023,13 @@ viewProjectPanel projectCounts =
                 GT -> LT
 
         truncatedOptions =
-            projectCounts |> List.sortWith sortByCount |> List.take maxNumPanelOptions
+            counts |> List.sortWith sortByCount |> List.take maxNumPanelOptions
 
         numOptions =
-            List.length projectCounts
+            List.length counts
     in
     viewPanel "" "Project" "" False
-        [ div [] (List.map viewRow truncatedOptions)
+        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numOptions > maxNumPanelOptions then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
           else
