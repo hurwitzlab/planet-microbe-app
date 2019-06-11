@@ -1126,7 +1126,7 @@ viewStringFilterDialog term val =
         options =
             Dict.toList term.values |> List.sortWith sortByName
     in
-    viewDialog (String.Extra.toSentenceCase term.label)
+    viewDialog (String.Extra.toTitleCase term.label)
         [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions term val options) ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseStringFilterDialog ] [ text "Close" ] ]
         CloseStringFilterDialog
@@ -1373,7 +1373,7 @@ viewResults model =
                         String.fromChar (Char.fromCode 9660)
 
                 lbl =
-                    String.Extra.toSentenceCase
+                    String.Extra.toTitleCase
                         (if pos == abs model.sortPos then
                             label ++ " " ++ dirSymbol
                         else
