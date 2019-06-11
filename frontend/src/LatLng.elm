@@ -1,7 +1,8 @@
-module LatLng exposing (LatLng, decoder, encode, format, formatList)
+module LatLng exposing (LatLng, decoder, encode, format, formatList, unique)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
+import List.Extra
 --import Debug exposing (toString)
 
 
@@ -33,6 +34,7 @@ encode (LatLng (lat, lng)) =
 
 -- TRANSFORM
 
+
 format : LatLng -> String
 format (LatLng (lat, lng)) =
     (String.fromFloat lat) ++ "," ++ (String.fromFloat lng)
@@ -45,4 +47,27 @@ formatList locs =
             format loc
 
         _ ->
-            locs |> List.map (\(LatLng (lat, lng)) -> "(" ++ (String.fromFloat lat) ++ "," ++ (String.fromFloat lng) ++ ")" ) |> String.join ", "
+            locs
+                |> List.map
+                    (\(LatLng (lat, lng)) ->
+                        "(" ++ (String.fromFloat lat) ++ "," ++ (String.fromFloat lng) ++ ")"
+                    )
+                |> String.join ", "
+
+
+toTuple : LatLng -> (Float, Float)
+toTuple (LatLng (lat, lng))  =
+    (lat, lng)
+
+
+fromTuple : (Float, Float) -> LatLng
+fromTuple (lat, lng) =
+    LatLng (lat, lng)
+
+
+unique : List LatLng -> List LatLng
+unique locs =
+    locs
+        |> List.map toTuple
+        |> List.Extra.unique
+        |> List.map fromTuple

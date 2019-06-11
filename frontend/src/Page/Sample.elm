@@ -226,7 +226,7 @@ viewSample sample =
                         , samplingEventRow
                         , tr []
                             [ th [] [ text "Lat/Lng (deg)" ]
-                            , td [] [ text (LatLng.formatList sample.locations) ]
+                            , td [] [ text (sample.locations |> LatLng.unique |> LatLng.formatList) ]
                             ]
                         ]
                     ]
