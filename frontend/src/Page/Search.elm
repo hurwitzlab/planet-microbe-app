@@ -23,7 +23,7 @@ import GMap
 import Dict exposing (Dict)
 import Route
 import Sample exposing (SearchTerm, PURL)
-import Debug exposing (toString)
+--import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
 
 
@@ -404,9 +404,9 @@ update msg model =
                 ( model, Cmd.none )
 
         Search newPageNum ->
-            let
-                _ = Debug.log "Search" (toString model.selectedVals)
-            in
+--            let
+--                _ = Debug.log "Search" (toString model.selectedVals)
+--            in
             case generateQueryParams model.locationVal model.projectVals model.selectedParams model.selectedVals of
                 Ok queryParams ->
                     let
