@@ -22,6 +22,7 @@ var gmap,
     showDrawingManager: true,
     showMarkerClusters: true,
     fitBounds: false,
+    fullscreenControl: true
   };
 
 function initMap() {
@@ -36,6 +37,7 @@ function initMap() {
       //minZoom: 1,
       center: new google.maps.LatLng(0, 0),
       streetViewControl: false,
+      fullscreenControl: mapSettings.fullscreenControl,
       //mapTypeId: 'satellite'
   });
 

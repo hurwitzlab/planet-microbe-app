@@ -15,6 +15,7 @@ type alias Settings =
     { showDrawingManager : Bool
     , showMarkerClusters : Bool
     , fitBounds: Bool
+    , fullscreenControl : Bool
     }
 
 
@@ -24,6 +25,7 @@ encodeSettings settings =
         [ ("showDrawingManager", Encode.bool settings.showDrawingManager)
         , ("showMarkerClusters", Encode.bool settings.showMarkerClusters)
         , ("fitBounds", Encode.bool settings.fitBounds)
+        , ("fullscreenControl", Encode.bool settings.fullscreenControl)
         ]
 
 
