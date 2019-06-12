@@ -1,3 +1,5 @@
+module Main exposing (..)
+
 import Browser
 import Browser.Navigation
 import Url exposing (Url)
