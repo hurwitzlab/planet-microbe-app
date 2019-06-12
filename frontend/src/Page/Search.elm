@@ -926,7 +926,7 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
                 |> not
 
         filterOnSearch term =
-            String.contains searchVal term.label
+            String.contains (String.toLower searchVal) (String.toLower term.label)
 
         options =
             allTerms
@@ -1362,6 +1362,8 @@ viewPanel id title unit removable nodes =
 viewResults : Model -> Html Msg
 viewResults model =
     let
+        maxColWidth = "8em"
+
         mkTh index label =
             let
                 pos =
@@ -1381,7 +1383,7 @@ viewResults model =
                             label
                         )
             in
-            th [ style "cursor" "pointer", onClick (SetSortPos pos) ] [ text lbl ]
+            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetSortPos pos) ] [ text lbl ]
 
         timeSpaceParamNames = -- kinda kludgey, find another way to order time/space params
             let
@@ -1434,7 +1436,7 @@ viewResults model =
                 ++ [ th [] [ text "Cart" ] ]
 
         mkTd label =
-            td [] [ text label ]
+            td [ style "max-width" maxColWidth ] [ text label ]
 
         formatVal val =
             case val of
