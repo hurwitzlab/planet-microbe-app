@@ -39,7 +39,7 @@ init session id =
       }
       , Cmd.batch
         [ GMap.removeMap "" -- workaround for blank map on navigating back to this page
-        , GMap.changeMapSettings (GMap.Settings False False True |> GMap.encodeSettings)
+        , GMap.changeMapSettings (GMap.Settings False False True False |> GMap.encodeSettings)
         , SamplingEvent.fetch id |> Http.toTask |> Task.attempt GetSamplingEventCompleted
         , Sample.fetchAllBySamplingEvent id |> Http.toTask |> Task.attempt GetSamplesCompleted
         ]
