@@ -8,9 +8,11 @@ import bootstrap from "bootstrap";
 import "@fortawesome/fontawesome-free/js/all.min.js"
 import { Elm } from './src/Main.elm';
 
+
 var app = Elm.Main.init({
   node: document.getElementById('main')
 });
+
 
 var gmap,
   drawingManager,
@@ -33,12 +35,12 @@ function initMap() {
     throw("initMap: map div not found");
 
   gmap = new google.maps.Map(mapDiv, {
-      zoom: 2,
-      //minZoom: 1,
-      center: new google.maps.LatLng(0, 0),
-      streetViewControl: false,
-      fullscreenControl: mapSettings.fullscreenControl,
-      //mapTypeId: 'satellite'
+    zoom: 2,
+    //minZoom: 1,
+    center: new google.maps.LatLng(0, 0),
+    streetViewControl: false,
+    fullscreenControl: mapSettings.fullscreenControl,
+    //mapTypeId: 'satellite'
   });
 
   drawingManager = new google.maps.drawing.DrawingManager({
