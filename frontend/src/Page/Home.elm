@@ -98,31 +98,72 @@ view model =
             , div [ class "row featurette" ]
                 [ div [ class "col-md-7" ]
                     [ h2 [ class "featurette-heading" ]
-                        [ text "Semantic Search. "
-                        , span [ class "text-muted" ]
-                            [ text "subtitle" ]
+                        [ text "Semantic Search: "
+                        , span [ class "text-muted" ] [ text "FAIR data in practice" ]
                         ]
                     , p [ class "lead" ]
-                        [ text "Donec ullamcorper nulla non metus auctor fringilla. Vestibulum id ligula porta felis euismod semper. Praesent commodo cursus magna, vel scelerisque nisl consectetur. Fusce dapibus, tellus ac cursus commodo." ]
+                        [ text "Planet Microbe adheres to "
+                        , a [ href "https://en.wikipedia.org/wiki/FAIR_data", target "_blank" ]
+                            [ text "FAIR data principles" ]
+                        , text " by using the "
+                        , a [ href "http://environmentontology.org/", target "_blank" ]
+                            [ text "EnvO Ontology" ]
+                        , text " and "
+                        , a [ href "http://www.obofoundry.org/", target "_blank" ]
+                            [ text "OBO Foundry" ]
+                        , text
+                            """
+                            to enable impactful multi-disciplinary analyses. All data are standardized, with
+                            high-quality data and metadata linked to ontologies to enable advanced searches and
+                            interoperability between heterogeneous datasets. Check out our metadata and 4D-search
+                            capabilities for our new
+                            """
+                        , a [ href "https://www.planetmicrobe.org/project/#/search" ]
+                            [ text "alpha release" ]
+                        , text "."
+                        ]
                     ]
                 , div [ class "col-md-5" ]
-                    [ img [ alt "Animated GIF screen capture", class "featurette-image img-fluid mx-auto", attribute "data-src" "holder.js/500x500/auto" ]
-                        []
+                    [ a [ href "https://www.planetmicrobe.org/project/#/search" ]
+                        [ img [ class "border shadow featurette-image img-fluid mx-auto", src "assets/images/search-demo.gif", alt "Animated GIF screen capture" ] []
+                        ]
                     ]
                 ]
             , hr [ class "featurette-divider" ] []
             , div [ class "row featurette" ]
                 [ div [ class "col-md-7 order-md-2" ]
                     [ h2 [ class "featurette-heading" ]
-                        [ text "Scalable Analytics. "
+                        [ text "Scalable Analytics: "
                         , span [ class "text-muted" ]
-                            [ text "subtitle" ]
+                            [ text "Innovating cyberinfrastructure design for scalable marine sciences" ]
                         ]
                     , p [ class "lead" ]
-                        [ text "Donec ullamcorper nulla non metus auctor fringilla. Vestibulum id ligula porta felis euismod semper. Praesent commodo cursus magna, vel scelerisque nisl consectetur. Fusce dapibus, tellus ac cursus commodo." ]
+                        [ text
+                            """
+                            A tipping point for marine sciences is to enable ecosystem-level analyses through existing
+                            computing and data resources, collaborative tool development, and large-scale oceanographic
+                            ‘omics and environmental datasets. Planet Microbe uses existing data storage and
+                            high-performance computational platforms available through
+                            """
+                        , a [ href "http://www.cyverse.org/", target "_blank" ]
+                            [ text "CyVerse" ]
+                        , text " and "
+                        , a [ href "https://www.xsede.org/", target "_blank" ]
+                            [ text "XSEDE" ]
+                        , text
+                            """
+                            The resulting Planet Microbe framework represents a community-driven and highly
+                            accessible data architecture for optimizing global scale computation and expanding our
+                            knowledge of microbial-driven ocean processes. The analytics platform will be coming soon!
+                            Check back with us regularly and follow us on
+                            """
+                        , a [ href "https://twitter.com/PlanetMicrobe", target "_blank" ]
+                            [ text "Twitter" ]
+                        , text "."
+                        ]
                     ]
                 , div [ class "col-md-5 order-md-1" ]
-                    [ img [ alt "Animated GIF screen capture", class "featurette-image img-fluid mx-auto", attribute "data-src" "holder.js/500x500/auto" ]
+                    [ img [ class "border shadow featurette-image img-fluid mx-auto", src "assets/images/scalable-analytics.png", alt "architecture diagram" ]
                         []
                     ]
                 ]
@@ -130,15 +171,33 @@ view model =
             , div [ class "row featurette" ]
                 [ div [ class "col-md-7" ]
                     [ h2 [ class "featurette-heading" ]
-                        [ text "Community Integration. "
+                        [ text "Community Integration: "
                         , span [ class "text-muted" ]
-                            [ text "subtitle" ]
+                            [ text "Collaboration and Outreach" ]
                         ]
                     , p [ class "lead" ]
-                        [ text "Donec ullamcorper nulla non metus auctor fringilla. Vestibulum id ligula porta felis euismod semper. Praesent commodo cursus magna, vel scelerisque nisl consectetur. Fusce dapibus, tellus ac cursus commodo." ]
+                        [ text
+                            """
+                            Scientists, data scientists, and CI experts from diverse domains often “speak a different
+                            language”. Planet Microbe connects with diverse scientists in the National Microbiome Data
+                            Collaborative to share knowledge about how data might be used, by defining stories or use
+                            cases. With guidance from the community, we develop data resources and tools that are
+                            compatible with ideas and needs from the community.
+                            """
+                        , a [ href "https://members.aaas.org/trelliscommunitiesbyaaas/communities/community-home?CommunityKey=c9a11f04-f616-4c64-a216-a9e7fe4221e5", target "_blank" ]
+                            [ text "Come join us!" ]
+                        , text
+                            """
+                            We actively recruit ideas from the community through our feedback link, at conferences,
+                            and through our use-case protocols at
+                            """
+                        , a [ href "https://www.protocols.io/groups/hurwitz-lab", target "_blank" ]
+                            [ text "Protocols.io" ]
+                        , text "."
+                        ]
                     ]
                 , div [ class "col-md-5" ]
-                    [ img [ alt "Animated GIF screen capture", class "featurette-image img-fluid mx-auto", attribute "data-src" "holder.js/500x500/auto" ]
+                    [ img [ class "border shadow featurette-image img-fluid mx-auto float-right", style "width" "80%", src "assets/images/earthcube-projects.jpg", alt "Diagram of Earthcube projects" ]
                         []
                     ]
                 ]
@@ -146,13 +205,15 @@ view model =
             ]
         , div [ style "background-image" "url('assets/images/ocean-floor.jpg')", style "background-size" "cover", style "min-height" "18em" ] --TODO move into css
             [ div [ class "container" ]
-                [ div [ class "row", style "padding-top" "7.2em" ]
-                    [ div [ class "col col-lg-6" ]
+                [ div [ class "row", style "padding-top" "6em" ]
+                    [ div [ class "col col-lg-4" ]
                         [ h2 [ class "font-weight-bold", style "text-shadow" "2px 2px 3px rgba(0,0,0,0.6)", style "font-size" "2.5em", style "color" "#F0F0F0" ]
-                            [ text "Connect to Planet Microbe:" ]
+                            [ text "Connect to" ]
+                        , h2 [ class "font-weight-bold", style "text-shadow" "2px 2px 3px rgba(0,0,0,0.6)", style "font-size" "2.5em", style "color" "#F0F0F0" ]
+                            [ text "Planet Microbe:" ]
                         ]
-                    , div [ class "col" ]
-                        [ nav [ class "nav", style "text-shadow" "2px 2px 3px rgba(0,0,0,0.6)", style "font-size" "1.5em" ]
+                    , div [ class "col", style "padding-top" "1em" ]
+                        [ nav [ class "nav", style "text-shadow" "2px 2px 3px rgba(0,0,0,0.6)", style "font-size" "1.6em" ]
                             [ a [ class "nav-link", style "color" "#F0F0F0", href "https://members.aaas.org/trelliscommunitiesbyaaas/communities/community-home?CommunityKey=c9a11f04-f616-4c64-a216-a9e7fe4221e5", target "_blank" ]
                                 [ text "Trellis Blog" ]
                             , a [ class "nav-link", style "color" "#F0F0F0", href "http://www.hurwitzlab.org/", target "_blank" ]
@@ -161,6 +222,8 @@ view model =
                                 [ text "Twitter" ]
                             , a [ class "nav-link", style "color" "#F0F0F0", href "https://github.com/search?q=org%3Ahurwitzlab+planet-microbe&unscoped_q=planet-microbe", target "_blank" ]
                                 [ text "GitHub" ]
+                            , a [ class "nav-link", style "color" "#F0F0F0", href "https://www.protocols.io/groups/hurwitz-lab", target "_blank" ]
+                                [ text "Protocols.io" ]
                             ]
                         ]
                     ]

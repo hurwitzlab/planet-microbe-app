@@ -29,10 +29,27 @@
   margin: 5rem 0; /* Space out the Bootstrap <hr> more */
 }
 
+.featurette {
+  padding-top: 0px; /* Vertically center images part 1: add padding above and below text. */
+  overflow: hidden; /* Vertically center images part 2: clear their floats. */
+}
+
 .featurette-heading {
   font-weight: 300;
   line-height: 1;
   letter-spacing: -.05rem;
+}
+
+.featurette-image {
+  margin-top: 0px;
+}
+
+.featurette-image.pull-left {
+  margin-right: 40px;
+}
+
+.featurette-image.pull-right {
+  margin-left: 40px;
 }
 
 @media (min-width: 40em) {
@@ -43,6 +60,6 @@
 
 @media (min-width: 62em) {
   .featurette-heading {
-    margin-top: 7rem;
+    margin-top: 0rem;
   }
 }
