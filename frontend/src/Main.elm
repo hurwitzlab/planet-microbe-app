@@ -67,7 +67,7 @@ type Model
 
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
-init navKey url flags =
+init flags url navKey =
 --    let
 --        ( subModel, subMsg ) =
 ----            Search.init flags
@@ -76,7 +76,8 @@ init navKey url flags =
 --    ( Search subModel, Cmd.map SearchMsg subMsg )
 --    ( Home subModel, Cmd.none )
     changeRouteTo (Route.fromUrl url)
-        (Redirect Session.empty) --(Session.fromViewer navKey maybeViewer))
+--        (Redirect Session.empty) --(Session.fromViewer navKey maybeViewer))
+        (Redirect (Session "" Nothing Nothing "" navKey))
 
 
 

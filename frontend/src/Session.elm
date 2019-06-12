@@ -2,7 +2,7 @@ module Session exposing (..)
 
 --import Data.Cart as Cart exposing (Cart)
 --import Data.User as User exposing (User)
---import Browser.Navigation
+import Browser.Navigation
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode exposing (Value)
@@ -20,58 +20,58 @@ type alias Session =
     , expiresAt : Maybe Int
 --    , user : Maybe User
     , url : String
---    , navKey : Browser.Navigation.Key
+    , navKey : Browser.Navigation.Key
     }
 
 
-empty : Session
-empty =
---    { cart = Cart.empty
-    { token = ""
-    , expiresIn = Nothing
-    , expiresAt = Nothing
---    , user = Nothing
-    , url = ""
---    , navKey =
-    }
+--empty : Session
+--empty =
+----    { cart = Cart.empty
+--    { token = ""
+--    , expiresIn = Nothing
+--    , expiresAt = Nothing
+----    , user = Nothing
+--    , url = ""
+----    , navKey = ""
+--    }
 
 
-expired : Session -> Session
-expired session =
-    { session
-        | expiresAt = Nothing
-        , expiresIn = Nothing
-        , token = ""
---        , user = Nothing
-    }
+--expired : Session -> Session
+--expired session =
+--    { session
+--        | expiresAt = Nothing
+--        , expiresIn = Nothing
+--        , token = ""
+----        , user = Nothing
+--    }
 
 
-isLoggedIn : Session -> Bool
-isLoggedIn session =
-    session.token /= ""
+--isLoggedIn : Session -> Bool
+--isLoggedIn session =
+--    session.token /= ""
 
 
-decoder : Decoder Session
-decoder =
-    Decode.succeed Session
---        |> required "cart" Cart.decoder
-        |> optional "token" Decode.string ""
-        |> optional "expiresIn" (Decode.nullable Decode.int) Nothing
-        |> optional "expiresAt" (Decode.nullable Decode.int) Nothing
---        |> optional "user" (Decode.nullable User.decoder) Nothing
-        |> optional "url" Decode.string ""
+--decoder : Decoder Session
+--decoder =
+--    Decode.succeed Session
+----        |> required "cart" Cart.decoder
+--        |> optional "token" Decode.string ""
+--        |> optional "expiresIn" (Decode.nullable Decode.int) Nothing
+--        |> optional "expiresAt" (Decode.nullable Decode.int) Nothing
+----        |> optional "user" (Decode.nullable User.decoder) Nothing
+--        |> optional "url" Decode.string ""
 
 
-encode : Session -> Value
-encode session =
-    Encode.object
---        [ ("cart", Cart.encode session.cart)
-        [ ("token", Encode.string session.token)
-        , ("expiresIn", maybe Encode.int session.expiresIn)
-        , ("expiresAt", maybe Encode.int session.expiresAt)
---        , ("user", EncodeExtra.maybe User.encode session.user)
-        , ("url", Encode.string session.url)
-        ]
+--encode : Session -> Value
+--encode session =
+--    Encode.object
+----        [ ("cart", Cart.encode session.cart)
+--        [ ("token", Encode.string session.token)
+--        , ("expiresIn", maybe Encode.int session.expiresIn)
+--        , ("expiresAt", maybe Encode.int session.expiresAt)
+----        , ("user", EncodeExtra.maybe User.encode session.user)
+--        , ("url", Encode.string session.url)
+--        ]
 
 
 --store : Session -> Cmd msg
