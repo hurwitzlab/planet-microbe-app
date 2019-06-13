@@ -871,7 +871,7 @@ viewLocationPanel model =
                             ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Location"] ])
                                 :: (viewLocationFilterInput model.locationVal)
                                 ++ [ div [ class "input-group-append" ]
-                                    [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+                                    [ viewFormatButton
                                     , div [ class "dropdown-menu" ]
                                         [ a [ class "dropdown-item", href "", onClick (SetLocationFilterValue (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (m)" ]
 --                                        , a [ class "dropdown-item", href "", onClick (SetLocationFilterValue (  ("","") ("",""))) ] [ text "Lat min/max, Lng min/max (deg)" ]
@@ -1200,7 +1200,7 @@ viewNumberFilterFormatOptions id =
             [ ("exact", SingleValue ""), ("range", RangeValue "" ""), ("offset", OffsetValue "" "") ]
     in
     div [ class "input-group-append" ]
-        [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+        [ viewFormatButton
         , div [ class "dropdown-menu" ]
             (List.map viewOption options)
         ]
@@ -1253,7 +1253,7 @@ viewDateTimeFilterFormatOptions id =
             ]
     in
     div [ class "input-group-append" ]
-        [ button [ class "btn btn-outline-secondary dropdown-toggle dropdown-toggle-split", type_ "button", attribute "data-toggle" "dropdown" ] [ text "Format" ]
+        [ viewFormatButton
         , div [ class "dropdown-menu" ]
             (List.map viewOption options)
         ]
@@ -1572,3 +1572,9 @@ viewMap showMap mapLoaded =
                 style "display" "none"
     in
     GMap.view [ hideOrShow, style "height" "50vh", style "width" "100%", style "margin-bottom" "0.85em", classList [("border", mapLoaded)] ] []
+
+
+viewFormatButton : Html Msg
+viewFormatButton =
+    button [ type_ "button", class "btn", style "border" "1px solid lightgray", style "color" "gray", attribute "data-toggle" "dropdown" ]
+        [ i [ class "fas fa-cog" ] [] ]
