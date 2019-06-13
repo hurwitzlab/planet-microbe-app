@@ -1433,7 +1433,7 @@ viewResults model =
 
         columns =
             List.indexedMap mkTh paramNames
-                ++ [ th [] [ text "Cart" ] ]
+--                ++ [ th [] [ text "Cart" ] ]
 
         mkTd label =
             td [ style "max-width" maxColWidth ] [ text label ]
@@ -1458,7 +1458,7 @@ viewResults model =
                     [ [ mkTd result.projectName ]
                     , [ td [] [ a [ Route.href (Route.Sample result.sampleId)  ] [ text (List.head result.values |> Maybe.withDefault NoResultValue |> formatVal) ] ] ]
                     , result.values |> List.tail |> Maybe.withDefault [] |> List.map (formatVal >> mkTd)
-                    , [ td [] [ addToCartButton ] ]
+--                    , [ td [] [ addToCartButton ] ]
                     ])
 
         count =
