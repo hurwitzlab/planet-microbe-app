@@ -1,11 +1,10 @@
-module Main exposing (..)
+module Main exposing (..) -- this line is required for Parcel elm-hot HMR file change detection
 
 import Browser
 import Browser.Navigation
 import Url exposing (Url)
 import Html exposing (..)
 import Json.Encode as Encode exposing (Value)
---import Debug exposing (toString)
 import Page exposing (Page, view)
 import Page.NotFound as NotFound
 import Page.Blank as Blank
@@ -18,8 +17,11 @@ import Page.Sample as Sample
 import Page.Campaign as Campaign
 import Page.SamplingEvent as SamplingEvent
 import Page.Contact as Contact
+import GAnalytics
 import Session exposing (Session)
 import Route exposing (Route)
+import Config exposing (googleAnalyticsTrackingId)
+--import Debug exposing (toString)
 
 
 
@@ -70,13 +72,6 @@ type Model
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url navKey =
---    let
---        ( subModel, subMsg ) =
-----            Search.init flags
---            Home.init
---    in
---    ( Search subModel, Cmd.map SearchMsg subMsg )
---    ( Home subModel, Cmd.none )
     changeRouteTo (Route.fromUrl url)
 --        (Redirect Session.empty) --(Session.fromViewer navKey maybeViewer))
         (Redirect (Session "" Nothing Nothing "" navKey))
@@ -147,41 +142,52 @@ changeRouteTo maybeRoute model =
         Nothing ->
             ( NotFound session, Cmd.none )
 
-        Just Route.Home ->
-            Home.init session
-                |> updateWith Home HomeMsg model
+        Just route ->
+            let
+                ( newModel, newCmd ) =
+                    case route of
+                        Route.Home ->
+                            Home.init session
+                                |> updateWith Home HomeMsg model
 
-        Just Route.Browse ->
-            Browse.init session
-                |> updateWith Browse BrowseMsg model
+                        Route.Browse ->
+                            Browse.init session
+                                |> updateWith Browse BrowseMsg model
 
-        Just Route.Search ->
-            Search.init session
-                |> updateWith Search SearchMsg model
+                        Route.Search ->
+                            Search.init session
+                                |> updateWith Search SearchMsg model
 
-        Just Route.Analyze ->
-            Analyze.init session
-                |> updateWith Analyze AnalyzeMsg model
+                        Route.Analyze ->
+                            Analyze.init session
+                                |> updateWith Analyze AnalyzeMsg model
 
-        Just (Route.Project id) ->
-            Project.init session id
-                |> updateWith Project ProjectMsg model
+                        (Route.Project id) ->
+                            Project.init session id
+                                |> updateWith Project ProjectMsg model
 
-        Just (Route.Sample id) ->
-            Sample.init session id
-                |> updateWith Sample SampleMsg model
+                        (Route.Sample id) ->
+                            Sample.init session id
+                                |> updateWith Sample SampleMsg model
 
-        Just (Route.Campaign id) ->
-            Campaign.init session id
-                |> updateWith Campaign CampaignMsg model
+                        (Route.Campaign id) ->
+                            Campaign.init session id
+                                |> updateWith Campaign CampaignMsg model
 
-        Just (Route.SamplingEvent id) ->
-            SamplingEvent.init session id
-                |> updateWith SamplingEvent SamplingEventMsg model
+                        (Route.SamplingEvent id) ->
+                            SamplingEvent.init session id
+                                |> updateWith SamplingEvent SamplingEventMsg model
 
-        Just Route.Contact ->
-            Contact.init session
-                |> updateWith Contact ContactMsg model
+                        Route.Contact ->
+                            Contact.init session
+                                |> updateWith Contact ContactMsg model
+            in
+            ( newModel
+            , Cmd.batch
+                [ newCmd
+                , GAnalytics.send (Route.routeToString route) googleAnalyticsTrackingId -- Google Analytics
+                ]
+            )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )

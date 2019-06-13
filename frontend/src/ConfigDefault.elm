@@ -1,4 +1,4 @@
-module Config exposing (apiBaseUrl, alertBannerText)
+module Config exposing (..)
 
 
 -- Backend REST API
@@ -12,3 +12,8 @@ apiBaseUrl =
 alertBannerText : Maybe String
 alertBannerText =
     Nothing
+
+
+googleAnalyticsTrackingId : String
+googleAnalyticsTrackingId =
+    ""

@@ -9,10 +9,40 @@ import "@fortawesome/fontawesome-free/js/all.min.js"
 import { Elm } from './Main.elm';
 
 
+/*
+ * Initialize Elm app
+ */
+
 var app = Elm.Main.init({
   node: document.getElementById('main')
 });
 
+
+/*
+ * Google Analytics
+ */
+
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+
+// Log route changes from Elm
+app.ports.updateAnalytics.subscribe(function (event) {
+  if (!event || !event.page || !event.trackingId) {
+    console.error("updateAnalytics: invalid event");
+    return;
+  }
+
+  console.log("updateAnalytics:", event.page);
+  gtag('config', event.trackingId, {
+    'page_path': event.page
+  });
+});
+
+
+/*
+ * Google Maps
+ */
 
 var gmap,
   drawingManager,
