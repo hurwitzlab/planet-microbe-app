@@ -42,7 +42,7 @@ maxNumPanelOptions =
 
 
 minNumPanelOptionsForSearchBar =
-    30
+    100
 
 
 purlSampleID =
