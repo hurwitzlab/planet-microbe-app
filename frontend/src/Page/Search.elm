@@ -823,12 +823,13 @@ view model =
 viewSearchPanel : Model -> Html Msg
 viewSearchPanel model =
     div []
-        [ div [ class "small" ]
-            [ a [ class "alert-link", href "", onClick ClearFilters ] [ text "Reset" ]
-            , text " | "
-            , a [ class "alert-link", href ""] [ text "Advanced Search" ]
-            ]
-        , div [ style "border" "1px solid lightgray", style "display" "inline-block" ]
+        [
+--        div [ class "small" ]
+--            [ a [ class "alert-link", href "", onClick ClearFilters ] [ text "Reset" ]
+--            , text " | "
+--            , a [ class "alert-link", href "" ] [ text "Advanced Search" ] --TODO
+--            ]
+        div [ style "border" "1px solid lightgray", style "display" "inline-block" ]
             [ ul [ class "nav nav-tabs" ]
                 [ li [ class "nav-item" ]
                     [ a [ class "nav-link", href "", style "color" "black" ] [ text "Projects" ] ]
@@ -836,6 +837,8 @@ viewSearchPanel model =
                     [ a [ class "nav-link active", href "", style "font-weight" "bold" ] [ text "Samples" ] ]
                 , li [ class "nav-item" ]
                     [ a [ class "nav-link", href "", style "color" "black" ] [ text "Files" ] ]
+                , li [ class "nav-item ml-auto" ]
+                    [ a [ class "small nav-link", href "", style "font-weight" "bold", onClick ClearFilters ] [ text "Reset" ] ]
                 ]
             , div []
                 [ viewLocationPanel model
@@ -1541,8 +1544,8 @@ viewResults model =
                                 [ a [ class "nav-link active", href "", style "font-weight" "bold" ] [ text "Samples" ] ]
                             , li [ class "nav-item" ]
                                 [ a [ class "nav-link", href "", style "color" "black" ] [ text "Files" ] ]
-                            , li [ class "nav-item ml-auto" ]
-                                [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+--                            , li [ class "nav-item ml-auto" ] --TODO
+--                                [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
                             ]
                         , table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
                             [ thead [] [ tr [] columns ]
