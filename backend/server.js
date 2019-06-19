@@ -84,7 +84,9 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
     }
     console.log("term:", term);
 
-    let aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
+    let aliases = [];
+    if (term.schemas)
+        aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
 
     if (term.type == "string") {
         let uniqueVals = {};
@@ -108,7 +110,8 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
             unitLabel: term.unitLabel,
             type: term.type,
             aliases: aliases,
-            values: uniqueVals
+            values: uniqueVals,
+            annotations: term.annotations
         });
 // TODO
 //        })
@@ -144,7 +147,8 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
             type: term.type,
             aliases: aliases,
             min: min,
-            max: max
+            max: max,
+            annotations: term.annotations
         });
 // TODO
 //        .catch(err => {
@@ -179,7 +183,8 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
             type: term.type,
             aliases: aliases,
             min: new Date(min).toISOString(),
-            max: new Date(max).toISOString()
+            max: new Date(max).toISOString(),
+            annotations: term.annotations
         });
 // TODO
 //        .catch(err => {
@@ -484,33 +489,50 @@ async function generateTermIndex(db, ontologyDescriptors) {
 
 function load_ontology(type, path, index) {
     if (path.endsWith(".json")) {
-        var json = fs.readFileSync(path);
-        ontology = JSON.parse(json);
-//          ontology.graphs.forEach( g => {
-//            g.nodes.forEach(node => {
-//                if (node.id in index)
-//                    throw("Error: duplicate PURL");
-//
-//                index[node.id] = {
-//                    id: node.id,
-//                    label: node.lbl
-//                };
-//            })
-//          });
-        ontology.classAttribute.forEach(node => {
-            let label = "<unknown>";
-            if (node["label"]) {
-                if (node["label"]["en"])
-                    label = node["label"]["en"];
-                else if (node["label"]["undefined"])
-                    label = node["label"]["undefined"];
-            }
+        ontology = JSON.parse(fs.readFileSync(path));
 
-            index[node.iri] = {
-                id: node.iri,
-                label: label
-            }
-        });
+        if (type == "term") {
+            ontology.graphs.forEach( g => {
+                g.nodes.forEach(node => {
+                    let annotations = [];
+                    if (node.meta && node.meta.basicPropertyValues)
+                        annotations = node.meta.basicPropertyValues.map(prop => { return { id: prop.pred, value: prop.val }; });
+
+                    if (!(node.id in index))
+                        index[node.id] = {};
+                    index[node.id] = Object.assign(index[node.id],
+                        {
+                            id: node.id,
+                            label: node.lbl,
+                            annotations: annotations
+                        }
+                    );
+                });
+            });
+        }
+        else if (type == "term_owl") {
+            ontology.classAttribute.forEach(node => {
+                let label = "<unknown>";
+                if (node["label"]) {
+                    if (node["label"]["en"])
+                        label = node["label"]["en"];
+                    else if (node["label"]["undefined"])
+                        label = node["label"]["undefined"];
+                }
+
+                if (!(node.iri in index))
+                    index[node.iri] = {};
+                index[node.iri] = Object.assign(index[node.iri],
+                    {
+                        id: node.iri,
+                        label: label,
+                    }
+                );
+            });
+        }
+        else {
+            throw("Error: unsupported ontology type");
+        }
     }
     else if (path.endsWith(".csv")) {
         var data = fs.readFileSync(path, { encoding: "UTF8" });
