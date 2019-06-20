@@ -1030,15 +1030,18 @@ viewProjectPanel counts selectedVals =
                 GT -> LT
 
         truncatedOptions =
-            counts |> List.sortWith sortByCount |> List.take maxNumPanelOptions
+            counts |> List.sortWith sortByCount --|> List.take 4 maxNumPanelOptions
 
         numOptions =
             List.length counts
+
+        numMore =
+            0 --numOptions - maxNumPanelOptions
     in
     viewPanel "" "Project" "" False
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
-        , if numOptions > maxNumPanelOptions then
-            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
+        , if numMore > 0 then
+            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
           else
             viewBlank
         ]
