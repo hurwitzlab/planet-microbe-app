@@ -347,7 +347,7 @@ viewMetadata maybeMetadata maybeTerms  =
 
 viewTooltip : ToolTip (List Annotation) -> Html msg
 viewTooltip tooltip =
-    if tooltip.content /= [] then
+    if tooltip.content /= [] && tooltip.x /= 0 && tooltip.y /= 0 then
         let
             top =
                 (String.fromFloat tooltip.y) ++ "px"
