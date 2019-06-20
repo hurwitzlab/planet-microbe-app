@@ -4,8 +4,7 @@ import Session exposing (Session)
 import Browser.Dom exposing (Error(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onMouseOver)
-import Json.Decode as Decode exposing (Decoder, at)
+import Html.Events exposing (onMouseEnter, onMouseLeave)
 import Page
 import Route
 import Sample exposing (Sample, Metadata, Value(..), SearchTerm)
@@ -38,7 +37,7 @@ type alias Model =
 type alias ToolTip = --TODO move tooltip code into own module
     { x : Float
     , y : Float
-    , purl : String
+    , content : List String
     }
 
 
@@ -86,7 +85,9 @@ type Msg
     | MapLoaded Bool
     | TimerTick Time.Posix
     | ShowTooltip String
-    | GotElement String (Result Browser.Dom.Error Browser.Dom.Element)
+    | HideTooltip
+    | GotElement (Result Browser.Dom.Error Browser.Dom.Element)
+    | GetSearchTermCompleted (Result Http.Error SearchTerm)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -137,20 +138,56 @@ update msg model =
         ShowTooltip purl ->
             let
                 getElement =
-                    Browser.Dom.getElement purl |> Task.attempt (GotElement purl)
-            in
-            ( model, getElement )
+                    Browser.Dom.getElement purl |> Task.attempt GotElement
 
-        GotElement purl (Ok element) ->
+                getSearchTerm =
+                    Sample.fetchSearchTerm purl |> Http.toTask |> Task.attempt GetSearchTermCompleted
+            in
+            ( model, Cmd.batch [ getElement, getSearchTerm ] )
+
+        HideTooltip ->
+            ( { model | tooltip = Nothing }, Cmd.none )
+
+        GotElement (Ok element) ->
             let
-                tooltip =
-                    ToolTip (element.element.x + element.element.width) element.element.y purl
-            in
-            ( { model | tooltip = Just tooltip }, Cmd.none )
+                x =
+                    element.element.x + element.element.width
 
-        GotElement _ (Err error) ->
+                y =
+                    element.element.y
+            in
+            case model.tooltip of
+                Just tooltip ->
+                    ( { model | tooltip = Just ( { tooltip | x = x, y = y } ) }, Cmd.none )
+
+                Nothing ->
+                    ( { model | tooltip = Just (ToolTip x y []) }, Cmd.none )
+
+        GotElement (Err error) ->
 --            let
 --                _ = Debug.log "GotElement" (toString error)
+--            in
+            ( model, Cmd.none )
+
+        GetSearchTermCompleted (Ok term) ->
+            let
+                content =
+                    term.annotations
+                        |> List.map formatAnno
+
+                formatAnno a =
+                    a.label ++ ": " ++ a.value
+            in
+            case model.tooltip of
+                Just tooltip ->
+                    ( { model | tooltip = Just { tooltip | content = content } }, Cmd.none )
+
+                Nothing ->
+                    ( { model | tooltip = Just (ToolTip 0 0 content) }, Cmd.none )
+
+        GetSearchTermCompleted (Err error) -> --TODO
+--            let
+--                _ = Debug.log "GetSearchTermCompleted" (toString error)
 --            in
             ( model, Cmd.none )
 
@@ -173,12 +210,12 @@ view model =
                 , div [ class "pt-3 pb-2" ]
                     [ Page.viewTitle2 "Metadata" False ]
                 , viewMetadata model.metadata model.terms
---                , case model.tooltip of
---                    Nothing ->
---                        text ""
---
---                    Just tooltip ->
---                        viewTooltip tooltip
+                , case model.tooltip of
+                    Nothing ->
+                        text ""
+
+                    Just tooltip ->
+                        viewTooltip tooltip
                 ]
 
 
@@ -273,7 +310,7 @@ viewMetadata maybeMetadata maybeTerms  =
                 mkRdf field =
                     if field.rdfType /= "" then
                         div []
-                            [ a [ href field.rdfType, target "_blank", id field.rdfType, onMouseOver (ShowTooltip field.rdfType) ]
+                            [ a [ href field.rdfType, target "_blank", id field.rdfType, onMouseEnter (ShowTooltip field.rdfType), onMouseLeave HideTooltip ]
                                 [ getTermProperty field.rdfType .label |> Maybe.withDefault "" |> text ]
                             ]
                     else
@@ -300,15 +337,18 @@ viewMetadata maybeMetadata maybeTerms  =
                         , td [] [ mkUnitRdf field ]
                         , td [] [ mkSourceUrl field.sourceUrl ]
                         ]
+
+                extLinkIcon =
+                    i [ class "fas fa-external-link-alt fa-xs align-baseline ml-2" ] []
             in
             table [ class "table table-sm" ]
                 [ thead []
                     [ tr []
-                        [ th [] [ text "ENVO Label" ]
-                        , th [] [ text "Dataset Label" ]
+                        [ th [ class "text-nowrap" ] [ text "ENVO Label", extLinkIcon ]
+                        , th [ class "text-nowrap" ] [ text "Dataset Label" ]
                         , th [] [ text "Value" ]
                         , th [] [ text "Unit" ]
-                        , th [] [ text "Source" ]
+                        , th [ class "text-nowrap" ] [ text "Source", extLinkIcon ]
                         ]
                     ]
                 , tbody []
@@ -319,14 +359,14 @@ viewMetadata maybeMetadata maybeTerms  =
             text "None"
 
 
---viewTooltip : ToolTip -> Html msg
---viewTooltip tooltip =
---    let
---        top =
---            (String.fromFloat tooltip.y) ++ "px"
---
---        left =
---            (String.fromFloat tooltip.x) ++ "px"
---    in
---    div [ class "border", style "background-color" "#e0e0e0", style "z-index" "1000", style "position" "absolute", style "top" top, style "left" left ]
---        [ text "foo" ]
+viewTooltip : ToolTip -> Html msg
+viewTooltip tooltip =
+    let
+        top =
+            (String.fromFloat tooltip.y) ++ "px"
+
+        left =
+            (String.fromFloat tooltip.x) ++ "px"
+    in
+    div [ class "border", style "background-color" "#e0e0e0", style "z-index" "1000", style "position" "absolute", style "top" top, style "left" left ]
+        [ text (String.join "," tooltip.content) ]

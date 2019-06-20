@@ -73,7 +73,14 @@ type alias SearchTerm =
     , min : Float
     , max : Float
     , values : Dict String Int --FIXME change to List (String, Int)
---    , viewType : String -- "range", "offset", "exact"
+    , annotations : List Annotation
+    }
+
+
+type alias Annotation =
+    { id : String
+    , label : String
+    , value : String
     }
 
 
@@ -137,6 +144,15 @@ searchTermDecoder =
         |> optional "min" Decode.float 0
         |> optional "max" Decode.float 0
         |> optional "values" (Decode.dict Decode.int) Dict.empty
+        |> optional "annotations" (Decode.list annotationDecoder) []
+
+
+annotationDecoder : Decoder Annotation
+annotationDecoder =
+    Decode.succeed Annotation
+        |> required "id" Decode.string
+        |> required "label" Decode.string
+        |> required "value" Decode.string
 
 
 

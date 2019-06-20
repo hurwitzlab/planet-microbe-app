@@ -10,6 +10,11 @@
         {
             "name": "PMO",
             "type": "term",
+            "path": "test/pmo.json"
+        },
+        {
+            "name": "PMO OWL",
+            "type": "term_owl",
             "path": "test/pmo_owl.json"
         },
         {

@@ -88,6 +88,23 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
     if (term.schemas)
         aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
 
+    let annotations = [];
+    if (term.annotations) {
+        annotations = term.annotations.map(a => {
+            let label;
+            if (a.id in rdfTermIndex)
+                label = rdfTermIndex[a.id].label;
+            else
+                label = a.id;
+            return {
+                id: a.id,
+                label: label,
+                value: a.value
+            };
+        });
+    }
+
+
     if (term.type == "string") {
         let uniqueVals = {};
         for (let schemaId in term.schemas) {
@@ -111,7 +128,7 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
             type: term.type,
             aliases: aliases,
             values: uniqueVals,
-            annotations: term.annotations
+            annotations: annotations
         });
 // TODO
 //        })
@@ -148,7 +165,7 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
             aliases: aliases,
             min: min,
             max: max,
-            annotations: term.annotations
+            annotations: annotations
         });
 // TODO
 //        .catch(err => {
@@ -184,7 +201,7 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
             aliases: aliases,
             min: new Date(min).toISOString(),
             max: new Date(max).toISOString(),
-            annotations: term.annotations
+            annotations: annotations
         });
 // TODO
 //        .catch(err => {
