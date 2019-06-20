@@ -91,13 +91,8 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
     let annotations = [];
     if (term.annotations) { // TODO move into function
         annotations = term.annotations.map(a => {
-            let label = a.id;
-            if (a.id in rdfTermIndex)
-                label = rdfTermIndex[a.id].label;
-
-            let value = a.value;
-            if (a.value in rdfTermIndex)
-                value = rdfTermIndex[a.value].label;
+            let label = getLabelForValue(a.id);
+            let value = getLabelForValue(a.value);
 
             return {
                 id: a.id,
@@ -219,6 +214,13 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
         });
     }
 });
+
+function getLabelForValue(val) {
+    if (val in rdfTermIndex)
+        return getLabelForValue(rdfTermIndex[val].label);
+    else
+        return val;
+}
 
 app.get('/search', async (req, res) => {
     let results = await search(db, req.query);
