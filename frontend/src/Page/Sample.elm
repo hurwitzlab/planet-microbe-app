@@ -7,7 +7,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onMouseEnter, onMouseLeave)
 import Page
 import Route
-import Sample exposing (Sample, Metadata, Value(..), SearchTerm)
+import Sample exposing (Sample, Metadata, Value(..), SearchTerm, Annotation)
 import LatLng
 import GMap
 import Http
@@ -30,14 +30,14 @@ type alias Model =
     , terms : Maybe (List SearchTerm)
     , metadata : Maybe Metadata
     , mapLoaded : Bool
-    , tooltip : Maybe ToolTip
+    , tooltip : Maybe (ToolTip (List Annotation))
     }
 
 
-type alias ToolTip = --TODO move tooltip code into own module
+type alias ToolTip a = --TODO move tooltip code into own module
     { x : Float
     , y : Float
-    , content : List String
+    , content : a
     }
 
 
@@ -151,10 +151,10 @@ update msg model =
         GotElement (Ok element) ->
             let
                 x =
-                    element.element.x + element.element.width
+                    element.element.x + element.element.width + 10
 
                 y =
-                    element.element.y
+                    element.element.y - 10
             in
             case model.tooltip of
                 Just tooltip ->
@@ -170,20 +170,12 @@ update msg model =
             ( model, Cmd.none )
 
         GetSearchTermCompleted (Ok term) ->
-            let
-                content =
-                    term.annotations
-                        |> List.map formatAnno
-
-                formatAnno a =
-                    a.label ++ ": " ++ a.value
-            in
             case model.tooltip of
                 Just tooltip ->
-                    ( { model | tooltip = Just { tooltip | content = content } }, Cmd.none )
+                    ( { model | tooltip = Just { tooltip | content = term.annotations } }, Cmd.none )
 
                 Nothing ->
-                    ( { model | tooltip = Just (ToolTip 0 0 content) }, Cmd.none )
+                    ( { model | tooltip = Just (ToolTip 0 0 term.annotations) }, Cmd.none )
 
         GetSearchTermCompleted (Err error) -> --TODO
 --            let
@@ -301,12 +293,6 @@ viewMetadata maybeMetadata maybeTerms  =
                 getTermProperty id prop =
                     List.filter (\t -> t.id == id) terms |> List.map prop |> List.head
 
-                mkValue val =
-                    if String.startsWith "http://" val || String.startsWith "https://" val || String.startsWith "ftp://" val then
-                        a [ href val, target "_blank" ] [ text val ]
-                    else
-                        text val
-
                 mkRdf field =
                     if field.rdfType /= "" then
                         div []
@@ -333,7 +319,7 @@ viewMetadata maybeMetadata maybeTerms  =
                     tr []
                         [ td [] [ mkRdf field ]
                         , td [] [ text field.name ]
-                        , td [] [ maybeValue |> valueToString |> mkValue ]
+                        , td [] [ maybeValue |> valueToString |> viewValue ]
                         , td [] [ mkUnitRdf field ]
                         , td [] [ mkSourceUrl field.sourceUrl ]
                         ]
@@ -359,14 +345,33 @@ viewMetadata maybeMetadata maybeTerms  =
             text "None"
 
 
-viewTooltip : ToolTip -> Html msg
+viewTooltip : ToolTip (List Annotation) -> Html msg
 viewTooltip tooltip =
-    let
-        top =
-            (String.fromFloat tooltip.y) ++ "px"
+    if tooltip.content /= [] then
+        let
+            top =
+                (String.fromFloat tooltip.y) ++ "px"
 
-        left =
-            (String.fromFloat tooltip.x) ++ "px"
-    in
-    div [ class "border", style "background-color" "#e0e0e0", style "z-index" "1000", style "position" "absolute", style "top" top, style "left" left ]
-        [ text (String.join "," tooltip.content) ]
+            left =
+                (String.fromFloat tooltip.x) ++ "px"
+
+            row anno =
+                tr []
+                    [ th [] [ text anno.label ]
+                    , td [] [ text anno.value ]
+                    ]
+        in
+        div [ class "rounded border py-2 px-3", style "background-color" "#efefef", style "z-index" "1000", style "position" "absolute", style "top" top, style "left" left ]
+            [ table []
+                (List.map row tooltip.content)
+            ]
+    else
+        text ""
+
+
+viewValue : String -> Html msg
+viewValue val =
+    if String.startsWith "http://" val || String.startsWith "https://" val || String.startsWith "ftp://" val then
+        a [ href val, target "_blank" ] [ text val ]
+    else
+        text val

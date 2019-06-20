@@ -1,4 +1,4 @@
-module Sample exposing (Sample, PURL, Metadata, Field, Value(..), SearchTerm, fetch, fetchAll, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
+module Sample exposing (Sample, PURL, Metadata, Field, Value(..), SearchTerm, Annotation, fetch, fetchAll, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
 
 {-| The interface to the Sample data structure.
 -}
