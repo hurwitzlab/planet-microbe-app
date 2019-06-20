@@ -89,17 +89,20 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
         aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
 
     let annotations = [];
-    if (term.annotations) {
+    if (term.annotations) { // TODO move into function
         annotations = term.annotations.map(a => {
-            let label;
+            let label = a.id;
             if (a.id in rdfTermIndex)
                 label = rdfTermIndex[a.id].label;
-            else
-                label = a.id;
+
+            let value = a.value;
+            if (a.value in rdfTermIndex)
+                value = rdfTermIndex[a.value].label;
+
             return {
                 id: a.id,
                 label: label,
-                value: a.value
+                value: value
             };
         });
     }
