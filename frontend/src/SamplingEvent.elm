@@ -1,4 +1,4 @@
-module SamplingEvent exposing (SamplingEvent, fetch, fetchAllByCampaign, fetchAllByProject)
+module SamplingEvent exposing (SamplingEvent, fetch, fetchAllByCampaign, fetchAllByProject, fetchAllBySample)
 
 {-| The interface to the Sample data structure.
 -}
@@ -42,7 +42,7 @@ samplingEventDecoder =
         |> required "sampling_event_id" Decode.int
         |> required "sampling_event_type" Decode.string
         |> required "name" Decode.string
-        |> required "locations" (Decode.list LatLng.decoder)
+        |> optional "locations" (Decode.list LatLng.decoder) []
         |> optional "start_time" Decode.string ""
         |> optional "end_time" Decode.string ""
         |> optional "campaign_id" Decode.int 0
@@ -83,6 +83,17 @@ fetchAllByProject id =
     let
         url =
             apiBaseUrl ++ "/projects/" ++ (String.fromInt id) ++ "/sampling_events"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list samplingEventDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchAllBySample : Int -> Http.Request (List SamplingEvent)
+fetchAllBySample id =
+    let
+        url =
+            apiBaseUrl ++ "/samples/" ++ (String.fromInt id) ++ "/sampling_events"
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list samplingEventDecoder))

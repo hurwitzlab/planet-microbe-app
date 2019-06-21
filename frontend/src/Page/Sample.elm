@@ -8,6 +8,7 @@ import Html.Events exposing (onMouseEnter, onMouseLeave)
 import Page
 import Route
 import Sample exposing (Sample, Metadata, Value(..), SearchTerm, Annotation)
+import SamplingEvent exposing (SamplingEvent)
 import LatLng
 import GMap
 import Http
@@ -27,6 +28,7 @@ import Json.Encode as Encode
 type alias Model =
     { session : Session
     , sample : Maybe Sample
+    , samplingEvents : Maybe (List SamplingEvent)
     , terms : Maybe (List SearchTerm)
     , metadata : Maybe Metadata
     , mapLoaded : Bool
@@ -45,6 +47,7 @@ init : Session -> Int -> ( Model, Cmd Msg )
 init session id =
     ( { session = session
       , sample = Nothing
+      , samplingEvents = Nothing
       , terms = Nothing
       , metadata = Nothing
       , mapLoaded = False
@@ -54,6 +57,7 @@ init session id =
         [ GMap.removeMap "" -- workaround for blank map on navigating back to this page
         , GMap.changeMapSettings (GMap.Settings False False True False |> GMap.encodeSettings)
         , Sample.fetch id |> Http.toTask |> Task.attempt GetSampleCompleted
+        , SamplingEvent.fetchAllBySample id |> Http.toTask |> Task.attempt GetSamplingEventsCompleted
         , Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetSearchTermsCompleted
         , Sample.fetchMetadata id |> Http.toTask |> Task.attempt GetMetadataCompleted
         ]
@@ -80,6 +84,7 @@ subscriptions model =
 
 type Msg
     = GetSampleCompleted (Result Http.Error Sample)
+    | GetSamplingEventsCompleted (Result Http.Error (List SamplingEvent))
     | GetSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | GetMetadataCompleted (Result Http.Error Metadata)
     | MapLoaded Bool
@@ -99,6 +104,15 @@ update msg model =
         GetSampleCompleted (Err error) -> --TODO
 --            let
 --                _ = Debug.log "GetSampleCompleted" (toString error)
+--            in
+            ( model, Cmd.none )
+
+        GetSamplingEventsCompleted (Ok samplingEvents) ->
+            ( { model | samplingEvents = Just samplingEvents }, Cmd.none )
+
+        GetSamplingEventsCompleted (Err error) -> --TODO
+--            let
+--                _ = Debug.log "GetSamplingEventsCompleted" (toString error)
 --            in
             ( model, Cmd.none )
 
@@ -198,7 +212,7 @@ view model =
             div [ class "container" ]
                 [ Page.viewTitle "Sample" sample.accn
                 , div []
-                    [ viewSample sample ]
+                    [ viewSample sample (model.samplingEvents |> Maybe.withDefault []) ]
                 , div [ class "pt-3 pb-2" ]
                     [ Page.viewTitle2 "Metadata" False ]
                 , viewMetadata model.metadata model.terms
@@ -211,32 +225,44 @@ view model =
                 ]
 
 
-viewSample : Sample -> Html Msg
-viewSample sample =
+viewSample : Sample -> List SamplingEvent -> Html Msg
+viewSample sample samplingEvents =
     let
-        campaignRow =
-            if sample.campaignId == 0 then
-                tr []
-                    [ th [] [ text "Campaign" ]
-                    , td [] [ text "None" ]
-                    ]
-            else
-                tr []
-                    [ th [] [ text "Campaign (", text (String.Extra.toSentenceCase sample.campaignType), text ")" ]
-                    , td [] [ a [ Route.href (Route.Campaign sample.campaignId) ] [ text sample.campaignName ] ]
-                    ]
+        campaignsRow =
+            tr []
+                [ th [ class "text-nowrap" ] [ text "Campaigns" ]
+                , if samplingEvents == [] then
+                    td [] [ text "None" ]
+                else
+                    td []
+                        (samplingEvents
+                            |> List.map (\event -> (event.campaignId, event.campaignType, event.campaignName) )
+                            |> List.Extra.unique
+                            |> List.map
+                                (\(id, type_, name) ->
+                                    a [ Route.href (Route.Campaign id) ]
+                                        [ (String.Extra.toSentenceCase type_) ++ " " ++ name |> text ]
+                                )
+                            |> List.intersperse (text ", ")
+                        )
+                ]
 
-        samplingEventRow =
-            if sample.samplingEventId == 0 then
-                tr []
-                    [ th [ class "text-nowrap" ] [ text "Sampling Event" ]
-                    , td [] [ text "None" ]
-                    ]
-            else
-                tr []
-                    [ th [ class "text-nowrap" ] [ text "Sampling Event (", text (String.Extra.toSentenceCase sample.samplingEventType), text ")" ]
-                    , td [] [ a [ Route.href (Route.SamplingEvent sample.samplingEventId) ] [ text sample.samplingEventName ] ]
-                    ]
+        samplingEventsRow =
+            tr []
+                [ th [ class "text-nowrap" ] [ text "Sampling Events" ]
+                , if samplingEvents == [] then
+                    td [] [ text "None" ]
+                else
+                    td []
+                        (samplingEvents
+                            |> List.map
+                                (\event ->
+                                    a [ Route.href (Route.SamplingEvent event.id) ]
+                                        [ (String.Extra.toSentenceCase event.type_) ++ " " ++ event.name |> text ]
+                                )
+                            |> List.intersperse (text ", ")
+                        )
+                ]
     in
     table [] -- ugh, use table for layout
         [ tr []
@@ -251,8 +277,8 @@ viewSample sample =
                             [ th [] [ text "Project" ]
                             , td [] [ a [ Route.href (Route.Project sample.projectId) ] [ text sample.projectName ] ]
                             ]
-                        , campaignRow
-                        , samplingEventRow
+                        , campaignsRow
+                        , samplingEventsRow
                         , tr []
                             [ th [] [ text "Lat/Lng (deg)" ]
                             , td [] [ text (sample.locations |> LatLng.unique |> LatLng.formatList) ]
