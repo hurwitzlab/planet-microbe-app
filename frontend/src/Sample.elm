@@ -21,12 +21,6 @@ type alias Sample  =
     { id : Int
     , accn : String
     , locations : List LatLng
---    , samplingEventId : Int
---    , samplingEventType : String
---    , samplingEventName : String
---    , campaignId : Int
---    , campaignName : String
---    , campaignType : String
     , projectId : Int
     , projectName : String
     }
@@ -94,12 +88,6 @@ sampleDecoder =
         |> required "sample_id" Decode.int
         |> required "accn" Decode.string
         |> required "locations" (Decode.list LatLng.decoder)
---        |> optional "sampling_event_id" Decode.int 0
---        |> optional "sampling_event_type" Decode.string ""
---        |> optional "sampling_event_name" Decode.string ""
---        |> optional "campaign_id" Decode.int 0
---        |> optional "campaign_name" Decode.string ""
---        |> optional "campaign_type" Decode.string ""
         |> optional "project_id" Decode.int 0
         |> optional "project_name" Decode.string ""
 
