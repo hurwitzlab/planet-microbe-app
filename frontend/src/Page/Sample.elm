@@ -326,7 +326,7 @@ viewMetadata maybeMetadata maybeTerms  =
                 mkRdf field =
                     if field.rdfType /= "" then
                         div []
-                            [ a [ href field.rdfType, target "_blank", id field.rdfType, onMouseEnter (ShowTooltip field.rdfType), onMouseLeave HideTooltip ]
+                            [ a [ href field.rdfType, target "_blank", id field.rdfType ]
                                 [ getTermProperty field.rdfType .label |> Maybe.withDefault "" |> text ]
                             ]
                     else
@@ -347,7 +347,7 @@ viewMetadata maybeMetadata maybeTerms  =
 
                 mkRow index (field, maybeValue) =
                     tr []
-                        [ td [] [ mkRdf field ]
+                        [ td [ onMouseEnter (ShowTooltip field.rdfType), onMouseLeave HideTooltip ] [ mkRdf field ]
                         , td [] [ text field.name ]
                         , td [] [ maybeValue |> valueToString |> viewValue ]
                         , td [] [ mkUnitRdf field ]
