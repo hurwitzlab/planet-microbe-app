@@ -228,15 +228,19 @@ view model =
 viewSample : Sample -> List SamplingEvent -> Html Msg
 viewSample sample samplingEvents =
     let
+        campaigns =
+            samplingEvents
+                |> List.filter (\event -> event.campaignId /= 0)
+                |> List.map (\event -> (event.campaignId, event.campaignType, event.campaignName) )
+
         campaignsRow =
             tr []
                 [ th [ class "text-nowrap" ] [ text "Campaigns" ]
-                , if samplingEvents == [] then
+                , if campaigns == [] then
                     td [] [ text "None" ]
                 else
                     td []
-                        (samplingEvents
-                            |> List.map (\event -> (event.campaignId, event.campaignType, event.campaignName) )
+                        (campaigns
                             |> List.Extra.unique
                             |> List.map
                                 (\(id, type_, name) ->
