@@ -184,12 +184,24 @@ update msg model =
             ( model, Cmd.none )
 
         GetSearchTermCompleted (Ok term) ->
-            case model.tooltip of
-                Just tooltip ->
-                    ( { model | tooltip = Just { tooltip | content = term.annotations } }, Cmd.none )
+            let
+                purlsToHide =
+                    [ "http://purl.obolibrary.org/obo/IAO_0000116" -- editor's note
+                    ]
 
-                Nothing ->
-                    ( { model | tooltip = Just (ToolTip 0 0 term.annotations) }, Cmd.none )
+                filtered =
+                    term.annotations
+                        |> List.filter (\a -> not (List.member a.id purlsToHide))
+
+                newTooltip =
+                    case model.tooltip of
+                        Just tooltip ->
+                            Just { tooltip | content = filtered }
+
+                        Nothing ->
+                            Just (ToolTip 0 0 term.annotations)
+            in
+            ( { model | tooltip = newTooltip }, Cmd.none )
 
         GetSearchTermCompleted (Err error) -> --TODO
 --            let
@@ -347,7 +359,10 @@ viewMetadata maybeMetadata maybeTerms  =
 
                 mkRow index (field, maybeValue) =
                     tr []
-                        [ td [ onMouseEnter (ShowTooltip field.rdfType), onMouseLeave HideTooltip ] [ mkRdf field ]
+                        [ if field.rdfType /= "" then
+                            td [ onMouseEnter (ShowTooltip field.rdfType), onMouseLeave HideTooltip ] [ mkRdf field ]
+                          else
+                            td [] [ mkRdf field ]
                         , td [] [ text field.name ]
                         , td [] [ maybeValue |> valueToString |> viewValue ]
                         , td [] [ mkUnitRdf field ]
