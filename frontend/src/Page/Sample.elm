@@ -7,7 +7,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onMouseEnter, onMouseLeave)
 import Page
 import Route
-import Sample exposing (Sample, Metadata, Value(..), SearchTerm, Annotation)
+import Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation)
 import SamplingEvent exposing (SamplingEvent)
 import LatLng
 import GMap
@@ -32,6 +32,8 @@ type alias Model =
     , terms : Maybe (List SearchTerm)
     , metadata : Maybe Metadata
     , mapLoaded : Bool
+    , showTooltip : Bool
+    , tooltipPurl : Maybe PURL
     , tooltip : Maybe (ToolTip (List Annotation))
     }
 
@@ -51,6 +53,8 @@ init session id =
       , terms = Nothing
       , metadata = Nothing
       , mapLoaded = False
+      , showTooltip = False
+      , tooltipPurl = Nothing
       , tooltip = Nothing
       }
       , Cmd.batch
@@ -89,7 +93,7 @@ type Msg
     | GetMetadataCompleted (Result Http.Error Metadata)
     | MapLoaded Bool
     | TimerTick Time.Posix
-    | ShowTooltip String
+    | ShowTooltip PURL
     | HideTooltip
     | GotElement (Result Browser.Dom.Error Browser.Dom.Element)
     | GetSearchTermCompleted (Result Http.Error SearchTerm)
@@ -150,17 +154,20 @@ update msg model =
                     ( model, Cmd.none )
 
         ShowTooltip purl ->
-            let
-                getElement =
-                    Browser.Dom.getElement purl |> Task.attempt GotElement
+            if purl /= "" && (model.tooltipPurl |> Maybe.withDefault "") /= purl then
+                let
+                    getElement =
+                        Browser.Dom.getElement purl |> Task.attempt GotElement
 
-                getSearchTerm =
-                    Sample.fetchSearchTerm purl |> Http.toTask |> Task.attempt GetSearchTermCompleted
-            in
-            ( model, Cmd.batch [ getElement, getSearchTerm ] )
+                    getSearchTerm =
+                        Sample.fetchSearchTerm purl |> Http.toTask |> Task.attempt GetSearchTermCompleted
+                in
+                ( { model | tooltipPurl = Just purl }, Cmd.batch [ getElement, getSearchTerm ] )
+            else
+                ( { model | showTooltip = True }, Cmd.none )
 
         HideTooltip ->
-            ( { model | tooltip = Nothing }, Cmd.none )
+            ( { model | showTooltip = False }, Cmd.none )
 
         GotElement (Ok element) ->
             let
@@ -181,7 +188,7 @@ update msg model =
 --            let
 --                _ = Debug.log "GotElement" (toString error)
 --            in
-            ( model, Cmd.none )
+            ( { model | showTooltip = False }, Cmd.none )
 
         GetSearchTermCompleted (Ok term) ->
             let
@@ -201,13 +208,13 @@ update msg model =
                         Nothing ->
                             Just (ToolTip 0 0 term.annotations)
             in
-            ( { model | tooltip = newTooltip }, Cmd.none )
+            ( { model | tooltip = newTooltip, showTooltip = True }, Cmd.none )
 
         GetSearchTermCompleted (Err error) -> --TODO
 --            let
 --                _ = Debug.log "GetSearchTermCompleted" (toString error)
 --            in
-            ( model, Cmd.none )
+            ( { model | showTooltip = False }, Cmd.none )
 
 
 
@@ -233,7 +240,10 @@ view model =
                         text ""
 
                     Just tooltip ->
-                        viewTooltip tooltip
+                        if model.showTooltip then
+                            viewTooltip tooltip
+                        else
+                            text ""
                 ]
 
 
