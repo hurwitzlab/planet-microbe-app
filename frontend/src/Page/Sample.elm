@@ -29,11 +29,8 @@ type alias Model =
     { session : Session
     , sample : Maybe Sample
     , samplingEvents : Maybe (List SamplingEvent)
-    , terms : Maybe (List SearchTerm)
     , metadata : Maybe Metadata
     , mapLoaded : Bool
-    , showTooltip : Bool
-    , tooltipPurl : Maybe PURL
     , tooltip : Maybe (ToolTip (List Annotation))
     }
 
@@ -50,11 +47,8 @@ init session id =
     ( { session = session
       , sample = Nothing
       , samplingEvents = Nothing
-      , terms = Nothing
       , metadata = Nothing
       , mapLoaded = False
-      , showTooltip = False
-      , tooltipPurl = Nothing
       , tooltip = Nothing
       }
       , Cmd.batch
@@ -62,7 +56,6 @@ init session id =
         , GMap.changeMapSettings (GMap.Settings False False True False |> GMap.encodeSettings)
         , Sample.fetch id |> Http.toTask |> Task.attempt GetSampleCompleted
         , SamplingEvent.fetchAllBySample id |> Http.toTask |> Task.attempt GetSamplingEventsCompleted
-        , Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetSearchTermsCompleted
         , Sample.fetchMetadata id |> Http.toTask |> Task.attempt GetMetadataCompleted
         ]
     )
@@ -89,14 +82,12 @@ subscriptions model =
 type Msg
     = GetSampleCompleted (Result Http.Error Sample)
     | GetSamplingEventsCompleted (Result Http.Error (List SamplingEvent))
-    | GetSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | GetMetadataCompleted (Result Http.Error Metadata)
     | MapLoaded Bool
     | TimerTick Time.Posix
     | ShowTooltip PURL
     | HideTooltip
-    | GotElement (Result Browser.Dom.Error Browser.Dom.Element)
-    | GetSearchTermCompleted (Result Http.Error SearchTerm)
+    | GotElement PURL (Result Browser.Dom.Error Browser.Dom.Element)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -117,15 +108,6 @@ update msg model =
         GetSamplingEventsCompleted (Err error) -> --TODO
 --            let
 --                _ = Debug.log "GetSamplingEventsCompleted" (toString error)
---            in
-            ( model, Cmd.none )
-
-        GetSearchTermsCompleted (Ok terms) ->
-            ( { model | terms = Just terms }, Cmd.none )
-
-        GetSearchTermsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSearchTermsCompleted" (toString error)
 --            in
             ( model, Cmd.none )
 
@@ -154,73 +136,63 @@ update msg model =
                     ( model, Cmd.none )
 
         ShowTooltip purl ->
-            if purl /= "" && (model.tooltipPurl |> Maybe.withDefault "") /= purl then
+            if purl /= "" then
                 let
                     getElement =
-                        Browser.Dom.getElement purl |> Task.attempt GotElement
-
-                    getSearchTerm =
-                        Sample.fetchSearchTerm purl |> Http.toTask |> Task.attempt GetSearchTermCompleted
+                        Browser.Dom.getElement purl |> Task.attempt (GotElement purl)
                 in
-                ( { model | tooltipPurl = Just purl }, Cmd.batch [ getElement, getSearchTerm ] )
+                ( model, getElement )
             else
-                ( { model | showTooltip = True }, Cmd.none )
+                ( { model | tooltip = Nothing}, Cmd.none )
 
         HideTooltip ->
-            ( { model | showTooltip = False }, Cmd.none )
+            ( { model | tooltip = Nothing }, Cmd.none )
 
-        GotElement (Ok element) ->
-            let
-                x =
-                    element.element.x + element.element.width + 10
+        GotElement purl (Ok element) ->
+            case model.metadata of
+                Just metadata ->
+                    let
+                        x =
+                            element.element.x + element.element.width + 10
 
-                y =
-                    element.element.y - 10
-            in
-            case model.tooltip of
-                Just tooltip ->
-                    ( { model | tooltip = Just ( { tooltip | x = x, y = y } ) }, Cmd.none )
+                        y =
+                            element.element.y - 10
+
+                        purlsToHide =
+                            [ "http://purl.obolibrary.org/obo/IAO_0000116" -- editor's note
+                            ]
+
+                        term =
+                            metadata.terms
+                                |> List.filter (\t -> t.id == purl)
+                                |> List.head
+                    in
+                    case term of
+                        Just t ->
+                            let
+                                annos =
+                                    t.annotations
+                                        |> List.filter (\a -> not (List.member a.id purlsToHide))
+                                        |> List.append
+                                            (if t.definition /= "" then
+                                                [ (Annotation "" "Definition" t.definition) ]
+                                            else
+                                                []
+                                            )
+                            in
+                            ( { model | tooltip = Just (ToolTip x y annos) }, Cmd.none )
+
+                        Nothing ->
+                            ( model, Cmd.none )
 
                 Nothing ->
-                    ( { model | tooltip = Just (ToolTip x y []) }, Cmd.none )
+                    ( model, Cmd.none )
 
-        GotElement (Err error) ->
+        GotElement _ (Err error) ->
 --            let
 --                _ = Debug.log "GotElement" (toString error)
 --            in
-            ( { model | showTooltip = False }, Cmd.none )
-
-        GetSearchTermCompleted (Ok term) ->
-            let
-                purlsToHide =
-                    [ "http://purl.obolibrary.org/obo/IAO_0000116" -- editor's note
-                    ]
-
-                annos =
-                    if term.definition /= "" then
-                        (Annotation "" "Definition" term.definition) :: term.annotations
-                    else
-                        term.annotations
-
-                filtered =
-                    annos
-                        |> List.filter (\a -> not (List.member a.id purlsToHide))
-
-                newTooltip =
-                    case model.tooltip of
-                        Just tooltip ->
-                            Just { tooltip | content = filtered }
-
-                        Nothing ->
-                            Just (ToolTip 0 0 annos)
-            in
-            ( { model | tooltip = newTooltip, showTooltip = True }, Cmd.none )
-
-        GetSearchTermCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSearchTermCompleted" (toString error)
---            in
-            ( { model | showTooltip = False }, Cmd.none )
+            ( { model | tooltip = Nothing }, Cmd.none )
 
 
 
@@ -240,16 +212,13 @@ view model =
                     [ viewSample sample (model.samplingEvents |> Maybe.withDefault []) ]
                 , div [ class "pt-3 pb-2" ]
                     [ Page.viewTitle2 "Metadata" False ]
-                , viewMetadata model.metadata model.terms
+                , viewMetadata model.metadata
                 , case model.tooltip of
+                    Just tooltip ->
+                        viewTooltip tooltip
+
                     Nothing ->
                         text ""
-
-                    Just tooltip ->
-                        if model.showTooltip then
-                            viewTooltip tooltip
-                        else
-                            text ""
                 ]
 
 
@@ -329,10 +298,10 @@ viewMap =
     GMap.view [ class "border", style "display" "block", style "width" "20em", style "height" "12em" ] []
 
 
-viewMetadata : Maybe Metadata -> Maybe (List SearchTerm) -> Html Msg
-viewMetadata maybeMetadata maybeTerms  =
-    case (maybeMetadata, maybeTerms) of
-        (Just metadata, Just terms) ->
+viewMetadata : Maybe Metadata -> Html Msg
+viewMetadata maybeMetadata  =
+    case maybeMetadata of
+        Just metadata ->
             let
                 valueToString maybeValue =
                     case maybeValue of
@@ -348,22 +317,19 @@ viewMetadata maybeMetadata maybeTerms  =
                         Just (FloatValue f) ->
                             String.fromFloat f
 
-                getTermProperty id prop =
-                    List.filter (\t -> t.id == id) terms |> List.map prop |> List.head
-
-                mkRdf field =
-                    if field.rdfType /= "" then
+                mkRdf term =
+                    if term.id /= "" then
                         div []
-                            [ a [ href field.rdfType, target "_blank", id field.rdfType ]
-                                [ getTermProperty field.rdfType .label |> Maybe.withDefault "" |> text ]
+                            [ a [ href term.id, target "_blank", id term.id ]
+                                [ text term.label ]
                             ]
                     else
                         text ""
 
-                mkUnitRdf field =
-                    if field.unitRdfType /= "" then
-                        a [ href field.unitRdfType, title field.unitRdfType, target "_blank" ]
-                                [ getTermProperty field.rdfType .unitLabel |> Maybe.withDefault "" |> text ]
+                mkUnit term =
+                    if term.unitId /= "" then
+                        a [ href term.unitId, title term.unitId, target "_blank" ]
+                            [ text term.unitLabel ]
                     else
                         text ""
 
@@ -373,16 +339,16 @@ viewMetadata maybeMetadata maybeTerms  =
                     else
                         a [ href url, target "_blank" ] [ text "Link" ]
 
-                mkRow index (field, maybeValue) =
+                mkRow (term, maybeValue) =
                     tr []
-                        [ if field.rdfType /= "" then
-                            td [ onMouseEnter (ShowTooltip field.rdfType), onMouseLeave HideTooltip ] [ mkRdf field ]
+                        [ if term.id /= "" then
+                            td [ onMouseEnter (ShowTooltip term.id), onMouseLeave HideTooltip ] [ mkRdf term ]
                           else
-                            td [] [ mkRdf field ]
-                        , td [] [ text field.name ]
+                            td [] [ mkRdf term ]
+                        , td [] [ text term.alias_ ]
                         , td [] [ maybeValue |> valueToString |> viewValue ]
-                        , td [] [ mkUnitRdf field ]
-                        , td [] [ mkSourceUrl field.sourceUrl ]
+                        , td [] [ mkUnit term ]
+                        , td [] [ mkSourceUrl term.sourceUrl ]
                         ]
 
                 extLinkIcon =
@@ -394,15 +360,15 @@ viewMetadata maybeMetadata maybeTerms  =
                         [ th [ class "text-nowrap" ] [ text "Ontology Label", extLinkIcon ]
                         , th [ class "text-nowrap" ] [ text "Dataset Label" ]
                         , th [] [ text "Value" ]
-                        , th [] [ text "Unit" ]
+                        , th [] [ text "Unit", extLinkIcon ]
                         , th [ class "text-nowrap" ] [ text "Source", extLinkIcon ]
                         ]
                     ]
                 , tbody []
-                    (List.Extra.zip metadata.fields metadata.values |> List.indexedMap mkRow )
+                    (List.Extra.zip metadata.terms metadata.values |> List.map mkRow )
                 ]
 
-        _ ->
+        Nothing ->
             text "None"
 
 

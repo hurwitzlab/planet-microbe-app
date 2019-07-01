@@ -1,4 +1,4 @@
-module Sample exposing (Sample, PURL, Metadata, Field, Value(..), SearchTerm, Annotation, fetch, fetchAll, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
+module Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation, fetch, fetchAll, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
 
 {-| The interface to the Sample data structure.
 -}
@@ -32,23 +32,8 @@ type alias PURL =
 
 type alias Metadata =
     { schema_id : Int
-    , fields : List Field
+    , terms : List SearchTerm
     , values : List (Maybe Value)
-    }
-
-
-type alias Term =
-    { purl : PURL
-    , label : String
-    }
-
-
-type alias Field =
-    { name : String
-    , type_ : String
-    , rdfType : PURL
-    , unitRdfType : PURL
-    , sourceUrl : String
     }
 
 
@@ -63,7 +48,10 @@ type alias SearchTerm =
     , id : PURL
     , label : String
     , definition : String
+    , unitId : PURL
     , unitLabel : String
+    , sourceUrl : String
+    , alias_ : String
     , aliases : List String
     , min : Float
     , max : Float
@@ -97,18 +85,8 @@ metadataDecoder : Decoder Metadata
 metadataDecoder =
     Decode.succeed Metadata
         |> required "schema_id" Decode.int
-        |> required "fields" (Decode.list fieldDecoder)
+        |> required "terms" (Decode.list searchTermDecoder)
         |> required "values" (Decode.list valueDecoder)
-
-
-fieldDecoder : Decoder Field
-fieldDecoder =
-    Decode.succeed Field
-        |> required "name" Decode.string
-        |> required "type" Decode.string
-        |> optional "rdfType" Decode.string ""
-        |> optional "pm:unitRdfType" Decode.string ""
-        |> optional "pm:sourceUrl" Decode.string ""
 
 
 valueDecoder : Decoder (Maybe Value)
@@ -129,7 +107,10 @@ searchTermDecoder =
         |> required "id" Decode.string
         |> required "label" Decode.string
         |> optional "definition" Decode.string ""
+        |> optional "unitId" Decode.string ""
         |> optional "unitLabel" Decode.string ""
+        |> optional "sourceUrl" Decode.string ""
+        |> optional "alias" Decode.string ""
         |> optional "aliases" (Decode.list Decode.string) []
         |> optional "min" Decode.float 0
         |> optional "max" Decode.float 0

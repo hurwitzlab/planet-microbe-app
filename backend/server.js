@@ -75,7 +75,7 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
 
     // Workaround for http:// in id changed to http:/ on MYO (NGINX?)
     if (id.startsWith('http:/'))
-	id = id.replace(/^http:\//, '');
+	    id = id.replace(/^http:\//, '');
 
     let term = getTerm(id);
  
@@ -102,7 +102,6 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
             };
         });
     }
-
 
     if (term.type == "string") {
         let uniqueVals = {};
@@ -361,6 +360,30 @@ app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
     let values = [];
     for (i = 0;  i < row.fields.length;  i++) {
         let field = row.fields[i];
+        let term = getTerm(field.rdfType) || {};
+        if (term) {
+            if (term.annotations) { // TODO move into function
+                term.annotations = term.annotations.map(a => {
+                    let label = getLabelForValue(a.id);
+                    let value = getLabelForValue(a.value);
+
+                    return {
+                        id: a.id,
+                        label: label,
+                        value: value
+                    };
+                });
+            }
+        }
+        term.alias = field.name;
+        if (!('id' in term))
+            term.id = field.rdfType;
+        if (!('type' in term))
+            term.type = "unknown";
+        if (!('label' in term))
+            term.label = "";
+        terms.push(term);
+
         let val = "";
         if (field.type == "number")
             val = row.number_vals[i];
@@ -375,7 +398,7 @@ app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
 
     res.json({
         schema_id: row.schema_id,
-        fields: row.fields,
+        terms: terms,
         values: values
     });
 });
@@ -524,6 +547,7 @@ async function generateTermIndex(db, ontologyDescriptors) {
 
             index[purl]['schemas'][schema.schema_id][field.name] = i+1
             index[purl]['type'] = field.type;
+            index[purl]['sourceUrl'] = field['pm:sourceUrl'];
 
             if (unitPurl && unitPurl in index) {
                 index[purl]['unitId'] = unitPurl;
