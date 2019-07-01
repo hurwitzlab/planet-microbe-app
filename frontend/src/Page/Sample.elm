@@ -319,10 +319,8 @@ viewMetadata maybeMetadata  =
 
                 mkRdf term =
                     if term.id /= "" then
-                        div []
-                            [ a [ href term.id, target "_blank", id term.id ]
-                                [ text term.label ]
-                            ]
+                        a [ id term.id, href term.id, target "_blank", onMouseEnter (ShowTooltip term.id), onMouseLeave HideTooltip ]
+                            [ text term.label ]
                     else
                         text ""
 
@@ -341,10 +339,7 @@ viewMetadata maybeMetadata  =
 
                 mkRow (term, maybeValue) =
                     tr []
-                        [ if term.id /= "" then
-                            td [ onMouseEnter (ShowTooltip term.id), onMouseLeave HideTooltip ] [ mkRdf term ]
-                          else
-                            td [] [ mkRdf term ]
+                        [ td [] [ mkRdf term ]
                         , td [] [ text term.alias_ ]
                         , td [] [ maybeValue |> valueToString |> viewValue ]
                         , td [] [ mkUnit term ]
@@ -384,7 +379,7 @@ viewTooltip tooltip =
 
             row anno =
                 tr []
-                    [ th [] [ text anno.label ]
+                    [ th [ class "align-top" ] [ text anno.label ]
                     , td [] [ text anno.value ]
                     ]
         in
