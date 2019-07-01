@@ -175,7 +175,7 @@ update msg model =
                                         |> List.filter (\a -> not (List.member a.id purlsToHide))
                                         |> List.append
                                             (if t.definition /= "" then
-                                                [ (Annotation "" "Definition" t.definition) ]
+                                                [ (Annotation "" "definition" t.definition) ]
                                             else
                                                 []
                                             )
@@ -379,8 +379,8 @@ viewTooltip tooltip =
 
             row anno =
                 tr []
-                    [ th [ class "align-top" ] [ text anno.label ]
-                    , td [] [ text anno.value ]
+                    [ th [ class "align-top pr-3" ] [ text (String.Extra.toSentenceCase anno.label) ]
+                    , td [ class "align-top" ] [ text anno.value ]
                     ]
         in
         div [ class "rounded border py-2 px-3", style "background-color" "#efefef", style "z-index" "1000", style "position" "absolute", style "top" top, style "left" left ]
