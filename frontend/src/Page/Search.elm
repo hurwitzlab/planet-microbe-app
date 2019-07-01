@@ -23,7 +23,7 @@ import GMap
 import Dict exposing (Dict)
 import Route
 import Page exposing (viewBlank, viewSpinner)
-import Sample exposing (SearchTerm, PURL)
+import Sample exposing (SearchTerm, PURL, annotationsToHide)
 --import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
 
@@ -85,8 +85,10 @@ type alias Model =
     , selectedVals : Dict PURL FilterValue
     , locationVal : LocationFilterValue
     , projectVals : List String
+    , showAddFilterDialog : Bool
     , stringFilterDialogTerm : Maybe SearchTerm
     , paramSearchInputVal : String
+    , dialogSearchInputVal : String
     , showParamSearchDropdown : Bool
     , sortPos : Int
     , doSearch : Bool
@@ -115,8 +117,10 @@ init session =
         , selectedVals = Dict.empty
         , locationVal = NoLocationValue
         , projectVals = []
+        , showAddFilterDialog = False
         , stringFilterDialogTerm = Nothing
         , paramSearchInputVal = ""
+        , dialogSearchInputVal = ""
         , showParamSearchDropdown = False
         , sortPos = 1
         , doSearch = True
@@ -168,6 +172,9 @@ type Msg
     | RemoveFilter PURL
     | SetParamSearchInput String
     | ShowParamSearchDropdown
+    | OpenAddFilterDialog
+    | CloseAddFilterDialog
+    | SetDialogSearchInput String
     | OpenStringFilterDialog SearchTerm
     | CloseStringFilterDialog
     | SetSearchFilterValue PURL String
@@ -250,7 +257,7 @@ update msg model =
                 getTerm =
                     Sample.fetchSearchTerm id |> Http.toTask
             in
-            ( { model | showParamSearchDropdown = False, paramSearchInputVal = "", selectedParams = params }, Task.attempt GetSearchTermCompleted getTerm )
+            ( { model | showParamSearchDropdown = False, paramSearchInputVal = "", selectedParams = params, showAddFilterDialog = False }, Task.attempt GetSearchTermCompleted getTerm )
 
         RemoveFilter id ->
             let
@@ -270,6 +277,15 @@ update msg model =
 
         ShowParamSearchDropdown ->
             ( { model | showParamSearchDropdown = not model.showParamSearchDropdown }, Cmd.none )
+
+        OpenAddFilterDialog ->
+            ( { model | showAddFilterDialog = True, dialogSearchInputVal = "" }, Cmd.none )
+
+        CloseAddFilterDialog ->
+            ( { model | showAddFilterDialog = False }, Cmd.none )
+
+        SetDialogSearchInput val ->
+            ( { model | dialogSearchInputVal = val }, Cmd.none )
 
         OpenStringFilterDialog term ->
             ( { model | stringFilterDialogTerm = Just term }, Cmd.none )
@@ -811,6 +827,10 @@ view model =
             [ viewMap model.showMap model.mapLoaded
             , viewResults model
             ]
+        , if model.showAddFilterDialog then
+            viewAddFilterDialog model.allParams model.dialogSearchInputVal
+          else
+            text ""
         , case model.stringFilterDialogTerm of
             Nothing ->
                 text ""
@@ -908,6 +928,15 @@ viewLocationPanel model =
         ]
 
 
+redundantTerms =
+    [ "latitude coordinate measurement datum"
+    , "longitude coordinate measurement datum"
+    , "zero-dimensional temporal region"
+    , "depth of water"
+    , "specimen collection time measurement datum start"
+    ]
+
+
 viewAddFilterPanel : Bool -> String -> List SearchTerm -> List PURL -> Html Msg
 viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
     let
@@ -919,12 +948,7 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
             a [ classList [ ("dropdown-item", True), ("disabled", dis) ], href "", onClick (AddFilter term.id) ] [ term.label |> String.Extra.toSentenceCase |> text ]
 
         removeRedundantTerms term =
-            [ "latitude coordinate measurement datum"
-            , "longitude coordinate measurement datum"
-            , "zero-dimensional temporal region"
-            , "depth of water"
-            , "specimen collection time measurement datum start"
-            ]
+            redundantTerms
                 |> List.member (String.toLower term.label)
                 |> not
 
@@ -945,11 +969,63 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
         [ div [ class "input-group input-group-sm", style "position" "relative" ]
             [ input [ type_ "text", class "form-control", placeholder "Search parameters", value searchVal, onInput SetParamSearchInput ] []
             , div [ class "input-group-append" ]
-                [ button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", onClick ShowParamSearchDropdown ] []
+                [ button [ class "btn btn-outline-secondary", type_ "button", onClick OpenAddFilterDialog ] [ text "?" ]
+                , button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", onClick ShowParamSearchDropdown ] []
                 , div [ class "dropdown-menu", classList [("show", show)], style "position" "absolute", style "left" "0px", style "max-height" "30vh", style "overflow-y" "auto" ] options
                 ]
             ]
         ]
+
+
+viewAddFilterDialog : List SearchTerm -> String -> Html Msg
+viewAddFilterDialog allTerms searchVal =
+    let
+        removeRedundantTerms term =
+            redundantTerms
+                |> List.member (String.toLower term.label)
+                |> not
+
+        filterOnSearch term =
+            String.contains (String.toLower searchVal) (String.toLower term.label)
+
+        terms =
+            allTerms
+                |> List.filter removeRedundantTerms
+                |> List.filter filterOnSearch
+                |> List.sortWith (\a b -> compare (String.Extra.toSentenceCase a.label) (String.Extra.toSentenceCase b.label) )
+
+        viewTerm term =
+            div [ class "border-bottom px-2" ]
+                [ table [ style "width" "97%" ]
+                    [ tr []
+                        [ td [] [ a [ href term.id, target "_blank" ] [ text (String.Extra.toSentenceCase term.label) ] ]
+                        , td [] [ button [ class "btn btn-light btn-sm border float-right", onClick (AddFilter term.id) ] [ text "Add" ] ]
+                        ]
+                    ]
+                , table [ class "small" ]
+                    (term.annotations |> List.filter (\a -> not (List.member a.id annotationsToHide)) |> List.map row)
+                ]
+
+        row anno =
+            tr []
+                [ th [ class "align-top pr-3" ] [ text (String.Extra.toSentenceCase anno.label) ]
+                , td [ class "align-top" ]
+                    [ value anno.value ]
+                ]
+
+        value val =
+            if String.startsWith "http://" val || String.startsWith "https://" val || String.startsWith "ftp://" val then
+                a [ href val, target "_blank" ] [ text val ]
+            else
+                text val
+    in
+    viewDialog "Add Filter"
+        [ input [ type_ "text", class "form-control", placeholder "Search parameters", onInput SetDialogSearchInput ] []
+        , div [ class "mt-4 border-top", style "overflow-y" "auto", style "max-height" "50vh" ]
+            (List.map viewTerm terms)
+        ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseAddFilterDialog ] [ text "Close" ] ]
+        CloseAddFilterDialog
 
 
 viewAddedFiltersPanel : Model -> List PURL -> Dict PURL SearchTerm -> Dict PURL FilterValue -> Html Msg

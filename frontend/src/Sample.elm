@@ -1,4 +1,4 @@
-module Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation, fetch, fetchAll, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
+module Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation, annotationsToHide, fetch, fetchAll, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
 
 {-| The interface to the Sample data structure.
 -}
@@ -65,6 +65,11 @@ type alias Annotation =
     , label : String
     , value : String
     }
+
+
+annotationsToHide =
+    [ "http://purl.obolibrary.org/obo/IAO_0000116" -- editor's note
+    ]
 
 
 

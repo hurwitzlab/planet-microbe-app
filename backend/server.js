@@ -57,13 +57,27 @@ app.get('/searchTerms', (req, res) => {
             .filter(term => term.id && term.schemas)
             .map(term => {
                 let aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
+                let annotations = [];
+                if (term.annotations) { // TODO move into function
+                    annotations = term.annotations.map(a => {
+                        let label = getLabelForValue(a.id);
+                        let value = getLabelForValue(a.value);
+
+                        return {
+                            id: a.id,
+                            label: label,
+                            value: value
+                        };
+                    });
+                }
                 return {
                     id: term.id,
                     label: term.label,
                     definition: term.definition,
                     unitLabel: term.unitLabel,
                     type: term.type,
-                    aliases: aliases
+                    aliases: aliases,
+                    annotations: annotations
                 };
             })
         );

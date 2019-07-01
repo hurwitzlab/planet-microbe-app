@@ -7,7 +7,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onMouseEnter, onMouseLeave)
 import Page
 import Route
-import Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation)
+import Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation, annotationsToHide)
 import SamplingEvent exposing (SamplingEvent)
 import LatLng
 import GMap
@@ -158,10 +158,6 @@ update msg model =
                         y =
                             element.element.y - 10
 
-                        purlsToHide =
-                            [ "http://purl.obolibrary.org/obo/IAO_0000116" -- editor's note
-                            ]
-
                         term =
                             metadata.terms
                                 |> List.filter (\t -> t.id == purl)
@@ -172,7 +168,7 @@ update msg model =
                             let
                                 annos =
                                     t.annotations
-                                        |> List.filter (\a -> not (List.member a.id purlsToHide))
+                                        |> List.filter (\a -> not (List.member a.id annotationsToHide))
                                         |> List.append
                                             (if t.definition /= "" then
                                                 [ (Annotation "" "definition" t.definition) ]
