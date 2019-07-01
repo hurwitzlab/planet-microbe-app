@@ -62,6 +62,7 @@ type alias SearchTerm =
     { type_ : String
     , id : PURL
     , label : String
+    , definition : String
     , unitLabel : String
     , aliases : List String
     , min : Float
@@ -127,6 +128,7 @@ searchTermDecoder =
         |> required "type" Decode.string
         |> required "id" Decode.string
         |> required "label" Decode.string
+        |> optional "definition" Decode.string ""
         |> optional "unitLabel" Decode.string ""
         |> optional "aliases" (Decode.list Decode.string) []
         |> optional "min" Decode.float 0

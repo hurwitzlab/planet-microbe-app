@@ -60,6 +60,7 @@ app.get('/searchTerms', (req, res) => {
                 return {
                     id: term.id,
                     label: term.label,
+                    definition: term.definition,
                     unitLabel: term.unitLabel,
                     type: term.type,
                     aliases: aliases
@@ -122,6 +123,7 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
         res.json({
             id: term.id,
             label: term.label,
+            definition: term.definition,
             unitLabel: term.unitLabel,
             type: term.type,
             aliases: aliases,
@@ -158,6 +160,7 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
         res.json({
             id: term.id,
             label: term.label,
+            definition: term.definition,
             unitLabel: term.unitLabel,
             type: term.type,
             aliases: aliases,
@@ -194,6 +197,7 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
         res.json({
             id: term.id,
             label: term.label,
+            definition: term.definition,
             unitLabel: term.unitLabel,
             type: term.type,
             aliases: aliases,
@@ -535,7 +539,7 @@ function load_ontology(type, path, index) {
     if (path.endsWith(".json")) {
         ontology = JSON.parse(fs.readFileSync(path));
 
-        if (type == "term") {
+        if (type == "term") { // pmo.json
             ontology.graphs.forEach( g => {
                 g.nodes.forEach(node => {
                     let annotations = [];
@@ -548,13 +552,14 @@ function load_ontology(type, path, index) {
                         {
                             id: node.id,
                             label: node.lbl,
+                            definition: (node.meta && node.meta.definition ? node.meta.definition.val : null),
                             annotations: annotations
                         }
                     );
                 });
             });
         }
-        else if (type == "term_owl") {
+        else if (type == "term_owl") { // pmo_owl.json
             ontology.classAttribute.forEach(node => {
                 let label = "<unknown>";
                 if (node["label"]) {

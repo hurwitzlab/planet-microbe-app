@@ -196,8 +196,14 @@ update msg model =
                     [ "http://purl.obolibrary.org/obo/IAO_0000116" -- editor's note
                     ]
 
+                annos =
+                    if term.definition /= "" then
+                        (Annotation "" "Definition" term.definition) :: term.annotations
+                    else
+                        term.annotations
+
                 filtered =
-                    term.annotations
+                    annos
                         |> List.filter (\a -> not (List.member a.id purlsToHide))
 
                 newTooltip =
@@ -206,7 +212,7 @@ update msg model =
                             Just { tooltip | content = filtered }
 
                         Nothing ->
-                            Just (ToolTip 0 0 term.annotations)
+                            Just (ToolTip 0 0 annos)
             in
             ( { model | tooltip = newTooltip, showTooltip = True }, Cmd.none )
 
@@ -385,7 +391,7 @@ viewMetadata maybeMetadata maybeTerms  =
             table [ class "table table-sm" ]
                 [ thead []
                     [ tr []
-                        [ th [ class "text-nowrap" ] [ text "ENVO Label", extLinkIcon ]
+                        [ th [ class "text-nowrap" ] [ text "Ontology Label", extLinkIcon ]
                         , th [ class "text-nowrap" ] [ text "Dataset Label" ]
                         , th [] [ text "Value" ]
                         , th [] [ text "Unit" ]
