@@ -931,6 +931,8 @@ viewLocationPanel model =
 redundantTerms =
     [ "latitude coordinate measurement datum"
     , "longitude coordinate measurement datum"
+    , "latitude coordinate measurement datum start"
+    , "latitude coordinate measurement datum stop"
     , "zero-dimensional temporal region"
     , "depth of water"
     , "specimen collection time measurement datum start"
@@ -994,6 +996,9 @@ viewAddFilterDialog allTerms searchVal =
                 |> List.filter filterOnSearch
                 |> List.sortWith (\a b -> compare (String.Extra.toSentenceCase a.label) (String.Extra.toSentenceCase b.label) )
 
+        count =
+            List.length terms
+
         viewTerm term =
             div [ class "border-bottom px-2" ]
                 [ table [ style "width" "97%" ]
@@ -1021,7 +1026,13 @@ viewAddFilterDialog allTerms searchVal =
     in
     viewDialog "Add Filter"
         [ input [ type_ "text", class "form-control", placeholder "Search parameters", onInput SetDialogSearchInput ] []
-        , div [ class "mt-4 border-top", style "overflow-y" "auto", style "max-height" "50vh" ]
+        , div [ class "small text-secondary float-right" ]
+            [ if count > 0 then
+                (String.fromInt count) ++ " results" |> text
+              else
+                text "No results"
+            ]
+        , div [ class "mt-5 border-top", style "overflow-y" "auto", style "max-height" "50vh" ]
             (List.map viewTerm terms)
         ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseAddFilterDialog ] [ text "Close" ] ]
