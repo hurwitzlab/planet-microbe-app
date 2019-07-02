@@ -1027,10 +1027,12 @@ viewAddFilterDialog allTerms searchVal =
     viewDialog "Add Filter"
         [ input [ type_ "text", class "form-control", placeholder "Search parameters", onInput SetDialogSearchInput ] []
         , div [ class "small text-secondary float-right" ]
-            [ if count > 0 then
-                (String.fromInt count) ++ " results" |> text
-              else
+            [ if count == 0 then
                 text "No results"
+              else if count == 1 then
+                (String.fromInt count) ++ " result" |> text
+              else
+                (String.fromInt count) ++ " results" |> text
             ]
         , div [ class "mt-5 border-top", style "overflow-y" "auto", style "max-height" "50vh" ]
             (List.map viewTerm terms)
