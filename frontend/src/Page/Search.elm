@@ -1648,7 +1648,7 @@ viewResults model =
                     ]
     in
     div []
-        [ if model.results /= Nothing then
+        [ if count > 0 then
             pageInfo
           else
             viewBlank
