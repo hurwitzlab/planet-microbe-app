@@ -201,7 +201,7 @@ viewCampaigns maybeCampaigns =
         [] ->
             text "None"
 
-        samples ->
+        campaigns ->
             table [ class "table" ]
                 [ thead []
                     [ tr []
@@ -210,7 +210,7 @@ viewCampaigns maybeCampaigns =
                         ]
                     ]
                 , tbody []
-                    (samples |> List.sortWith sortByName |> List.map mkRow)
+                    (campaigns |> List.sortWith sortByName |> List.map mkRow)
                 ]
 
 
