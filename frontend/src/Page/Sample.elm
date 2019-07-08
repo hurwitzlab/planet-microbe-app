@@ -9,6 +9,7 @@ import Page
 import Route
 import Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation, annotationsToHide)
 import SamplingEvent exposing (SamplingEvent)
+import Experiment exposing (Experiment)
 import LatLng
 import GMap
 import Http
@@ -29,6 +30,7 @@ type alias Model =
     { session : Session
     , sample : Maybe Sample
     , samplingEvents : Maybe (List SamplingEvent)
+    , experiments : Maybe (List Experiment)
     , metadata : Maybe Metadata
     , mapLoaded : Bool
     , tooltip : Maybe (ToolTip (List Annotation))
@@ -47,6 +49,7 @@ init session id =
     ( { session = session
       , sample = Nothing
       , samplingEvents = Nothing
+      , experiments = Nothing
       , metadata = Nothing
       , mapLoaded = False
       , tooltip = Nothing
@@ -55,8 +58,9 @@ init session id =
         [ GMap.removeMap "" -- workaround for blank map on navigating back to this page
         , GMap.changeMapSettings (GMap.Settings False False True False |> GMap.encodeSettings)
         , Sample.fetch id |> Http.toTask |> Task.attempt GetSampleCompleted
-        , SamplingEvent.fetchAllBySample id |> Http.toTask |> Task.attempt GetSamplingEventsCompleted
         , Sample.fetchMetadata id |> Http.toTask |> Task.attempt GetMetadataCompleted
+        , SamplingEvent.fetchAllBySample id |> Http.toTask |> Task.attempt GetSamplingEventsCompleted
+        , Experiment.fetchAllBySample id |> Http.toTask |> Task.attempt GetExperimentsCompleted
         ]
     )
 
@@ -82,6 +86,7 @@ subscriptions model =
 type Msg
     = GetSampleCompleted (Result Http.Error Sample)
     | GetSamplingEventsCompleted (Result Http.Error (List SamplingEvent))
+    | GetExperimentsCompleted (Result Http.Error (List Experiment))
     | GetMetadataCompleted (Result Http.Error Metadata)
     | MapLoaded Bool
     | TimerTick Time.Posix
@@ -108,6 +113,15 @@ update msg model =
         GetSamplingEventsCompleted (Err error) -> --TODO
 --            let
 --                _ = Debug.log "GetSamplingEventsCompleted" (toString error)
+--            in
+            ( model, Cmd.none )
+
+        GetExperimentsCompleted (Ok experiments) ->
+            ( { model | experiments = Just experiments }, Cmd.none )
+
+        GetExperimentsCompleted (Err error) -> --TODO
+--            let
+--                _ = Debug.log "GetExperimentsCompleted" (toString error)
 --            in
             ( model, Cmd.none )
 
@@ -202,10 +216,25 @@ view model =
             text ""
 
         Just sample ->
+            let
+                numExperiments =
+                    model.experiments |> Maybe.map List.length |> Maybe.withDefault 0
+            in
             div [ class "container" ]
                 [ Page.viewTitle "Sample" sample.accn
                 , div []
                     [ viewSample sample (model.samplingEvents |> Maybe.withDefault []) ]
+                , div [ class "pt-3" ]
+                    [ Page.viewTitle2 "Experiments" False
+                    , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
+                        [ if numExperiments == 0 then
+                            text ""
+                          else
+                            text (String.fromInt numExperiments)
+                        ]
+                    ]
+                , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
+                    [ viewExperiments model.experiments ]
                 , div [ class "pt-3 pb-2" ]
                     [ Page.viewTitle2 "Metadata" False ]
                 , viewMetadata model.metadata
@@ -292,6 +321,36 @@ viewSample sample samplingEvents =
 viewMap : Html Msg
 viewMap =
     GMap.view [ class "border", style "display" "block", style "width" "20em", style "height" "12em" ] []
+
+
+viewExperiments : Maybe (List Experiment) -> Html Msg
+viewExperiments maybeExperiments =
+    let
+        mkRow exp =
+            tr []
+                [ td [ style "white-space" "nowrap" ]
+                    [ a [ Route.href (Route.Experiment exp.id) ] [ text exp.accn ] ]
+                , td [] [ text (String.Extra.toSentenceCase exp.name) ]
+                ]
+
+        sortByName a b =
+            compare a.name b.name
+    in
+    case maybeExperiments |> Maybe.withDefault [] of
+        [] ->
+            text "None"
+
+        experiments ->
+            table [ class "table" ]
+                [ thead []
+                    [ tr []
+                        [ th [] [ text "Accession" ]
+                        , th [] [ text "Name" ]
+                        ]
+                    ]
+                , tbody []
+                    (experiments |> List.sortWith sortByName |> List.map mkRow)
+                ]
 
 
 viewMetadata : Maybe Metadata -> Html Msg

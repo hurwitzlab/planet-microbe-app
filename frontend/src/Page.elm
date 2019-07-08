@@ -31,6 +31,7 @@ type Page
     | Sample
     | Campaign
     | SamplingEvent
+    | Experiment
     | Contact
 
 

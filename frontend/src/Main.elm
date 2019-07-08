@@ -16,6 +16,7 @@ import Page.Project as Project
 import Page.Sample as Sample
 import Page.Campaign as Campaign
 import Page.SamplingEvent as SamplingEvent
+import Page.Experiment as Experiment
 import Page.Contact as Contact
 import GAnalytics
 import Session exposing (Session)
@@ -67,6 +68,7 @@ type Model
     | Sample Sample.Model
     | Campaign Campaign.Model
     | SamplingEvent SamplingEvent.Model
+    | Experiment Experiment.Model
     | Contact Contact.Model
 
 
@@ -90,6 +92,7 @@ type Msg
     | SampleMsg Sample.Msg
     | CampaignMsg Campaign.Msg
     | SamplingEventMsg SamplingEvent.Msg
+    | ExperimentMsg Experiment.Msg
     | ContactMsg Contact.Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
@@ -127,6 +130,9 @@ toSession page =
 
         SamplingEvent samplingEvent ->
             SamplingEvent.toSession samplingEvent
+
+        Experiment experiment ->
+            Experiment.toSession experiment
 
         Contact contact ->
             Contact.toSession contact
@@ -177,6 +183,10 @@ changeRouteTo maybeRoute model =
                         (Route.SamplingEvent id) ->
                             SamplingEvent.init session id
                                 |> updateWith SamplingEvent SamplingEventMsg model
+
+                        (Route.Experiment id) ->
+                            Experiment.init session id
+                                |> updateWith Experiment ExperimentMsg model
 
                         Route.Contact ->
                             Contact.init session
@@ -249,6 +259,10 @@ update msg model =
             SamplingEvent.update subMsg subModel
                 |> updateWith SamplingEvent SamplingEventMsg model
 
+        ( ExperimentMsg subMsg, Experiment subModel ) ->
+            Experiment.update subMsg subModel
+                |> updateWith Experiment ExperimentMsg model
+
         ( ContactMsg subMsg, Contact subModel ) ->
             Contact.update subMsg subModel
                 |> updateWith Contact ContactMsg model
@@ -314,6 +328,9 @@ view model =
 
         SamplingEvent subModel ->
             Page.view Page.SamplingEvent (SamplingEvent.view subModel |> Html.map SamplingEventMsg)
+
+        Experiment subModel ->
+            Page.view Page.Experiment (Experiment.view subModel |> Html.map ExperimentMsg)
 
         Contact subModel ->
             Page.view Page.Contact (Contact.view subModel |> Html.map ContactMsg)

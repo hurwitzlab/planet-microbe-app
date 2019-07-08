@@ -359,6 +359,18 @@ app.get('/samples/:id(\\d+)/sampling_events', async (req, res) => {
     res.json(result.rows);
 });
 
+app.get('/samples/:id(\\d+)/experiments', async (req, res) => {
+    let id = req.params.id;
+    let result = await query({
+        text: "SELECT e.experiment_id,e.name,e.accn \
+            FROM experiment e \
+            WHERE e.sample_id=$1",
+        values: [id]
+    });
+
+    res.json(result.rows);
+});
+
 app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
     let id = req.params.id;
     let result = await query({
@@ -489,6 +501,38 @@ app.get('/sampling_events/:id(\\d+)/samples', async (req, res) => {
     });
 
     res.json(result.rows);
+});
+
+app.get('/experiments/:id(\\d+)', async (req, res) => {
+    let id = req.params.id;
+    let result = await query({
+        text: "SELECT e.experiment_id,e.name,e.accn,s.sample_id,s.accn AS sample_accn,p.project_id,p.name AS project_name \
+            FROM experiment e \
+            JOIN sample s ON s.sample_id=e.sample_id \
+            JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
+            JOIN project p ON p.project_id=pts.project_id \
+            WHERE e.experiment_id=$1",
+        values: [id]
+    });
+
+    res.json(result.rows[0]);
+});
+
+app.get('/experiments/:id(\\d+)/runs', async (req, res) => {
+    let id = req.params.id;
+    let result = await query({
+        text: "SELECT r.run_id,r.accn,r.total_spots,r.total_bases \
+            FROM run r \
+            WHERE r.experiment_id=$1",
+        values: [id]
+    });
+
+    res.json(
+        result.rows.map(r => {
+            r.total_bases *= 1; r.total_spots *= 1;
+            return r;
+        })
+    );
 });
 
 app.post('/contact', (req, res) => {
