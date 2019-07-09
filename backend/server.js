@@ -389,31 +389,28 @@ app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
     let row = result.rows[0];
     let terms = [];
     let values = [];
-    for (i = 0;  i < row.fields.length;  i++) {
+    for (i = 0; i < row.fields.length; i++) {
         let field = row.fields[i];
-        let term = getTerm(field.rdfType) || {};
-        if (term) {
-            if (term.annotations) { // TODO move into function
-                term.annotations = term.annotations.map(a => {
-                    let label = getLabelForValue(a.id);
-                    let value = getLabelForValue(a.value);
 
-                    return {
-                        id: a.id,
-                        label: label,
-                        value: value
-                    };
-                });
-            }
+        let term = {};
+        let term2 = getTerm(field.rdfType) || {};
+        if (term2.annotations) { // TODO move into function
+            term.annotations = term2.annotations.map(a => {
+                let label = getLabelForValue(a.id);
+                let value = getLabelForValue(a.value);
+                return {
+                    id: a.id,
+                    label: label,
+                    value: value
+                };
+            });
         }
+
+        term.id = field.rdfType;
+        term.type = field.type;
         term.alias = field.name;
+        term.label = term2.label || "";
         term.sourceUrl = field['pm:sourceUrl'];
-        if (!('id' in term))
-            term.id = field.rdfType;
-        if (!('type' in term))
-            term.type = "unknown";
-        if (!('label' in term))
-            term.label = "";
         terms.push(term);
 
         let val = "";
