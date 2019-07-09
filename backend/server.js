@@ -41,7 +41,7 @@ app.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog of
 });
 
 app.get('/schema', async (req, res) => {
-    let fields = await query("SELECT schema_id,name,fields FROM schema");
+    let fields = await query("SELECT schema_id,name,fields->'fields' AS fields FROM schema");
     res.json(fields.rows);
 });
 
@@ -407,6 +407,7 @@ app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
             }
         }
         term.alias = field.name;
+        term.sourceUrl = field['pm:sourceUrl'];
         if (!('id' in term))
             term.id = field.rdfType;
         if (!('type' in term))
