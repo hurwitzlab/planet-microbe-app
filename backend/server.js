@@ -40,6 +40,11 @@ app.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog of
     res.json(rdfTermIndex);
 });
 
+app.get('/schema', async (req, res) => {
+    let fields = await query("SELECT schema_id,name,fields FROM schema");
+    res.json(fields.rows);
+});
+
 app.get('/searchTerms', (req, res) => {
     let query = req.query.query;
 
