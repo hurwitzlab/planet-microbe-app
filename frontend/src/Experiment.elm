@@ -20,6 +20,13 @@ type alias Experiment  =
     { id : Int
     , name : String
     , accn : String
+    , library_name : String
+    , library_strategy : String
+    , library_source : String
+    , library_selection : String
+    , library_protocol : String
+    , library_layout : String
+    , library_length : Maybe Int
     , sampleId : Int
     , sampleAccn : String
     , projectId : Int
@@ -37,6 +44,13 @@ experimentDecoder =
         |> required "experiment_id" Decode.int
         |> required "name" Decode.string
         |> required "accn" Decode.string
+        |> optional "library_name" Decode.string  ""
+        |> optional "library_strategy" Decode.string  ""
+        |> optional "library_source" Decode.string  ""
+        |> optional "library_selection" Decode.string  ""
+        |> optional "library_protocol" Decode.string  ""
+        |> optional "library_layout" Decode.string  ""
+        |> optional "library_length" (Decode.nullable Decode.int) Nothing
         |> optional "sample_id" Decode.int 0
         |> optional "sample_accn" Decode.string ""
         |> optional "project_id" Decode.int 0

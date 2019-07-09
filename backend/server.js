@@ -509,8 +509,9 @@ app.get('/sampling_events/:id(\\d+)/samples', async (req, res) => {
 app.get('/experiments/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT e.experiment_id,e.name,e.accn,s.sample_id,s.accn AS sample_accn,p.project_id,p.name AS project_name \
+        text: "SELECT e.experiment_id,e.name,e.accn,l.name AS library_name,l.strategy AS library_strategy, l.source AS library_source, l.selection AS library_selection, l.protocol AS library_protocol, l.layout AS library_layout, l.length AS library_length,s.sample_id,s.accn AS sample_accn,p.project_id,p.name AS project_name \
             FROM experiment e \
+            LEFT JOIN library l ON l.experiment_id=e.experiment_id \
             JOIN sample s ON s.sample_id=e.sample_id \
             JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
             JOIN project p ON p.project_id=pts.project_id \
