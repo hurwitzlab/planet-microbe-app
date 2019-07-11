@@ -195,18 +195,24 @@ viewRuns maybeRuns =
                 , td [] [ run.totalSpots |> toFloat |> format myLocale |> text ]
                 , td [] [ run.totalBases |> toFloat |> format myLocale |> text ]
                 , td []
-                    [ table [ class "table table-borderless table-sm small" ]
-                        [ thead []
-                            [ tr []
-                                [ th [] [ text "Type" ]
-                                , th [] [ text "Format" ]
-                                , th [] [ text "Path" ]
-                                ]
-                            ]
-                        , tbody []
-                            (List.map viewFile run.files)
+                    [ if run.files /= [] then
+                        fileTable run.files
+                     else
+                        text "None"
+                    ]
+                ]
+
+        fileTable files =
+            table [ class "table table-borderless table-sm small" ]
+                [ thead []
+                    [ tr []
+                        [ th [] [ text "Type" ]
+                        , th [] [ text "Format" ]
+                        , th [] [ text "Path" ]
                         ]
                     ]
+                , tbody []
+                    (List.map viewFile files)
                 ]
 
         viewFile f =
