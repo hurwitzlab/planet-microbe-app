@@ -212,7 +212,7 @@ viewRuns maybeRuns =
                         ]
                     ]
                 , tbody []
-                    (List.map viewFile files)
+                    (files |> List.sortWith sortByUrl |> List.map viewFile)
                 ]
 
         viewFile f =
@@ -224,6 +224,9 @@ viewRuns maybeRuns =
 
         sortByAccn a b =
             compare a.accn b.accn
+
+        sortByUrl a b =
+            compare a.url b.url
     in
     case maybeRuns |> Maybe.withDefault [] of
         [] ->
