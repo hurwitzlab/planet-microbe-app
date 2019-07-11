@@ -15,6 +15,7 @@ import Task exposing (Task)
 import String.Extra
 import Json.Encode as Encode
 --import Debug exposing (toString)
+import Config exposing (discoveryEnvironmentUrl)
 
 
 
@@ -189,10 +190,30 @@ viewRuns maybeRuns =
 
         mkRow run =
             tr []
-                [ td [ style "white-space" "nowrap" ]
+                [ td [ class "text-nowrap" ]
                     [ a [ href ("https://www.ncbi.nlm.nih.gov/sra/?term=" ++ run.accn), target "_blank" ] [ text run.accn ] ]
                 , td [] [ run.totalSpots |> toFloat |> format myLocale |> text ]
                 , td [] [ run.totalBases |> toFloat |> format myLocale |> text ]
+                , td []
+                    [ table [ class "table table-borderless table-sm small" ]
+                        [ thead []
+                            [ tr []
+                                [ th [] [ text "Type" ]
+                                , th [] [ text "Format" ]
+                                , th [] [ text "Path" ]
+                                ]
+                            ]
+                        , tbody []
+                            (List.map viewFile run.files)
+                        ]
+                    ]
+                ]
+
+        viewFile f =
+            tr []
+                [ td [] [ text (String.Extra.toSentenceCase f.type_) ]
+                , td [] [ text (String.Extra.toSentenceCase f.format) ]
+                , td [] [ a [ href (discoveryEnvironmentUrl ++ f.url), target "_blank" ] [ text f.url ] ]
                 ]
 
         sortByAccn a b =
@@ -206,9 +227,10 @@ viewRuns maybeRuns =
             table [ class "table" ]
                 [ thead []
                     [ tr []
-                        [ th [] [ text "Accession", extLinkIcon ]
+                        [ th [ class "text-nowrap" ] [ text "Accession", extLinkIcon ]
                         , th [] [ text "Total Spots" ]
                         , th [] [ text "Total Bases" ]
+                        , th [] [ text "Files" ]
                         ]
                     ]
                 , tbody []

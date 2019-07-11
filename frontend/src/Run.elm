@@ -25,6 +25,15 @@ type alias Run  =
     , experimentName : String
     , sampleId : Int
     , sampleAccn : String
+    , files : List File
+    }
+
+
+type alias File =
+    { id : Int
+    , url : String
+    , type_ : String
+    , format : String
     }
 
 
@@ -43,6 +52,16 @@ runDecoder =
         |> optional "experiment_name" Decode.string ""
         |> optional "sample_id" Decode.int 0
         |> optional "sample_accn" Decode.string ""
+        |> optional "files" (Decode.list fileDecoder) []
+
+
+fileDecoder : Decoder File
+fileDecoder =
+    Decode.succeed File
+        |> required "file_id" Decode.int
+        |> required "url" Decode.string
+        |> required "file_type" Decode.string
+        |> required "file_format" Decode.string
 
 
 

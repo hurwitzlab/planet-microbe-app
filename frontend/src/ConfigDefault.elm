@@ -17,3 +17,13 @@ alertBannerText =
 googleAnalyticsTrackingId : String
 googleAnalyticsTrackingId =
     ""
+
+
+dataCommonsUrl : String
+dataCommonsUrl =
+    "http://datacommons.cyverse.org/browse"
+
+
+discoveryEnvironmentUrl : String
+discoveryEnvironmentUrl =
+    "https://de.cyverse.org/de/?type=data&folder="
