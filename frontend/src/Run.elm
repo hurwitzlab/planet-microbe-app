@@ -1,6 +1,6 @@
 module Run exposing (Run, fetch, fetchAllByExperiment)
 
-{-| The interface to the Sample data structure.
+{-| The interface to the Run data structure.
 -}
 
 import Http
@@ -10,6 +10,7 @@ import Json.Decode.Pipeline exposing (required, optional)
 import Json.Encode as Encode
 import Config exposing (apiBaseUrl)
 --import Debug exposing (toString)
+import File exposing (File, fileDecoder)
 
 
 
@@ -29,14 +30,6 @@ type alias Run  =
     }
 
 
-type alias File =
-    { id : Int
-    , url : String
-    , type_ : String
-    , format : String
-    }
-
-
 
 -- SERIALIZATION
 
@@ -53,15 +46,6 @@ runDecoder =
         |> optional "sample_id" Decode.int 0
         |> optional "sample_accn" Decode.string ""
         |> optional "files" (Decode.list fileDecoder) []
-
-
-fileDecoder : Decoder File
-fileDecoder =
-    Decode.succeed File
-        |> required "file_id" Decode.int
-        |> required "url" Decode.string
-        |> required "file_type" Decode.string
-        |> required "file_format" Decode.string
 
 
 

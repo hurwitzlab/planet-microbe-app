@@ -271,15 +271,35 @@ app.get('/projects', async (req, res) => {
 app.get('/projects/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type, \
+        text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format, \
             (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count \
             FROM project p \
             JOIN project_type pt ON p.project_type_id=pt.project_type_id \
+            LEFT JOIN project_to_file ptf ON ptf.project_id=p.project_id \
+            LEFT JOIN file f ON f.file_id=ptf.file_id \
+            LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
+            LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id \
             WHERE p.project_id=$1",
         values: [id]
     });
-    result.rows.forEach(row => row.sample_count *= 1); // convert count to int
-    res.json(result.rows[0]);
+
+    // FIXME kludgey
+    let filesById = {};
+    result.rows.forEach(row => {
+        row.sample_count *= 1
+
+        if (row.file_id)
+            filesById[row.file_id] = {
+                file_id: row.file_id,
+                file_type: row.file_type,
+                file_format: row.file_format,
+                url: row.url,
+            };
+    })
+
+    let result2 = result.rows[0];
+    result2.files = Object.values(filesById);
+    res.json(result2);
 });
 
 app.get('/projects/:id(\\d+)/campaigns', async (req, res) => {

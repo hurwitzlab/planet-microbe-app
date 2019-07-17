@@ -14,6 +14,7 @@ import Http
 import Task exposing (Task)
 import String.Extra
 --import Debug exposing (toString)
+import Config exposing (discoveryEnvironmentUrl)
 
 
 
@@ -166,6 +167,22 @@ view model =
 
 viewProject : Project -> Html Msg
 viewProject project =
+    let
+        fileTable files =
+            table [ class "table table-borderless table-sm small" ]
+                [ tbody []
+                    (files |> List.sortWith sortByUrl |> List.map fileRow)
+                ]
+
+        fileRow f =
+            tr []
+                [ td [] [ text (String.Extra.toSentenceCase f.type_) ]
+                , td [] [ a [ href (discoveryEnvironmentUrl ++ f.url), target "_blank" ] [ text f.url ] ]
+                ]
+
+        sortByUrl a b =
+            compare a.url b.url
+    in
     table [ class "table table-borderless table-sm" ]
         [ tbody []
             [ tr []
@@ -179,6 +196,10 @@ viewProject project =
             , tr []
                 [ th [] [ text "Type" ]
                 , td [] [ text (String.Extra.toSentenceCase project.type_) ]
+                ]
+            , tr []
+                [ th [] [ text "Files" ]
+                , td [] [ fileTable project.files ]
                 ]
             ]
         ]

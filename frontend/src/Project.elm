@@ -6,9 +6,10 @@ module Project exposing (Project, fetch, fetchAll)
 import Http
 import HttpBuilder
 import Json.Decode as Decode exposing (Decoder)
-import Json.Decode.Pipeline exposing (required)
+import Json.Decode.Pipeline exposing (required, optional)
 import Json.Encode as Encode
 import Config exposing (apiBaseUrl)
+import File exposing (File, fileDecoder)
 
 
 
@@ -22,6 +23,7 @@ type alias Project  =
     , description : String
     , type_ : String
     , sampleCount : Int
+    , files : List File
     }
 
 
@@ -38,6 +40,7 @@ projectDecoder =
         |> required "description" Decode.string
         |> required "type" Decode.string
         |> required "sample_count" Decode.int
+        |> optional "files" (Decode.list fileDecoder) []
 
 
 
