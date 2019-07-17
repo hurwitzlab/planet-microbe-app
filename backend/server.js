@@ -271,7 +271,11 @@ app.get('/projects', async (req, res) => {
 app.get('/projects/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type,(SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count FROM project p JOIN project_type pt ON p.project_type_id=pt.project_type_id WHERE p.project_id=$1",
+        text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type, \
+            (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count \
+            FROM project p \
+            JOIN project_type pt ON p.project_type_id=pt.project_type_id \
+            WHERE p.project_id=$1",
         values: [id]
     });
     result.rows.forEach(row => row.sample_count *= 1); // convert count to int
