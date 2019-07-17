@@ -999,6 +999,12 @@ viewAddFilterDialog allTerms searchVal =
         count =
             List.length terms
 
+        noneIfBlank s = --TODO move into Util module
+            if s == "" then
+                "None"
+            else
+                s
+
         viewTerm term =
             div [ class "border-bottom px-2" ]
                 [ table [ style "width" "97%" ]
@@ -1007,22 +1013,20 @@ viewAddFilterDialog allTerms searchVal =
                         , td [] [ button [ class "btn btn-light btn-sm border float-right", onClick (AddFilter term.id) ] [ text "Add" ] ]
                         ]
                     ]
-                , table [ class "small" ]
-                    (term.annotations |> List.filter (\a -> not (List.member a.id annotationsToHide)) |> List.map row)
+                , (if term.definition /= "" then
+                    table [ class "table table-borderless table-sm small"]
+                        [ tr []
+                            [ th [] [ text "Definition"]
+                            , td [] [ text term.definition ]
+                            ]
+                        , tr []
+                            [ th [] [ text "Unit"]
+                            , td [] [ text (noneIfBlank term.unitLabel) ]
+                            ]
+                        ]
+                  else
+                    text "")
                 ]
-
-        row anno =
-            tr []
-                [ th [ class "align-top pr-3" ] [ text (String.Extra.toSentenceCase anno.label) ]
-                , td [ class "align-top" ]
-                    [ value anno.value ]
-                ]
-
-        value val =
-            if String.startsWith "http://" val || String.startsWith "https://" val || String.startsWith "ftp://" val then
-                a [ href val, target "_blank" ] [ text val ]
-            else
-                text val
     in
     viewDialog "Add Filter"
         [ input [ type_ "text", class "form-control", placeholder "Search parameters", onInput SetDialogSearchInput ] []
