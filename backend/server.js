@@ -527,7 +527,8 @@ app.get('/experiments/:id(\\d+)/runs', async (req, res) => {
     let result = await query({
         text: "SELECT r.run_id,r.accn,r.total_spots,r.total_bases,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format \
             FROM run r \
-            LEFT JOIN file f ON f.run_id=r.run_id \
+            LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id \
+            LEFT JOIN file f ON f.file_id=rtf.file_id \
             LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
             LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id \
             WHERE r.experiment_id=$1",
