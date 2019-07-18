@@ -410,7 +410,7 @@ viewMetadata maybeMetadata  =
                         [ th [ class "text-nowrap" ] [ text "Ontology Label", extLinkIcon ]
                         , th [ class "text-nowrap" ] [ text "Dataset Label" ]
                         , th [] [ text "Value" ]
-                        , th [] [ text "Unit", extLinkIcon ]
+                        , th [ class "text-nowrap" ] [ text "Unit", extLinkIcon ]
                         , th [ class "text-nowrap" ] [ text "Source", extLinkIcon ]
                         ]
                     ]
