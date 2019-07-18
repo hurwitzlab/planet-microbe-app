@@ -435,6 +435,8 @@ app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
         term.alias = field.name;
         term.label = term2.label || "";
         term.definition = term2.definition || "";
+        term.unitId = term2.unitId || "";
+        term.unitLabel = term2.unitLabel || "";
         term.sourceUrl = field['pm:sourceUrl'];
         terms.push(term);
 
