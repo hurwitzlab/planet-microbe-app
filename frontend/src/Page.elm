@@ -27,6 +27,7 @@ type Page
     | Browse
     | Search
     | Analyze
+    | App
     | Project
     | Sample
     | Campaign

@@ -12,6 +12,7 @@ import Page.Home as Home
 import Page.Browse as Browse
 import Page.Search as Search
 import Page.Analyze as Analyze
+import Page.App as App
 import Page.Project as Project
 import Page.Sample as Sample
 import Page.Campaign as Campaign
@@ -64,6 +65,7 @@ type Model
     | Browse Browse.Model
     | Search Search.Model
     | Analyze Analyze.Model
+    | App App.Model
     | Project Project.Model
     | Sample Sample.Model
     | Campaign Campaign.Model
@@ -88,6 +90,7 @@ type Msg
     | BrowseMsg Browse.Msg
     | SearchMsg Search.Msg
     | AnalyzeMsg Analyze.Msg
+    | AppMsg App.Msg
     | ProjectMsg Project.Msg
     | SampleMsg Sample.Msg
     | CampaignMsg Campaign.Msg
@@ -118,6 +121,9 @@ toSession page =
 
         Analyze analyze ->
             Analyze.toSession analyze
+
+        App app ->
+            App.toSession app
 
         Project project ->
             Project.toSession project
@@ -167,6 +173,10 @@ changeRouteTo maybeRoute model =
                         Route.Analyze ->
                             Analyze.init session
                                 |> updateWith Analyze AnalyzeMsg model
+
+                        Route.App ->
+                            App.init session
+                                |> updateWith App AppMsg model
 
                         (Route.Project id) ->
                             Project.init session id
@@ -243,6 +253,10 @@ update msg model =
             Analyze.update subMsg subModel
                 |> updateWith Analyze AnalyzeMsg model
 
+        ( AppMsg subMsg, App subModel ) ->
+            App.update subMsg subModel
+                |> updateWith App AppMsg model
+
         ( ProjectMsg subMsg, Project subModel ) ->
             Project.update subMsg subModel
                 |> updateWith Project ProjectMsg model
@@ -316,6 +330,9 @@ view model =
 
         Analyze subModel ->
             Page.view Page.Analyze (Analyze.view subModel |> Html.map AnalyzeMsg)
+
+        App subModel ->
+            Page.view Page.App (App.view subModel |> Html.map AppMsg)
 
         Project subModel ->
             Page.view Page.Project (Project.view subModel |> Html.map ProjectMsg)

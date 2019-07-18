@@ -16,6 +16,7 @@ type Route
     | Browse
     | Search
     | Analyze
+    | App Int
     | Project Int
     | Sample Int
     | Campaign Int
@@ -31,6 +32,7 @@ parser =
         , Parser.map Browse (s "browse")
         , Parser.map Search (s "search")
         , Parser.map Analyze (s "analyze")
+        , Parser.map App (s "apps" </> int)
         , Parser.map Project (s "projects" </> int)
         , Parser.map Sample (s "samples" </> int)
         , Parser.map Campaign (s "campaigns" </> int)
@@ -83,6 +85,9 @@ routeToString page =
 
                 Analyze ->
                     [ "analyze" ]
+
+                App id ->
+                    [ "apps", String.fromInt id ]
 
                 Project id ->
                     [ "projects", String.fromInt id ]
