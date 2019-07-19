@@ -174,27 +174,27 @@ changeRouteTo maybeRoute model =
                             Analyze.init session
                                 |> updateWith Analyze AnalyzeMsg model
 
-                        Route.App ->
-                            App.init session
+                        Route.App id ->
+                            App.init session id
                                 |> updateWith App AppMsg model
 
-                        (Route.Project id) ->
+                        Route.Project id ->
                             Project.init session id
                                 |> updateWith Project ProjectMsg model
 
-                        (Route.Sample id) ->
+                        Route.Sample id ->
                             Sample.init session id
                                 |> updateWith Sample SampleMsg model
 
-                        (Route.Campaign id) ->
+                        Route.Campaign id ->
                             Campaign.init session id
                                 |> updateWith Campaign CampaignMsg model
 
-                        (Route.SamplingEvent id) ->
+                        Route.SamplingEvent id ->
                             SamplingEvent.init session id
                                 |> updateWith SamplingEvent SamplingEventMsg model
 
-                        (Route.Experiment id) ->
+                        Route.Experiment id ->
                             Experiment.init session id
                                 |> updateWith Experiment ExperimentMsg model
 

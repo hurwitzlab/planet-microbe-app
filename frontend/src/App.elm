@@ -16,7 +16,7 @@ import Config exposing (apiBaseUrl)
 
 
 type alias App =
-    { app_id : Int
+    { id : Int
     , name : String
     , is_active : Bool
     , is_maintenance : Bool

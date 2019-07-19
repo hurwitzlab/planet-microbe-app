@@ -1,7 +1,7 @@
-module Page.App exposing (Model, Msg(..), init, update, view)
+module Page.App exposing (Model, Msg(..), init, toSession, update, view)
 
 import Session exposing (Session)
-import App as App exposing (App, AppRun)
+import App exposing (App, AppRun)
 import Agave
 --import Data.Sample as Sample exposing (Sample, SampleFile, SampleGroup)
 --import Data.Cart
@@ -28,9 +28,10 @@ import Debug exposing (toString)
 
 
 type alias Model =
-    { app_id : Int
-    , app : App
-    , agaveApp : Agave.App
+    { session : Session
+    , appId : Int
+    , app : Maybe App
+    , agaveApp : Maybe Agave.App
     , inputs : Dict String String
     , parameters : Dict String String
 --    , cart : Cart.Model
@@ -56,7 +57,8 @@ init session id =
             App.fetch id |> Http.toTask
 
         loadAppFromAgave name =
-            Agave.getApp session.token name |> Http.toTask |> Task.map .result
+--            Agave.getApp session.token name |> Http.toTask |> Task.map .result
+            Agave.getApp "Bearer 66815bcd845b29e8b552e828f343c9f" name |> Http.toTask |> Task.map .result
 
 --        loadAppFromPlanB name =
 --            Request.PlanB.getApp session.token name |> Http.toTask |> Task.map .result
@@ -96,34 +98,41 @@ init session id =
 --            , homePath = Nothing
 --            }
     in
-    loadApp |> Task.andThen
-        (\app ->
-            ((loadAppFromProvider app) app.name
-                |> Task.andThen
-                    (\agaveApp ->
-                        Task.succeed
-                            { app_id = id
-                            , app = app
-                            , agaveApp = agaveApp
-                            , inputs = inputs agaveApp
-                            , parameters = params agaveApp
---                            , cart = cart
---                            , cartLoaded = False
---                            , selectedCartId = Nothing -- Current
---                            , samples = []
---                            , files = []
---                            , sampleGroups = []
-                            , showRunDialog = False
-                            , cartDialogInputId = Nothing
-                            , dialogError = Nothing
-                            , filterFileType = "All Types"
-                            , inputId = Nothing
---                            , fileBrowser = FileBrowser.init session (Just fileBrowserConfig)
-                        }
-                    )
-            )
-        )
---        |> Task.mapError (Error.handleLoadErrorWithLogin (isLoggedIn session))
+    ( { session = session
+      , appId = id
+      , app = Nothing
+      , agaveApp = Nothing
+      , inputs = Dict.empty --inputs agaveApp
+      , parameters = Dict.empty --params agaveApp
+--      , cart = cart
+--      , cartLoaded = False
+--      , selectedCartId = Nothing -- Current
+--      , samples = []
+--      , files = []
+--      , sampleGroups = []
+      , showRunDialog = False
+      , cartDialogInputId = Nothing
+      , dialogError = Nothing
+      , filterFileType = "All Types"
+      , inputId = Nothing
+--      , fileBrowser = FileBrowser.init session (Just fileBrowserConfig)
+      }
+      , loadApp
+            |> Task.andThen
+                (\app ->
+                    (loadAppFromProvider app) app.name
+                        |> Task.andThen
+                            (\agaveApp ->
+                                Task.succeed (app, agaveApp)
+                            )
+                )
+            |> Task.attempt GetAppCompleted
+    )
+
+
+toSession : Model -> Session
+toSession model =
+    model.session
 
 
 
@@ -131,7 +140,8 @@ init session id =
 
 
 type Msg
-    = SetInput InputSource String String --FIXME change source (1st arg) to union type
+    = GetAppCompleted (Result Http.Error (App, Agave.App))
+    | SetInput InputSource String String
     | SetParameter String String
     | RunJob
     | RunJobCompleted (Result Http.Error (Agave.Response Agave.JobStatus))
@@ -150,13 +160,22 @@ type Msg
 --    | FileBrowserMsg FileBrowser.Msg
 
 
-update : Session -> Msg -> Model -> ( Model, Cmd Msg )
-update session msg model =
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
     let
         isPlanB =
-            model.app.provider == "plan-b"
+            (model.app |> Maybe.map .provider |> Maybe.withDefault "") == "plan-b"
     in
     case msg of
+        GetAppCompleted (Ok (app, agaveApp)) ->
+            ( { model | app = Just app, agaveApp = Just agaveApp }, Cmd.none )
+
+        GetAppCompleted (Err error) -> --TODO
+            let
+                _ = Debug.log "GetAppCompleted" (toString error)
+            in
+            ( model, Cmd.none )
+
         SetInput source id value ->
             let
                 curValue =
@@ -207,76 +226,81 @@ update session msg model =
             ( { model | parameters = newParams }, Cmd.none )
 
         RunJob -> --TODO messy, clean this up
-            let
-                irodsToAgave path = -- convert IRODS paths to Agave paths
-                    if String.contains "/iplant/home" path then
-                        String.replace "/iplant/home" "" path -- replace all instances (multiple paths separated by semicolon)
-                    else
-                        path
+            case (model.app, model.agaveApp) of
+                (Just app, Just agaveApp) ->
+                    let
+                        irodsToAgave path = -- convert IRODS paths to Agave paths
+                            if String.contains "/iplant/home" path then
+                                String.replace "/iplant/home" "" path -- replace all instances (multiple paths separated by semicolon)
+                            else
+                                path
 
-                jobInputs =
-                    Dict.toList model.inputs
-                        |> List.map (\(k, v) -> (k, irodsToAgave v))
-                        |> List.map (\(k, v) -> Agave.JobInput k (String.split ";" v))
+                        jobInputs =
+                            Dict.toList model.inputs
+                                |> List.map (\(k, v) -> (k, irodsToAgave v))
+                                |> List.map (\(k, v) -> Agave.JobInput k (String.split ";" v))
 
-                encodeParam id val =
-                    case List.filter (\p -> p.id == id) model.agaveApp.parameters of
-                        [ param ] ->
-                            case param.value.type_ of
-                                "number" ->
-                                    Agave.NumberValue (String.toFloat val |> Maybe.withDefault 0)
+                        encodeParam id val =
+                            case List.filter (\p -> p.id == id) agaveApp.parameters of
+                                [ param ] ->
+                                    case param.value.type_ of
+                                        "number" ->
+                                            Agave.NumberValue (String.toFloat val |> Maybe.withDefault 0)
 
-                                "bool" ->
-                                    if val == "true" then
-                                        Agave.BoolValue True
-                                    else
-                                        Agave.BoolValue False
+                                        "bool" ->
+                                            if val == "true" then
+                                                Agave.BoolValue True
+                                            else
+                                                Agave.BoolValue False
 
-                                "flag" ->
-                                    if val == "true" then
-                                        Agave.BoolValue True
-                                    else
-                                        Agave.BoolValue False
+                                        "flag" ->
+                                            if val == "true" then
+                                                Agave.BoolValue True
+                                            else
+                                                Agave.BoolValue False
 
-                                "enumeration" ->
-                                    Agave.ArrayValue (String.split ";" val)
+                                        "enumeration" ->
+                                            Agave.ArrayValue (String.split ";" val)
+
+                                        _ ->
+                                            Agave.StringValue val
 
                                 _ ->
                                     Agave.StringValue val
 
-                        _ ->
-                            Agave.StringValue val
+                        jobParameters =
+                            Dict.toList model.parameters |> List.map (\(k, v) -> Agave.JobParameter k (encodeParam k v))
 
-                jobParameters =
-                    Dict.toList model.parameters |> List.map (\(k, v) -> Agave.JobParameter k (encodeParam k v))
+                        jobName =
+                            "iMicrobe " ++ app.name --FIXME should be a user-inputted value?
 
-                jobName =
-                    "iMicrobe " ++ model.app.name --FIXME should be a user-inputted value?
+                        jobRequest =
+                            Agave.JobRequest jobName app.name True jobInputs jobParameters []
 
-                jobRequest =
-                    Agave.JobRequest jobName model.app.name True jobInputs jobParameters []
+                        launchAgave =
+                            Agave.launchJob model.session.token jobRequest |> Http.send RunJobCompleted
 
-                launchAgave =
-                    Agave.launchJob session.token jobRequest |> Http.send RunJobCompleted
+        --                launchPlanB =
+        --                    Request.PlanB.launchJob session.token jobRequest |> Http.send RunJobCompleted
 
---                launchPlanB =
---                    Request.PlanB.launchJob session.token jobRequest |> Http.send RunJobCompleted
+                        sendAppRun =
+                            App.run model.session.token model.appId (Agave.encodeJobRequest jobRequest |> toString) |> Http.send AppRunCompleted
 
-                sendAppRun =
-                    App.run session.token model.app_id (Agave.encodeJobRequest jobRequest |> toString) |> Http.send AppRunCompleted
+                        launchApp =
+        --                    if isPlanB then
+        --                        launchPlanB
+        --                    else
+                                launchAgave
+                    in
+                    ( { model | showRunDialog = True }, Cmd.batch [ launchApp, sendAppRun ] )
 
-                launchApp =
---                    if isPlanB then
---                        launchPlanB
---                    else
-                        launchAgave
-            in
-            ( { model | showRunDialog = True }, Cmd.batch [ launchApp, sendAppRun ] )
+                (_, _) ->
+                    ( model, Cmd.none )
 
         RunJobCompleted (Ok response) ->
             let
                 shareJob =
-                    Agave.shareJob session.token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
+                    Agave.shareJob model.session.token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
             in
             ( model
 --            , ((Route.modifyUrl (Route.Job response.result.id)
@@ -462,72 +486,73 @@ type InputSource
 
 view : Model -> Html Msg
 view model =
-    let
-        body =
-            if not model.app.is_active then
-                div [ class "alert alert-info" ]
-                    [ text "This app is no longer available." ]
-            else if model.app.is_maintenance then
-                div [ class "alert alert-info" ]
-                    [ text "This app is currently unavailable due to maintenance." ]
-            else
-                div []
-                    [ viewApp model
-                    , div [ class "center" ]
-                        [ hr [] []
-                        , button [ class "btn btn-primary btn-lg", onClick RunJob ] [ text "Run" ]
+    case (model.app, model.agaveApp) of
+        (Just app, Just agaveApp) ->
+            let
+                body =
+                    if not app.is_active then
+                        div [ class "alert alert-info" ]
+                            [ text "This app is no longer available." ]
+                    else if app.is_maintenance then
+                        div [ class "alert alert-info" ]
+                            [ text "This app is currently unavailable due to maintenance." ]
+                    else
+                        div []
+                            [ viewApp app agaveApp model.inputs model.parameters
+                            , div [ class "center" ]
+                                [ hr [] []
+                                , button [ class "btn btn-primary btn-lg", onClick RunJob ] [ text "Run" ]
+                                ]
+                            ]
+            in
+            div [ class "container" ]
+                [ div [ class "row" ]
+                    [ div [ class "page-header" ]
+                        [ h1 []
+                            [ text "App "
+                            , small []
+                                [ text app.name ]
+                            ]
                         ]
                     ]
-    in
-    div [ class "container" ]
-        [ div [ class "row" ]
-            [ div [ class "page-header" ]
-                [ h1 []
-                    [ text "App "
-                    , small []
-                        [ text model.app.name ]
-                    ]
+                    , body
+        --            , Dialog.view
+        --                (if model.showRunDialog then
+        --                    Just (runDialogConfig model)
+        --                 else if model.cartDialogInputId /= Nothing then
+        --                    Just (cartDialogConfig model)
+        --                 else if model.inputId /= Nothing then
+        --                    Just (fileBrowserDialogConfig model.fileBrowser (model.inputId |> Maybe.withDefault "") False)
+        --                 else
+        --                    Nothing
+        --                )
                 ]
-            ]
-            , body
---            , Dialog.view
---                (if model.showRunDialog then
---                    Just (runDialogConfig model)
---                 else if model.cartDialogInputId /= Nothing then
---                    Just (cartDialogConfig model)
---                 else if model.inputId /= Nothing then
---                    Just (fileBrowserDialogConfig model.fileBrowser (model.inputId |> Maybe.withDefault "") False)
---                 else
---                    Nothing
---                )
-        ]
+
+        (_, _) ->
+            text ""
 
 
-viewApp : Model -> Html Msg
-viewApp model =
+viewApp : App -> Agave.App -> Dict String String -> Dict String String -> Html Msg
+viewApp app agaveApp inputs parameters =
     let
-        app = model.app
-
-        agaveApp = model.agaveApp
-
-        inputs =
+        viewInputs =
             case agaveApp.inputs of
                 [] ->
                     div [] [ text "None" ]
 
                 _  ->
                     table [ class "table" ]
-                        [ tbody [] (List.Extra.zip agaveApp.inputs (Dict.values model.inputs) |> List.map viewAppInput)
+                        [ tbody [] (List.Extra.zip agaveApp.inputs (Dict.values inputs) |> List.map viewAppInput)
                         ]
 
-        parameters =
+        viewParameters =
             case agaveApp.parameters of
                 [] ->
                     div [] [ text "None" ]
 
                 _  ->
                     table [ class "table" ]
-                        [ tbody [] (List.Extra.zip agaveApp.parameters (Dict.values model.parameters) |> List.map viewAppParameter)
+                        [ tbody [] (List.Extra.zip agaveApp.parameters (Dict.values parameters) |> List.map viewAppParameter)
                         ]
     in
     div []
@@ -556,9 +581,9 @@ viewApp model =
 --            ]
         ]
     , h3 [] [ text "Inputs" ]
-    , inputs
+    , viewInputs
     , h3 [] [ text "Parameters" ]
-    , parameters
+    , viewParameters
     ]
 
 
