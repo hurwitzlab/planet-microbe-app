@@ -9,6 +9,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onCheck, onInput)
 import Http
+import Page exposing (viewSpinner)
 --import Page.Error as Error exposing (PageLoadError)
 import Json.Decode as Decode
 import Task exposing (Task)
@@ -68,22 +69,6 @@ init session id =
 --                "plan-b" -> loadAppFromPlanB
 
                 _ -> loadAppFromAgave
-
-        default val =
-            case val of
-                Agave.StringValue s -> s
-
-                Agave.ArrayValue arr -> String.join ";" arr
-
-                Agave.BoolValue bool -> ""
-
-                Agave.NumberValue num -> String.fromFloat num
-
-        inputs app =
-            app.inputs |> List.map (\input -> (input.id, (default input.value.default))) |> Dict.fromList
-
-        params app =
-            app.parameters |> List.map (\param -> (param.id, default param.value.default)) |> Dict.fromList
 
 --        cart =
 --            Cart.init session.cart Cart.Selectable
@@ -168,12 +153,36 @@ update msg model =
     in
     case msg of
         GetAppCompleted (Ok (app, agaveApp)) ->
-            ( { model | app = Just app, agaveApp = Just agaveApp }, Cmd.none )
+            let
+                mapInputs l =
+                    l |> List.map (\input -> (input.id, (default input.value.default))) |> Dict.fromList
+
+                mapParams l =
+                    l |> List.map (\param -> (param.id, default param.value.default)) |> Dict.fromList
+
+                default val =
+                    case val of
+                        Agave.StringValue s -> s
+
+                        Agave.ArrayValue arr -> String.join ";" arr
+
+                        Agave.BoolValue bool -> ""
+
+                        Agave.NumberValue num -> String.fromFloat num
+            in
+            ( { model
+                | app = Just app
+                , agaveApp = Just agaveApp
+                , inputs = mapInputs agaveApp.inputs
+                , parameters = mapParams agaveApp.parameters
+              }
+            , Cmd.none
+            )
 
         GetAppCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetAppCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetAppCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         SetInput source id value ->
@@ -499,23 +508,15 @@ view model =
                     else
                         div []
                             [ viewApp app agaveApp model.inputs model.parameters
-                            , div [ class "center" ]
+                            , div [ class "text-center" ]
                                 [ hr [] []
                                 , button [ class "btn btn-primary btn-lg", onClick RunJob ] [ text "Run" ]
                                 ]
                             ]
             in
             div [ class "container" ]
-                [ div [ class "row" ]
-                    [ div [ class "page-header" ]
-                        [ h1 []
-                            [ text "App "
-                            , small []
-                                [ text app.name ]
-                            ]
-                        ]
-                    ]
-                    , body
+                [ Page.viewTitle "App" app.name
+                , body
         --            , Dialog.view
         --                (if model.showRunDialog then
         --                    Just (runDialogConfig model)
@@ -529,7 +530,7 @@ view model =
                 ]
 
         (_, _) ->
-            text ""
+            viewSpinner
 
 
 viewApp : App -> Agave.App -> Dict String String -> Dict String String -> Html Msg
@@ -556,10 +557,8 @@ viewApp app agaveApp inputs parameters =
                         ]
     in
     div []
-    [ table [ class "table" ]
-        [ colgroup []
-                [ col [ class "col-md-2" ] [] ]
-        , tr []
+    [ table [ class "table table-borderless table-sm" ]
+        [ tr []
             [ th [] [ text "Name" ]
             , td [] [ text app.name ]
             ]
@@ -580,9 +579,9 @@ viewApp app agaveApp inputs parameters =
 --            , td [] [ text (List.map .value app.app_tags |> List.sort |> String.join ", ") ]
 --            ]
         ]
-    , h3 [] [ text "Inputs" ]
+    , Page.viewTitle2 "Inputs" False
     , viewInputs
-    , h3 [] [ text "Parameters" ]
+    , Page.viewTitle2 "Parameters" False
     , viewParameters
     ]
 
@@ -616,7 +615,7 @@ viewAppInput input =
 --                text ""
     in
     tr []
-    [ th [ class "col-md-3" ] [ text label ]
+    [ th [ class "w-25" ] [ text label ]
     , td []
         [ div [ style "display" "flex" ]
             [ textarea [ class "form-control margin-right", style "width" "30em", style "min-height" "2.5em", rows 1, name id, value val, onInput (SetInput UI id) ] []
@@ -683,8 +682,8 @@ viewAppParameter input =
                 []
     in
     tr hidden
-    [ th [ class "col-md-3" ] [ text param.details.label ]
-    , td [ class "nowrap" ] [ interface ]
+    [ th [ class "w-25" ] [ text param.details.label ]
+    , td [ class "text-nowrap" ] [ interface ]
     , td [] [ text param.details.description ]
     ]
 
