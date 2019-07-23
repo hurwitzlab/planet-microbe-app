@@ -12,6 +12,20 @@ const sendmail = require('sendmail')();
 const requestp = require('request-promise');
 const config = require('./config.json');
 
+
+// Create error types
+class MyError extends Error {
+    constructor(message, statusCode) {
+        super(message);
+        this.statusCode = statusCode;
+    }
+}
+
+const ERR_BAD_REQUEST = new MyError("Bad request", 400);
+const ERR_UNAUTHORIZED = new MyError("Unauthorized", 401);
+const ERR_PERMISSION_DENIED = new MyError("Permission denied", 403);
+const ERR_NOT_FOUND = new MyError("Not found", 404);
+
 var rdfTermIndex = {};
 var db;
 
@@ -36,6 +50,7 @@ var db;
 app.use(logger('dev'));
 app.use(cors());
 app.use(bodyParser.json()); // support json encoded bodies
+app.use(agaveTokenValidator);
 
 app.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog of terms
     res.json(rdfTermIndex);
@@ -648,7 +663,139 @@ app.post('/token', async (req, res) => {
     res.send(tokenResponse);
 });
 
+app.post('/users/login', async (req, res) => { // TODO add try/catch error handling
+    requireAuth(req);
+
+    var username = "mbomhoff";//req.auth.user.user_name;
+
+    // Add user if not already present
+    let user = await query({
+        text: "SELECT * FROM \"user\" WHERE user_name=$1",
+        values: [username]
+    });
+
+    if (user.rowCount == 0) {
+        user = await query({
+            text: "INSERT INTO \"user\" (user_name) VALUES ($1) RETURNING *",
+            values: [username]
+        });
+    }
+
+    // For new user set first_name/last_name/email, or update for existing user (in case they changed any of those fields)
+    // Only do this once at login and not in agaveTokenValidator
+    user = await query({
+        text: "UPDATE \"user\" SET first_name=$1, last_name=$2, email=$3 WHERE user_name=$4",
+        values: [req.auth.user.first_name,req.auth.user.last_name, req.auth.user.email, username]
+    });
+
+    user = await query({
+        text: "SELECT * FROM \"user\" WHERE user_name=$1",
+        values: [username]
+    });
+
+    let login = await query({
+        text: "INSERT INTO login (user_id) VALUES ($1) RETURNING *",
+        values: [user.rows[0].user_id]
+    });
+
+    res.json(user.rows[0]);
+});
+
+app.use(errorHandler);
+
+// Catch-all function
+app.get('*', function(req, res, next){
+    res.status(404).send("Unknown route: " + req.path);
+});
+
 //----------------------------------------------------------------------------------------------------------------------
+
+function requireAuth(req) {
+    if (!req || !req.auth || !req.auth.validToken || !req.auth.user)
+        throw(ERR_UNAUTHORIZED);
+}
+
+function errorHandler(error, req, res, next) {
+    console.log("ERROR ".padEnd(80, "!"));
+    console.log(error.stack);
+
+    let statusCode = error.statusCode || 500;
+    let message = error.message || "Unknown error";
+
+    res.status(statusCode).send(message);
+}
+
+async function agaveTokenValidator(req, res, next) {
+    var token;
+    if (req && req.headers)
+        token = req.headers.authorization;
+    console.log("validateAgaveToken: token:", token);
+
+    req.auth = {
+        validToken: false
+    };
+
+    if (token) {
+//        try {
+            let response = await getAgaveProfile(token);
+            if (!response || response.status != "success") {
+                console.log('validateAgaveToken: !!!! Bad profile status: ' + response.status);
+            }
+            else {
+                response.result.token = token;
+            }
+
+            let profile = response.result;
+            if (profile) {
+                console.log("validateAgaveToken: *** success ***  username:", profile.username);
+
+                req.auth = {
+                    validToken: true,
+                    profile: profile
+                };
+
+                // Add user if not already present
+                let user = await query({
+                    text: "SELECT * FROM \"user\" WHERE user_name=$1",
+                    values: [profile.username]
+                });
+
+                if (user.rowCount == 0) {
+                    user = await query({
+                        text: "INSERT INTO \"user\" (user_name) VALUES ($1) RETURNING *",
+                        values: [profile.username]
+                    });
+                }
+
+                user = user.rows[0];
+                user.first_name = profile.first_name;
+                user.last_name = profile.last_name;
+                user.email = profile.email
+
+                if (user)
+                    req.auth.user = user;
+            }
+//        }
+//        catch( error => {
+//            console.log("validateAgaveToken: !!!!", error.message);
+//        })
+//        .finally(next);
+    }
+
+    next();
+}
+
+async function getAgaveProfile(token) {
+    return await requestp({
+        method: "GET",
+        uri: "https://agave.iplantc.org/profiles/v2/me", // FIXME hardcoded
+        headers: {
+            Authorization: token,
+            Accept: "application/json"
+        },
+        json: true
+    });
+}
 
 async function agaveGetToken(provider, code) {
     let url = config.oauthProviders[provider].tokenUrl;

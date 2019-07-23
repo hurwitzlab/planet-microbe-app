@@ -41,3 +41,9 @@ discoveryEnvironmentUrl =
 agaveBaseUrl : String
 agaveBaseUrl =
     "https://agave.iplantc.org"
+
+
+-- OAuth2 Configuration
+agaveOAuthClientId : String
+agaveOAuthClientId =
+    ""

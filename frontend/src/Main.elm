@@ -26,6 +26,7 @@ import Page.Experiment as Experiment
 import Page.Contact as Contact
 import GAnalytics
 import Session exposing (Session)
+import User exposing (User)
 import Route exposing (Route)
 import Config
 import Debug exposing (toString)
@@ -83,10 +84,13 @@ type Model
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url navKey =
     let
+        defaultSession =
+            Session.default
+
         (model, msg) =
             changeRouteTo (Route.fromUrl url)
---                (Redirect Session.empty) --(Session.fromViewer navKey maybeViewer))
-                (Redirect (Session "" Nothing Nothing "" navKey))
+--                (Redirect (Session.fromViewer navKey maybeViewer))
+                (Redirect { defaultSession | navKey = Just navKey })
     in
     case OAuth.AuthorizationCode.parseCode url of
         OAuth.AuthorizationCode.Success { code, state } ->
@@ -186,7 +190,8 @@ type Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
     | GotAccessToken (Result Http.Error Agave.TokenResponse) --OAuth.AuthorizationCode.AuthenticationSuccess)
-    | GotUserInfo (Result Http.Error (Agave.Response Agave.Profile))
+    | GotUserInfo (Result Http.Error User)--(Agave.Response Agave.Profile))
+    | GotSession Session
 
 
 toSession : Model -> Session
@@ -323,6 +328,10 @@ changeRouteTo maybeRoute model =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        session =
+            toSession model
+    in
     case ( msg, model ) of
         ( ClickedLink urlRequest, _ ) ->
             case urlRequest of
@@ -416,18 +425,30 @@ update msg model =
 --                    )
                     ( model, Cmd.none )
 
-                Ok { accessToken } ->
+                Ok { accessToken, refreshToken, expiresIn } ->
                     let
-                        _ = Debug.log "token" (toString accessToken)
+                        _ = Debug.log "token" accessToken
+
+                        newSession =
+                            { session |
+                                token = accessToken
+                                , refreshToken = refreshToken
+                                , expiresIn = Just expiresIn
+                            }
                     in
 --                    ( Login { subModel | token = Just token }
 --                    , Agave.getProfile (OAuth.tokenToString token) |> Http.toTask |> Task.attempt GotUserInfo --getUserInfo token
 --                    )
-                    ( model, Agave.getProfile accessToken |> Http.toTask |> Task.attempt GotUserInfo )
+                    ( model,
+                      Cmd.batch
+                          [ User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo --Agave.getProfile accessToken |> Http.toTask |> Task.attempt GotUserInfo
+                          , Session.store newSession
+                          ]
+                    )
 
         ( GotUserInfo res, _ ) ->
             let
-                _ = Debug.log "profile" (toString res)
+                _ = Debug.log "GotUserInfo" (toString res)
             in
             case res of
                 Err _ ->
@@ -436,11 +457,23 @@ update msg model =
 --                    )
                     ( model, Cmd.none )
 
-                Ok response ->
+                Ok user ->
+                    let
+                        newSession =
+                            { session | user = Just user }
+                    in
 --                    ( Login { subModel | profile = Just response.result }
 --                    , Cmd.none
 --                    )
-                    ( model, Cmd.none )
+                    ( model, Session.store newSession )
+
+        ( GotSession newSession, _ ) -> --Redirect _ ) ->
+            let
+                _ = Debug.log "session" (toString newSession)
+            in
+            ( Redirect newSession
+            , Cmd.none --Route.replaceUrl (Session.navKey session) Route.Home
+            )
 
         ( _, _ ) ->
             -- Disregard messages that arrived for the wrong page.

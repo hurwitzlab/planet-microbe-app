@@ -19,6 +19,27 @@ var app = Elm.Main.init({
 
 
 /*
+ * Define ports for storing/watching session
+ */
+
+app.ports.storeSession.subscribe(function(session) {
+    console.log("storeSession: ", session);
+    localStorage.setItem(session.storageKey, JSON.stringify(session));
+});
+
+// This event is only triggered when localStorage is modifed from another window
+//window.addEventListener("storage",
+//    function(event) {
+//        if (event.storageArea === localStorage && event.key === COOKIE_NAME) {
+//            console.log("storage listener:", event.newValue);
+//            app.ports.onSessionChange.send(event.newValue);
+//        }
+//    },
+//    false
+//);
+
+
+/*
  * Google Analytics
  */
 
