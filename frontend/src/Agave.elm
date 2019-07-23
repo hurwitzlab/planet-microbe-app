@@ -26,6 +26,14 @@ type alias EmptyResponse =
     }
 
 
+type alias TokenResponse =
+    { accessToken : String
+    , expiresIn : Int
+    , refreshToken : String
+    , tokenType: String
+    }
+
+
 type alias Profile =
     { email : String
     , first_name : String
@@ -219,6 +227,15 @@ emptyResponseDecoder : Decoder EmptyResponse
 emptyResponseDecoder =
     Decode.succeed EmptyResponse
         |> required "status" Decode.string --TODO make sure status is "success"
+
+
+tokenResponseDecoder : Decoder TokenResponse
+tokenResponseDecoder =
+    Decode.succeed TokenResponse
+        |> required "access_token" Decode.string
+        |> required "expires_in" Decode.int
+        |> required "refresh_token" Decode.string
+        |> required "token_type" Decode.string
 
 
 decoderProfile : Decoder Profile
@@ -464,7 +481,7 @@ getProfile token =
             agaveBaseUrl ++ "/profiles/v2/me"
 
         headers =
-            [ Http.header "Authorization" token ]
+            [ Http.header "Authorization" ("Bearer " ++ token) ]
     in
     Http.request -- TODO convert to HttpBuilder
         { method = "GET"

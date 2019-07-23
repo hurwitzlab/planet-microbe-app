@@ -9,6 +9,7 @@ const shortid = require('shortid');
 const fs = require('fs');
 const stringSimilarity = require('string-similarity');
 const sendmail = require('sendmail')();
+const requestp = require('request-promise');
 const config = require('./config.json');
 
 var rdfTermIndex = {};
@@ -640,7 +641,34 @@ app.get('/apps/:id(\\d+)', async (req, res) => {
     res.json(result.rows[0]);
 });
 
+app.post('/token', async (req, res) => {
+    let provider = req.body.provider;
+    let code = req.body.code;
+    let tokenResponse = await agaveGetToken(provider, code);
+    res.send(tokenResponse);
+});
+
 //----------------------------------------------------------------------------------------------------------------------
+
+async function agaveGetToken(provider, code) {
+    let url = config.oauthProviders[provider].tokenUrl;
+    let options = {
+        method: "POST",
+        uri: url,
+        form: {
+            grant_type: "authorization_code",
+            client_id: config.oauthProviders.agave.clientId,
+            client_secret: config.oauthProviders.agave.clientSecret,
+            redirect_uri: config.oauthProviders.agave.redirectUrl,
+            code: code
+        }
+    };
+
+    console.log(provider, ": sending authorization POST", url);
+    let response = await requestp(options);
+    console.log(response);
+    return(response);
+}
 
 async function generateTermIndex(db, ontologyDescriptors) {
     //let result = await query('select fields[1].string from sample limit 1')

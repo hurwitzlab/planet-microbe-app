@@ -111,9 +111,11 @@ viewHeader page = --page maybeViewer =
                             ]
                         ]
                     , ul [ class "navbar-nav ml-auto" ]
-                        [ helpButton
+                        [
 --                            , dashboardButton
 --                            , cartButton
+                          a [ class "btn btn-link",  Route.href Route.Login  ] [ text "Sign-in to CyVerse" ]
+                        , helpButton
                         ]
                     ]
                 ]

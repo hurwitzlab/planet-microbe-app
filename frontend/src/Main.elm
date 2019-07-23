@@ -3,6 +3,11 @@ module Main exposing (..) -- this line is required for Parcel elm-hot HMR file c
 import Browser
 import Browser.Navigation
 import Url exposing (Url)
+import Http
+import Task
+import OAuth
+import OAuth.AuthorizationCode
+import Agave
 import Html exposing (..)
 import Json.Encode as Encode exposing (Value)
 import Page exposing (Page, view)
@@ -22,8 +27,8 @@ import Page.Contact as Contact
 import GAnalytics
 import Session exposing (Session)
 import Route exposing (Route)
-import Config exposing (googleAnalyticsTrackingId)
---import Debug exposing (toString)
+import Config
+import Debug exposing (toString)
 
 
 
@@ -61,6 +66,7 @@ subscriptions model =
 type Model
     = Redirect Session
     | NotFound Session
+    | Login Session
     | Home Home.Model
     | Browse Browse.Model
     | Search Search.Model
@@ -76,9 +82,89 @@ type Model
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url navKey =
-    changeRouteTo (Route.fromUrl url)
---        (Redirect Session.empty) --(Session.fromViewer navKey maybeViewer))
-        (Redirect (Session "" Nothing Nothing "" navKey))
+    let
+        (model, msg) =
+            changeRouteTo (Route.fromUrl url)
+--                (Redirect Session.empty) --(Session.fromViewer navKey maybeViewer))
+                (Redirect (Session "" Nothing Nothing "" navKey))
+    in
+    case OAuth.AuthorizationCode.parseCode url of
+        OAuth.AuthorizationCode.Success { code, state } ->
+            let
+                _ = Debug.log "code" code
+            in
+--            if Maybe.map randomBytesFromState state /= Just model.state then
+--                ( { model | error = Just "'state' doesn't match, the request has likely been forged by an adversary!" }
+--                , Cmd.none
+--                )
+--
+--            else
+                ( model
+                , getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken --config model.redirectUri code
+                )
+
+        OAuth.AuthorizationCode.Empty ->
+            ( model, Cmd.none )
+
+        OAuth.AuthorizationCode.Error err ->
+            ( model, Cmd.none )
+--            ( { model | error = Just (OAuth.errorCodeToString err.error) }
+--            , Cmd.none
+--            )
+
+
+redirectUrl =
+    { defaultHttpsUrl | protocol = Url.Http, host = "localhost", port_ = Just 1234 }
+
+
+defaultHttpsUrl =
+    { protocol = Url.Https
+    , host = ""
+    , path = ""
+    , port_ = Nothing
+    , query = Nothing
+    , fragment = Nothing
+    }
+
+
+getAccessToken : String -> String -> Http.Request Agave.TokenResponse
+getAccessToken provider code =
+    let
+        body =
+            Encode.object
+                [ ( "provider", Encode.string provider )
+                , ( "code", Encode.string code )
+                ]
+    in
+    Http.request
+        { method = "POST"
+        , body = Http.jsonBody body
+        , headers = []
+        , url = Config.apiBaseUrl ++ "/token"
+        , expect = Http.expectJson Agave.tokenResponseDecoder
+        , timeout = Nothing
+--        , tracker = Nothing
+        , withCredentials = False
+        }
+
+
+randomBytesFromState : String -> String
+randomBytesFromState str =
+    str
+        |> stringDropLeftUntil (\c -> c == ".")
+
+
+stringDropLeftUntil : (String -> Bool) -> String -> String
+stringDropLeftUntil predicate str =
+    let
+        ( h, q ) =
+            ( String.left 1 str, String.dropLeft 1 str )
+    in
+    if q == "" || predicate h then
+        q
+
+    else
+        stringDropLeftUntil predicate q
 
 
 
@@ -99,6 +185,8 @@ type Msg
     | ContactMsg Contact.Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
+    | GotAccessToken (Result Http.Error Agave.TokenResponse) --OAuth.AuthorizationCode.AuthenticationSuccess)
+    | GotUserInfo (Result Http.Error (Agave.Response Agave.Profile))
 
 
 toSession : Model -> Session
@@ -108,6 +196,9 @@ toSession page =
             session
 
         NotFound session ->
+            session
+
+        Login session ->
             session
 
         Home home ->
@@ -162,6 +253,26 @@ changeRouteTo maybeRoute model =
                             Home.init session
                                 |> updateWith Home HomeMsg model
 
+                        Route.Login ->
+                            let
+                                auth =
+                                    { clientId = Config.agaveOAuthClientId
+                                    , redirectUri = redirectUrl
+                                    , scope = [ "PRODUCTION" ]
+                                    , state = Nothing
+                                    , url = authorizationUrl
+                                    }
+
+                                authorizationUrl =
+                                    Config.agaveBaseUrl ++ "/authorize" |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+                            in
+                            ( model
+                            , auth |> OAuth.AuthorizationCode.makeAuthUrl |> Url.toString |> Browser.Navigation.load
+                            )
+
+                        Route.Logout ->
+                            ( model, Cmd.none ) --TODO
+
                         Route.Browse ->
                             Browse.init session
                                 |> updateWith Browse BrowseMsg model
@@ -205,7 +316,7 @@ changeRouteTo maybeRoute model =
             ( newModel
             , Cmd.batch
                 [ newCmd
-                , GAnalytics.send (Route.routeToString route) googleAnalyticsTrackingId -- Google Analytics
+                , GAnalytics.send (Route.routeToString route) Config.googleAnalyticsTrackingId -- Google Analytics
                 ]
             )
 
@@ -281,6 +392,56 @@ update msg model =
             Contact.update subMsg subModel
                 |> updateWith Contact ContactMsg model
 
+        ( GotAccessToken res, _ ) ->
+            case res of
+--                Err (Http.BadBody body) ->
+--                    case Json.decodeString OAuth.AuthorizationCode.defaultAuthenticationErrorDecoder body of
+--                        Ok { error, errorDescription } ->
+--                            let
+--                                errMsg =
+--                                    "Unable to retrieve token: " ++ errorResponseToString { error = error, errorDescription = errorDescription }
+--                            in
+--                            ( { model | error = Just errMsg }
+--                            , Cmd.nonex
+--                            )
+--
+--                        _ ->
+--                            ( { model | error = Just ("Unable to retrieve token: " ++ body) }
+--                            , Cmd.none
+--                            )
+
+                Err _ ->
+--                    ( Login { subModel | error = Just "Unable to retrieve token: HTTP request failed. CORS is likely disabled on the authorization server." }
+--                    , Cmd.none
+--                    )
+                    ( model, Cmd.none )
+
+                Ok { accessToken } ->
+                    let
+                        _ = Debug.log "token" (toString accessToken)
+                    in
+--                    ( Login { subModel | token = Just token }
+--                    , Agave.getProfile (OAuth.tokenToString token) |> Http.toTask |> Task.attempt GotUserInfo --getUserInfo token
+--                    )
+                    ( model, Agave.getProfile accessToken |> Http.toTask |> Task.attempt GotUserInfo )
+
+        ( GotUserInfo res, _ ) ->
+            let
+                _ = Debug.log "profile" (toString res)
+            in
+            case res of
+                Err _ ->
+--                    ( Login { subModel | error = Just "Unable to retrieve user profile: HTTP request failed." }
+--                    , Cmd.none
+--                    )
+                    ( model, Cmd.none )
+
+                Ok response ->
+--                    ( Login { subModel | profile = Just response.result }
+--                    , Cmd.none
+--                    )
+                    ( model, Cmd.none )
+
         ( _, _ ) ->
             -- Disregard messages that arrived for the wrong page.
             ( model, Cmd.none )
@@ -318,6 +479,9 @@ view model =
 
         NotFound _ ->
             Page.view Page.Other NotFound.view
+
+        Login _ ->
+            Page.view Page.Other Blank.view
 
         Home subModel ->
             viewPage Page.Home HomeMsg (Home.view subModel)
