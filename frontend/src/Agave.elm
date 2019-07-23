@@ -474,24 +474,21 @@ encodeNotification notification =
 -- REQUESTS --
 
 
+authorizationHeader : String -> ( String, String )
+authorizationHeader token =
+    ( "Authorization", "Bearer " ++ token)
+
+
 getProfile : String -> Http.Request (Response Profile)
 getProfile token =
     let
         url =
             agaveBaseUrl ++ "/profiles/v2/me"
-
-        headers =
-            [ Http.header "Authorization" ("Bearer " ++ token) ]
     in
-    Http.request -- TODO convert to HttpBuilder
-        { method = "GET"
-        , headers = headers
-        , url = url
-        , body = Http.emptyBody
-        , expect = Http.expectJson (responseDecoder decoderProfile)
-        , timeout = Nothing
-        , withCredentials = False
-        }
+    HttpBuilder.get url
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
+        |> HttpBuilder.withExpect (Http.expectJson (responseDecoder decoderProfile))
+        |> HttpBuilder.toRequest
 
 
 searchProfiles : String -> String -> Http.Request (Response (List Profile))
@@ -500,14 +497,11 @@ searchProfiles token username =
         url =
             agaveBaseUrl ++ "/profiles/v2"
 
-        headers =
-            [( "Authorization", token)]
-
         queryParams =
             [( "username", username )]
     in
     HttpBuilder.get url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withQueryParams queryParams
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder (Decode.list decoderProfile)))
         |> HttpBuilder.toRequest
@@ -518,12 +512,9 @@ getApp token name =
     let
         url =
             agaveBaseUrl ++ "/apps/v2/" ++ name
-
-        headers =
-            [( "Authorization", token)]
     in
     HttpBuilder.get url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder decoderApp))
         |> HttpBuilder.toRequest
 
@@ -533,12 +524,9 @@ getJobs token =
     let
         url =
             agaveBaseUrl ++ "/jobs/v2/"
-
-        headers =
-            [( "Authorization", token)]
     in
     HttpBuilder.get url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder (Decode.list decoderJob)))
         |> HttpBuilder.toRequest
 
@@ -548,12 +536,9 @@ getJob token id =
     let
         url =
             agaveBaseUrl ++ "/jobs/v2/" ++ id
-
-        headers =
-            [( "Authorization", token)]
     in
     HttpBuilder.get url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder decoderJob))
         |> HttpBuilder.toRequest
 
@@ -563,12 +548,9 @@ getJobHistory token id =
     let
         url =
             agaveBaseUrl ++ "/jobs/v2/" ++ id ++ "/history"
-
-        headers =
-            [( "Authorization", token)]
     in
     HttpBuilder.get url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder (Decode.list decoderJobHistory)))
         |> HttpBuilder.toRequest
 
@@ -589,14 +571,11 @@ getJobOutputs username token id path =
                 Just path2 ->
                     baseUrl ++ "/" ++ path2
 
-        headers =
-            [( "Authorization", token)]
-
         queryParams =
             [("limit", "9999")]
     in
     HttpBuilder.get url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withQueryParams queryParams
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder (Decode.list decoderJobOutput)))
         |> HttpBuilder.toRequest
@@ -608,14 +587,11 @@ getFileList token path =
         url =
             agaveBaseUrl ++ "/files/v2/listings/" ++ path
 
-        headers =
-            [( "Authorization", token)]
-
         queryParams =
             [("limit", "9999")]
     in
     HttpBuilder.get url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withQueryParams queryParams
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder (Decode.list decoderFileResult)))
         |> HttpBuilder.toRequest
@@ -635,9 +611,9 @@ getFileRange token path range =
         headers =
             case range of
                 Nothing ->
-                    [ authHeader ]
+                    [ authorizationHeader token ]
                 Just (start, end) ->
-                    [ authHeader
+                    [ authorizationHeader token
                     , ( "Range", "bytes=" ++ (String.fromInt start) ++ "-" ++ (String.fromInt end) )
                     ]
     in
@@ -666,12 +642,9 @@ launchJob token request =
     let
         url =
             agaveBaseUrl ++ "/jobs/v2"
-
-        headers =
-            [( "Authorization", token)]
     in
     HttpBuilder.post url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withJsonBody (encodeJobRequest request)
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder decoderJobStatus))
         |> HttpBuilder.toRequest
@@ -683,15 +656,12 @@ shareJob token id username permission =
         url =
             agaveBaseUrl ++ "/jobs/v2/" ++ id ++ "/pems/" ++ username
 
-        headers =
-            [( "Authorization", token)]
-
         body =
             Encode.object
                 [ ( "permission", Encode.string permission ) ]
     in
     HttpBuilder.post url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withJsonBody body
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder decoderJobStatus))
         |> HttpBuilder.toRequest
@@ -704,7 +674,9 @@ stopJob token id =
             agaveBaseUrl ++ "/jobs/v2/" ++ id
 
         headers =
-            [( "Authorization", token), ("Content-type", "application/x-www-form-urlencoded")]
+            [ authorizationHeader token
+            , ("Content-type", "application/x-www-form-urlencoded")
+            ]
 
         body =
             "action=stop"
@@ -722,9 +694,6 @@ mkdir token path dirname =
         url =
             agaveBaseUrl ++ "/files/v2/media/" ++ (removeTrailingSlash path)
 
-        headers =
-            [( "Authorization", token)]
-
         body =
             Encode.object
                 [ ( "action", Encode.string "mkdir" )
@@ -732,7 +701,7 @@ mkdir token path dirname =
                 ]
     in
     HttpBuilder.put url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withJsonBody body
         |> HttpBuilder.withExpect (Http.expectJson emptyResponseDecoder)
         |> HttpBuilder.toRequest
@@ -743,12 +712,9 @@ delete token path =
     let
         url =
             agaveBaseUrl ++ "/files/v2/media/" ++ (removeTrailingSlash path)
-
-        headers =
-            [( "Authorization", token)]
     in
     HttpBuilder.delete url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withExpect (Http.expectJson emptyResponseDecoder)
         |> HttpBuilder.toRequest
 
@@ -758,12 +724,9 @@ getFilePermission token path =
     let
         url =
             agaveBaseUrl ++ "/files/v2/pems/system/data.iplantcollaborative.org/" ++ (removeTrailingSlash path)
-
-        headers =
-            [( "Authorization", token)]
     in
     HttpBuilder.get url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder (Decode.list decoderPermissionResult)))
         |> HttpBuilder.toRequest
 
@@ -774,9 +737,6 @@ setFilePermission token username permission path =
         url =
             agaveBaseUrl ++ "/files/v2/pems/system/data.iplantcollaborative.org/" ++ (removeTrailingSlash path)
 
-        headers =
-            [( "Authorization", token)]
-
         body =
             Encode.object
                 [ ( "username", Encode.string username )
@@ -785,7 +745,7 @@ setFilePermission token username permission path =
                 ]
     in
     HttpBuilder.post url
-        |> HttpBuilder.withHeaders headers
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withJsonBody body
         |> HttpBuilder.withExpect (Http.expectJson emptyResponseDecoder)
         |> HttpBuilder.toRequest
