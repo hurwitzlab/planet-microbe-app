@@ -21,6 +21,7 @@ import String.Extra
 import Maybe exposing (withDefault)
 import Set
 import Dict exposing (Dict)
+import FileBrowser
 import Debug exposing (toString)
 
 
@@ -46,7 +47,7 @@ type alias Model =
     , dialogError : Maybe String
     , filterFileType : String
     , inputId : Maybe String
---    , fileBrowser : FileBrowser.Model
+    , fileBrowser : FileBrowser.Model
     }
 
 
@@ -73,15 +74,15 @@ init session id =
 --        cart =
 --            Cart.init session.cart Cart.Selectable
 
---        fileBrowserConfig =
---            { showMenuBar = True
---            , showNewFolderButton = False
---            , showUploadFileButton = False
---            , allowDirSelection = True
---            , allowMultiSelection = True
---            , allowFileViewing = False
---            , homePath = Nothing
---            }
+        fileBrowserConfig =
+            { showMenuBar = True
+            , showNewFolderButton = False
+            , showUploadFileButton = False
+            , allowDirSelection = True
+            , allowMultiSelection = True
+            , allowFileViewing = False
+            , homePath = Nothing
+            }
     in
     ( { session = session
       , appId = id
@@ -100,7 +101,7 @@ init session id =
       , dialogError = Nothing
       , filterFileType = "All Types"
       , inputId = Nothing
---      , fileBrowser = FileBrowser.init session (Just fileBrowserConfig)
+      , fileBrowser = FileBrowser.init session (Just fileBrowserConfig)
       }
       , loadApp
             |> Task.andThen
@@ -133,8 +134,8 @@ type Msg
     | ShareJobCompleted (Result Http.Error (Agave.Response Agave.JobStatus))
     | AppRunCompleted (Result Http.Error AppRun)
     | CloseRunDialog
---    | OpenFileBrowserDialog String
---    | CloseFileBrowserDialog
+    | OpenFileBrowserDialog String
+    | CloseFileBrowserDialog
 --    | OpenCart String
 --    | LoadCartCompleted (Result Http.Error ((List Sample), (List SampleFile), (List SampleGroup)))
 --    | SelectCart (Maybe Int)
@@ -142,7 +143,7 @@ type Msg
 --    | CancelCartDialog
 --    | FilterByFileType String
 --    | CartMsg Cart.Msg
---    | FileBrowserMsg FileBrowser.Msg
+    | FileBrowserMsg FileBrowser.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -399,15 +400,15 @@ update msg model =
 --        CancelCartDialog ->
 --            ( { model | cartDialogInputId = Nothing }, Cmd.none )
 --
---        OpenFileBrowserDialog inputId ->
---            let
---                (subModel, subCmd) =
---                    FileBrowser.update session FileBrowser.RefreshPath model.fileBrowser
---            in
---            ( { model | inputId = Just inputId, fileBrowser = subModel }, Cmd.map FileBrowserMsg subCmd )
---
---        CloseFileBrowserDialog ->
---            ( { model | inputId = Nothing }, Cmd.none )
+        OpenFileBrowserDialog inputId ->
+            let
+                (subModel, subCmd) =
+                    FileBrowser.update model.session FileBrowser.RefreshPath model.fileBrowser
+            in
+            ( { model | inputId = Just inputId, fileBrowser = subModel }, Cmd.map FileBrowserMsg subCmd )
+
+        CloseFileBrowserDialog ->
+            ( { model | inputId = Nothing }, Cmd.none )
 --
 --        OpenCart inputId ->
 --            let
@@ -474,13 +475,13 @@ update msg model =
 --                    Cart.update session subMsg model.cart
 --            in
 --            ( { model | cart = newCart }, Cmd.map CartMsg subCmd )
---
---        FileBrowserMsg subMsg ->
---            let
---                ( newFileBrowser, subCmd ) =
---                    FileBrowser.update session subMsg model.fileBrowser
---            in
---            ( { model | fileBrowser = newFileBrowser }, Cmd.map FileBrowserMsg subCmd )
+
+        FileBrowserMsg subMsg ->
+            let
+                ( newFileBrowser, subCmd ) =
+                    FileBrowser.update model.session subMsg model.fileBrowser
+            in
+            ( { model | fileBrowser = newFileBrowser }, Cmd.map FileBrowserMsg subCmd )
 
 
 type InputSource
@@ -517,13 +518,17 @@ view model =
             div [ class "container" ]
                 [ Page.viewTitle "App" app.name
                 , body
+                , if model.inputId /= Nothing then
+                    viewFileBrowserDialog model.fileBrowser (model.inputId |> Maybe.withDefault "") False
+                  else
+                    text ""
         --            , Dialog.view
         --                (if model.showRunDialog then
         --                    Just (runDialogConfig model)
         --                 else if model.cartDialogInputId /= Nothing then
         --                    Just (cartDialogConfig model)
-        --                 else if model.inputId /= Nothing then
-        --                    Just (fileBrowserDialogConfig model.fileBrowser (model.inputId |> Maybe.withDefault "") False)
+--                         else if model.inputId /= Nothing then
+--                            Just (fileBrowserDialogConfig model.fileBrowser (model.inputId |> Maybe.withDefault "") False)
         --                 else
         --                    Nothing
         --                )
@@ -602,9 +607,10 @@ viewAppInput input =
                 agaveAppInput.details.label
 
         browserButton lbl msg =
-            button [ class "margin-right btn btn-default btn-sm", style "max-height" "2.8em", onClick msg ]
-                [ span [ class "gray gylphicon glyphicon-cloud" ] []
-                , text (" " ++ lbl)
+            button [ class "btn btn-outline-secondary btn-sm", onClick msg ]
+                [ i [ class "fas fa-cloud" ] []
+                , text " "
+                , text lbl
                 ]
 
 --        syndicateButton =
@@ -618,8 +624,8 @@ viewAppInput input =
     [ th [ class "w-25" ] [ text label ]
     , td []
         [ div [ style "display" "flex" ]
-            [ textarea [ class "form-control margin-right", style "width" "30em", style "min-height" "2.5em", rows 1, name id, value val, onInput (SetInput UI id) ] []
---            , browserButton "Data Store" (OpenFileBrowserDialog id)
+            [ textarea [ class "form-control mr-2", style "width" "30em", rows 1, name id, value val, onInput (SetInput UI id) ] []
+            , browserButton "Data Store" (OpenFileBrowserDialog id)
 --            , syndicateButton
 --            , button [ class "btn btn-default btn-sm", style [("max-height","2.8em")], onClick (OpenCart id) ]
 --                [ span [ class "gray glyphicon glyphicon-shopping-cart" ] []
@@ -901,3 +907,49 @@ viewAppParameter input =
 --    , body = Just content
 --    , footer = Just footer
 --    }
+
+-- TODO move into module.  This is our own Boostrap modal since elm-dialog has not yet been ported to Elm 0.19
+viewFileBrowserDialog : FileBrowser.Model -> String -> Bool -> Html Msg
+viewFileBrowserDialog fileBrowser inputId isBusy =
+    let
+        title =
+            "Select Files"
+
+        body =
+            if isBusy then
+                text "Loading..." --spinner
+            else
+                div [ style "min-height" "50vh", style "max-height" "50vh", style "overflow-y" "auto" ]
+                    [ FileBrowser.view fileBrowser |> Html.map FileBrowserMsg ]
+
+        footer =
+            let
+                selectedFilepaths =
+                    FileBrowser.getSelected fileBrowser |> List.map .path |> String.join ";"
+            in
+            div []
+                [ button [ class "btn btn-outline-secondary pull-left mr-2", onClick CloseFileBrowserDialog ] [ text "Cancel" ]
+                , button [ class "btn btn-primary", onClick (SetInput CYVERSE inputId selectedFilepaths) ] [ text "Select" ]
+                ]
+
+        closeMsg =
+            CloseFileBrowserDialog
+
+        width =
+            "40vw"
+    in
+    div []
+        [ div [ class "modal fade show", tabindex -1, style "display" "block", attribute "role" "dialog" ]
+            [ div [ class "modal-dialog", attribute "role" "document", style "min-width" width ]
+                [ div [ class "modal-content" ]
+                    [ div [ class "modal-header" ]
+                        [ h5 [ class "modal-title" ] [ text title ]
+                        , button [ type_ "button", class "close", onClick closeMsg ] [ span [] [ text (String.fromChar (Char.fromCode 215)) ] ]
+                        ]
+                    , div [ class "modal-body" ] [ body ]
+                    , div [ class "modal-footer" ] [ footer ]
+                    ]
+                ]
+            ]
+        , div [ class "modal-backdrop fade show" ] []
+        ]
