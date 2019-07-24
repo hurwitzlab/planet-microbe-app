@@ -59,7 +59,7 @@ init session id =
 
         loadAppFromAgave name =
 --            Agave.getApp session.token name |> Http.toTask |> Task.map .result
-            Agave.getApp "Bearer 66815bcd845b29e8b552e828f343c9f" name |> Http.toTask |> Task.map .result
+            Agave.getApp session.token name |> Http.toTask |> Task.map .result
 
 --        loadAppFromPlanB name =
 --            Request.PlanB.getApp session.token name |> Http.toTask |> Task.map .result
