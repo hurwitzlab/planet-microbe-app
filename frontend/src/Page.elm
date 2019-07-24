@@ -8,7 +8,7 @@ import Html.Attributes exposing (id, class, classList, src, style, title)
 import Html.Events exposing (onClick)
 --import Profile
 import Route exposing (Route)
---import Session exposing (Session)
+import Session exposing (Session)
 --import Username exposing (Username)
 --import Viewer exposing (Viewer)
 import Config
@@ -34,6 +34,7 @@ type Page
     | SamplingEvent
     | Experiment
     | Contact
+    | Account
 
 
 {-| Take a page's Html and frames it with a header and footer.
@@ -52,11 +53,11 @@ in the header. (This comes up during slow page transitions.)
 --    }
 
 
-view : Page -> Html msg -> Document msg
-view page content =
+view : Session -> Page -> Html msg -> Document msg
+view session page content =
     { title = "Planet Microbe"
     , body =
-        [ viewHeader page
+        [ viewHeader session page
 --        , br [] []
         , content
         , viewFooter
@@ -64,14 +65,22 @@ view page content =
     }
 
 
-viewHeader : Page -> Html msg --Page -> Maybe Viewer -> Html msg
-viewHeader page = --page maybeViewer =
+viewHeader : Session -> Page -> Html msg
+viewHeader session page =
     let
-        helpButton =
-            li [ class "nav-item" ]
-                [ a [ class "nav-link", title "Get Help", Route.href Route.Contact ]
-                    [ i [ class "fa fa-question-circle fa-lg" ] [] ]
-                ]
+        loginButton =
+            case session.user of
+                Nothing ->
+                    a [ class "nav-link text-nowrap", classList [ ("active", page == Browse) ], Route.href Route.Login ]
+                        [ i [ class "fas fa-sign-in-alt" ] []
+                        , text " Sign-in to CyVerse"
+                        ]
+
+                Just user ->
+                    a [ class "nav-link text-nowrap", classList [ ("active", page == Browse) ], Route.href Route.Account ]
+                        [ i [ class "fas fa-user" ] []
+                        , text " My Account"
+                        ]
     in
     div []
         [ (case Config.alertBannerText of
@@ -111,11 +120,12 @@ viewHeader page = --page maybeViewer =
                             ]
                         ]
                     , ul [ class "navbar-nav ml-auto" ]
-                        [
---                            , dashboardButton
---                            , cartButton
-                          a [ class "btn btn-link",  Route.href Route.Login  ] [ text "Sign-in to CyVerse" ]
-                        , helpButton
+                        [ li [ class "nav-item mr-5" ]
+                            [ loginButton ]
+                        , li [ class "nav-item" ]
+                            [ a [ class "nav-link", title "Get Help", Route.href Route.Contact ]
+                                [ i [ class "fa fa-question-circle fa-lg" ] [] ]
+                            ]
                         ]
                     ]
                 ]

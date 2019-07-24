@@ -21,7 +21,6 @@ type alias Session =
     , user : Maybe User
 --    , url : String
     , navKey : Maybe Browser.Navigation.Key
-    , storageKey : String
     }
 
 
@@ -40,7 +39,6 @@ default =
     , user = Nothing
 --    , url = ""
     , navKey = Nothing
-    , storageKey = "planetmicrobe" ++ version
     }
 
 
@@ -59,15 +57,16 @@ default =
 --    session.token /= ""
 
 
---decoder : Decoder Session
---decoder =
---    Decode.succeed Session
-----        |> required "cart" Cart.decoder
---        |> optional "token" Decode.string ""
---        |> optional "refreshToken" Decode.string ""
---        |> optional "expiresIn" (Decode.nullable Decode.int) Nothing
+decoder : Decoder Session
+decoder =
+    Decode.succeed Session
+--        |> required "cart" Cart.decoder
+        |> optional "token" Decode.string ""
+        |> optional "refreshToken" Decode.string ""
+        |> optional "expiresIn" (Decode.nullable Decode.int) Nothing
 --        |> optional "expiresAt" (Decode.nullable Decode.int) Nothing
-----        |> optional "user" (Decode.nullable User.decoder) Nothing
+        |> optional "user" (Decode.nullable User.userDecoder) Nothing
+        |> optional "navKey" (Decode.succeed Nothing) Nothing
 --        |> optional "url" Decode.string ""
 
 
@@ -81,7 +80,6 @@ encode session =
 --        , ("expiresAt", maybe Encode.int session.expiresAt)
         , ("user", maybe User.encodeUser session.user)
 --        , ("url", Encode.string session.url)
-        , ("storageKey", Encode.string session.storageKey)
         ]
 
 

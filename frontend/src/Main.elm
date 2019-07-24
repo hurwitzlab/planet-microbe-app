@@ -5,6 +5,7 @@ import Browser.Navigation
 import Url exposing (Url)
 import Http
 import Task
+import Json.Decode as Decode
 import OAuth
 import OAuth.AuthorizationCode
 import Agave
@@ -24,6 +25,7 @@ import Page.Campaign as Campaign
 import Page.SamplingEvent as SamplingEvent
 import Page.Experiment as Experiment
 import Page.Contact as Contact
+import Page.Account as Account
 import GAnalytics
 import Session exposing (Session)
 import User exposing (User)
@@ -64,11 +66,11 @@ subscriptions model =
 -- MODEL
 
 
-type Model
+type Model -- FIXME inherited this from elm-spa-example but I don't like it becuase of redundancy in toSession/changeRouteTo/view functions
     = Redirect Session
     | NotFound Session
     | Login Session
-    | Home Home.Model
+    | Home Session --Home.Model
     | Browse Browse.Model
     | Search Search.Model
     | Analyze Analyze.Model
@@ -79,18 +81,20 @@ type Model
     | SamplingEvent SamplingEvent.Model
     | Experiment Experiment.Model
     | Contact Contact.Model
+    | Account Account.Model
 
 
-init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+init : String -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url navKey =
     let
-        defaultSession =
-            Session.default
+        session =
+            flags
+                |> Decode.decodeString Session.decoder
+                |> Result.withDefault Session.default
 
         (model, msg) =
             changeRouteTo (Route.fromUrl url)
---                (Redirect (Session.fromViewer navKey maybeViewer))
-                (Redirect { defaultSession | navKey = Just navKey })
+                (Redirect { session | navKey = Just navKey })
     in
     case OAuth.AuthorizationCode.parseCode url of
         OAuth.AuthorizationCode.Success { code, state } ->
@@ -176,8 +180,8 @@ stringDropLeftUntil predicate str =
 
 
 type Msg
-    = HomeMsg Home.Msg
-    | BrowseMsg Browse.Msg
+    = --HomeMsg Home.Msg
+      BrowseMsg Browse.Msg
     | SearchMsg Search.Msg
     | AnalyzeMsg Analyze.Msg
     | AppMsg App.Msg
@@ -187,6 +191,7 @@ type Msg
     | SamplingEventMsg SamplingEvent.Msg
     | ExperimentMsg Experiment.Msg
     | ContactMsg Contact.Msg
+    | AccountMsg Account.Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
     | GotAccessToken (Result Http.Error Agave.TokenResponse) --OAuth.AuthorizationCode.AuthenticationSuccess)
@@ -206,8 +211,8 @@ toSession page =
         Login session ->
             session
 
-        Home home ->
-            Home.toSession home
+        Home session ->
+            session
 
         Browse browse ->
             Browse.toSession browse
@@ -239,6 +244,9 @@ toSession page =
         Contact contact ->
             Contact.toSession contact
 
+        Account account ->
+            Account.toSession account
+
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
 changeRouteTo maybeRoute model =
@@ -255,8 +263,7 @@ changeRouteTo maybeRoute model =
                 ( newModel, newCmd ) =
                     case route of
                         Route.Home ->
-                            Home.init session
-                                |> updateWith Home HomeMsg model
+                            ( Home session, Cmd.none )
 
                         Route.Login ->
                             let
@@ -317,6 +324,10 @@ changeRouteTo maybeRoute model =
                         Route.Contact ->
                             Contact.init session
                                 |> updateWith Contact ContactMsg model
+
+                        Route.Account ->
+                            Account.init session
+                                |> updateWith Account AccountMsg model
             in
             ( newModel
             , Cmd.batch
@@ -401,6 +412,10 @@ update msg model =
             Contact.update subMsg subModel
                 |> updateWith Contact ContactMsg model
 
+        ( AccountMsg subMsg, Account subModel ) ->
+            Account.update subMsg subModel
+                |> updateWith Account AccountMsg model
+
         ( GotAccessToken res, _ ) ->
             case res of
 --                Err (Http.BadBody body) ->
@@ -439,7 +454,7 @@ update msg model =
 --                    ( Login { subModel | token = Just token }
 --                    , Agave.getProfile (OAuth.tokenToString token) |> Http.toTask |> Task.attempt GotUserInfo --getUserInfo token
 --                    )
-                    ( model,
+                    ( Redirect newSession,
                       Cmd.batch
                           [ User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo --Agave.getProfile accessToken |> Http.toTask |> Task.attempt GotUserInfo
                           , Session.store newSession
@@ -465,14 +480,14 @@ update msg model =
 --                    ( Login { subModel | profile = Just response.result }
 --                    , Cmd.none
 --                    )
-                    ( model, Session.store newSession )
+                    ( Redirect newSession, Session.store newSession )
 
         ( GotSession newSession, _ ) -> --Redirect _ ) ->
             let
                 _ = Debug.log "session" (toString newSession)
             in
-            ( Redirect newSession
-            , Cmd.none --Route.replaceUrl (Session.navKey session) Route.Home
+            ( Home newSession
+            , Cmd.none --Route.replaceUrl newSession.navKey Route.Home
             )
 
         ( _, _ ) ->
@@ -494,13 +509,13 @@ updateWith toModel toMsg model ( subModel, subCmd ) =
 view : Model -> Browser.Document Msg
 view model =
     let
---        viewer =
---            Session.viewer (toSession model)
+        session =
+            toSession model
 
         viewPage page toMsg content  =
             let
                 { title, body } =
-                    Page.view page content
+                    Page.view session page content
             in
             { title = title
             , body = List.map (Html.map toMsg) body
@@ -508,43 +523,46 @@ view model =
     in
     case model of
         Redirect _ ->
-            Page.view Page.Other Blank.view
+            Page.view session Page.Other Blank.view
 
         NotFound _ ->
-            Page.view Page.Other NotFound.view
+            Page.view session Page.Other NotFound.view
 
         Login _ ->
-            Page.view Page.Other Blank.view
+            Page.view session Page.Other Blank.view
 
         Home subModel ->
-            viewPage Page.Home HomeMsg (Home.view subModel)
+            Page.view session Page.Home Home.view
 
         Browse subModel ->
-            Page.view Page.Browse (Browse.view subModel |> Html.map BrowseMsg)
+            Page.view session Page.Browse (Browse.view subModel |> Html.map BrowseMsg)
 
         Search subModel ->
-            Page.view Page.Search (Search.view subModel |> Html.map SearchMsg)
+            Page.view session Page.Search (Search.view subModel |> Html.map SearchMsg)
 
         Analyze subModel ->
-            Page.view Page.Analyze (Analyze.view subModel |> Html.map AnalyzeMsg)
+            Page.view session Page.Analyze (Analyze.view subModel |> Html.map AnalyzeMsg)
 
         App subModel ->
-            Page.view Page.App (App.view subModel |> Html.map AppMsg)
+            Page.view session Page.App (App.view subModel |> Html.map AppMsg)
 
         Project subModel ->
-            Page.view Page.Project (Project.view subModel |> Html.map ProjectMsg)
+            Page.view session Page.Project (Project.view subModel |> Html.map ProjectMsg)
 
         Sample subModel ->
-            Page.view Page.Sample (Sample.view subModel |> Html.map SampleMsg)
+            Page.view session Page.Sample (Sample.view subModel |> Html.map SampleMsg)
 
         Campaign subModel ->
-            Page.view Page.Campaign (Campaign.view subModel |> Html.map CampaignMsg)
+            Page.view session Page.Campaign (Campaign.view subModel |> Html.map CampaignMsg)
 
         SamplingEvent subModel ->
-            Page.view Page.SamplingEvent (SamplingEvent.view subModel |> Html.map SamplingEventMsg)
+            Page.view session Page.SamplingEvent (SamplingEvent.view subModel |> Html.map SamplingEventMsg)
 
         Experiment subModel ->
-            Page.view Page.Experiment (Experiment.view subModel |> Html.map ExperimentMsg)
+            Page.view session Page.Experiment (Experiment.view subModel |> Html.map ExperimentMsg)
 
         Contact subModel ->
-            Page.view Page.Contact (Contact.view subModel |> Html.map ContactMsg)
+            Page.view session Page.Contact (Contact.view subModel |> Html.map ContactMsg)
+
+        Account subModel ->
+            Page.view session Page.Account (Account.view subModel |> Html.map AccountMsg)

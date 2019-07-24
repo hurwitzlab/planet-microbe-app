@@ -13,8 +13,11 @@ import { Elm } from './Main.elm';
  * Initialize Elm app
  */
 
+var COOKIE_NAME = 'planetmicrobe0.0.1';
+
 var app = Elm.Main.init({
-  node: document.getElementById('main')
+  node: document.getElementById('main'),
+  flags: localStorage.getItem(COOKIE_NAME) || ""
 });
 
 
@@ -24,10 +27,10 @@ var app = Elm.Main.init({
 
 app.ports.storeSession.subscribe(function(session) {
     console.log("storeSession: ", session);
-    localStorage.setItem(session.storageKey, JSON.stringify(session));
+    localStorage.setItem(COOKIE_NAME, JSON.stringify(session));
 });
 
-// This event is only triggered when localStorage is modifed from another window
+// This event is only triggered when localStorage is modified from another window
 //window.addEventListener("storage",
 //    function(event) {
 //        if (event.storageArea === localStorage && event.key === COOKIE_NAME) {

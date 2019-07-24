@@ -12,7 +12,7 @@ import Config exposing (apiBaseUrl)
 
 
 
--- TYPES
+-- TYPES --
 
 
 type alias App =
@@ -124,7 +124,7 @@ encodeAppRun app_id params =
 
 
 
--- REQUESTS
+-- REQUESTS --
 
 
 fetch : Int -> Http.Request App
