@@ -10,6 +10,7 @@ import Http
 import Json.Decode as Decode exposing (Decoder)
 --import Page.Error as Error exposing (PageLoadError, errorString)
 import Route
+import Page
 import Task exposing (Task)
 import Dict exposing (Dict)
 import Time
@@ -48,6 +49,8 @@ type alias Model =
 init : Session -> String -> ( Model, Cmd Msg )
 init session id =
     let
+        _ = Debug.log "Job.init session:" (toString session)
+
         loadJobFromAgave =
             Agave.getJob session.token id |> Http.toTask |> Task.map .result
 
@@ -149,9 +152,9 @@ update msg model =
             )
 
         GetJobCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetJobCompleted" (toString error)
---            in
+            let
+                _ = Debug.log "GetJobCompleted" (toString error)
+            in
             ( model, Cmd.none )
 
         GetHistory ->
@@ -262,7 +265,7 @@ update msg model =
 
         SetResults (Err error) ->
             let
-                _ = Debug.log "Page.Job" ("Error retrieving results: " ++ (toString error))
+                _ = Debug.log "SetResults" ("Error retrieving results: " ++ (toString error))
             in
             ( { model | loadedResults = True }, Cmd.none )
 
@@ -387,30 +390,25 @@ view model =
                     job.status |> String.replace "_" " "  -- replace _ with space
             in
             div [ class "container" ]
-                [ div [ class "row" ]
-                    [ div [ class "page-header" ]
-                        [ h1 []
-                            [ text ("Job ")
-                            , small []
-                                [ text job.name ]
-                            , small [ class "pull-right pt-3" ]
-                                [ text ("Status: " ++ status) ]
-                            ]
-                        ]
-                    , viewJob job app
-                    , viewInputs job.inputs
-                    , viewParameters job.parameters
-                    , viewHistory model.history model.loadedHistory model.loadingHistory
-                    , viewOutputs model
-                    , viewResults model
-                    ]
-        --        , Dialog.view
-        --            (if model.showCancelDialog then
-        --                Just (cancelDialogConfig model)
-        --            else
-        --                Nothing
-        --            )
+                [ Page.viewTitle "Job" job.name
+                , viewJob job app
+                , Page.viewTitle2 "Inputs" False
+                , viewInputs job.inputs
+                , Page.viewTitle2 "Parameters" False
+                , viewParameters job.parameters
+                , Page.viewTitle2 "History" False
+                , viewHistory model.history model.loadedHistory model.loadingHistory
+                , Page.viewTitle2 "Outputs" False
+                , viewOutputs model
+--                , Page.viewTitle2 "Results" False
+--                , viewResults model
                 ]
+    --        , Dialog.view
+    --            (if model.showCancelDialog then
+    --                Just (cancelDialogConfig model)
+    --            else
+    --                Nothing
+    --            )
 
         ( _, _ ) ->
             text ""
@@ -418,47 +416,43 @@ view model =
 
 viewJob : Job -> App -> Html Msg
 viewJob job app =
-            table [ class "table" ]
-                [ colgroup []
-                    [ col [ class "col-md-1" ] []
-                    , col [ class "col-md-4" ] []
-                    ]
-                , tr []
-                    [ th [] [ text "ID" ]
-                    , td [] [ text job.id ]
-                    ]
-                , tr []
-                    [ th [] [ text "Name" ]
-                    , td [] [ text job.name ]
-                    ]
-                , tr []
-                    [ th [] [ text "App" ]
-                    , td [] [ a [ Route.href (Route.App app.id) ] [ text app.name ] ]
-                    ]
-                , tr []
-                    [ th [] [ text "Owner" ]
-                    , td [] [ text job.owner ]
-                    ]
-                , tr []
-                    [ th [] [ text "Start Time" ]
-                    , td [] [ text job.startTime ]
-                    ]
-                , tr []
-                    [ th [] [ text "End Time" ]
-                    , td [] [ text job.endTime ]
-                    ]
-                , tr []
-                    [ th [ class "top" ] [ text "Status" ]
-                    , td []
-                        [ viewStatus job.status
-                        , if isRunning job then
-                            button [ class "btn btn-default btn-xs pull-left", onClick CancelJob ] [ text "Cancel" ]
-                        else
-                            text ""
-                        ]
-                    , td [] []
-                    ]
+    table [ class "table table-borderless table-sm" ]
+        [ tr []
+            [ th [] [ text "ID" ]
+            , td [] [ text job.id ]
+            ]
+        , tr []
+            [ th [] [ text "Name" ]
+            , td [] [ text job.name ]
+            ]
+        , tr []
+            [ th [] [ text "App" ]
+            , td [] [ a [ Route.href (Route.App app.id) ] [ text app.name ] ]
+            ]
+        , tr []
+            [ th [] [ text "Owner" ]
+            , td [] [ text job.owner ]
+            ]
+        , tr []
+            [ th [] [ text "Start Time" ]
+            , td [] [ text job.startTime ]
+            ]
+        , tr []
+            [ th [] [ text "End Time" ]
+            , td [] [ text job.endTime ]
+            ]
+        , tr []
+            [ th [ class "top" ] [ text "Status" ]
+            , td []
+                [ viewStatus job.status
+                , if isRunning job then
+                    button [ class "btn btn-outline-secondary btn-sm ml-2 align-top", onClick CancelJob ] [ text "Cancel" ]
+                 else
+                    text ""
                 ]
+            , td [] []
+            ]
+        ]
 
 
 isRunning : Agave.Job -> Bool
@@ -474,49 +468,37 @@ viewStatus status =
                 label =
                     String.replace "_" " " status -- replace _ with space
             in
-            div [ class "progress pull-left", style "width" "20em" ]
-                [ div [ class "progress-bar progress-bar-striped active", style "width" ((toString pct) ++ "%"),
+            div [ class "progress float-left d-inline-block", style "width" "20em", style "height" "2.5em" ]
+                [ div [ class "progress-bar progress-bar-striped active", style "width" ((toString pct) ++ "%"), style "height" "2.5em",
                         attribute "role" "progressbar", attribute "aria-valuenow" (toString pct), attribute "aria-valuemin" "0", attribute "aria-valuemax" "100" ]
                     [ text label ]
                 ]
     in
     case String.toUpper status of
         "CREATED" -> progressBar 10
+        "ACCEPTED" -> progressBar 10
         "PENDING" -> progressBar 20
         "PROCESSING_INPUTS" -> progressBar 30
         "STAGING_INPUTS" -> progressBar 40
         "STAGED" -> progressBar 45
-        "SUBMITTING" -> progressBar 50
-        "STAGING_JOB" -> progressBar 55
+        "STAGING_JOB" -> progressBar 50
+        "SUBMITTING" -> progressBar 55
         "QUEUED" -> progressBar 60
         "RUNNING" -> progressBar 70
         "CLEANING_UP" -> progressBar 80
         "ARCHIVING" -> progressBar 90
-        "ARCHIVING_FINISHED" -> progressBar 95
         _ -> text status
 
 
 viewInputs : Dict String Agave.JobInputValue -> Html msg
 viewInputs inputs =
-    let
-        count =
-            Dict.size inputs
-
-        body =
-            case count of
-                0 ->
-                    [ tr [] [ td [] [ text "None" ] ] ]
-
-                _ ->
-                    Dict.toList inputs |> List.map viewInput
-    in
-    div []
-        [ h2 [] [ text "Inputs" ]
-        , table [ class "table" ]
-            [ colgroup []
-                [ col [ class "col-md-3" ] [] ]
-            , tbody [] body
-            ]
+    table [ class "table" ]
+        [ tbody []
+            (if Dict.size inputs == 0 then
+                [ tr [] [ td [] [ text "None" ] ] ]
+            else
+                Dict.toList inputs |> List.map viewInput
+            )
         ]
 
 
@@ -539,25 +521,13 @@ viewInput (id, val) =
 
 viewParameters : Dict String Agave.ValueType -> Html msg
 viewParameters params =
-    let
-        count =
-            Dict.size params
-
-        body =
-            case count of
-                0 ->
-                    [ tr [] [ td [] [ text "None" ] ] ]
-
-                _ ->
-                    Dict.toList params |> List.map viewParameter
-    in
-    div []
-        [ h2 [] [ text "Parameters" ]
-        , table [ class "table" ]
-            [ colgroup []
-                [ col [ class "col-md-3" ] [] ]
-            , tbody [] body
-            ]
+    table [ class "table" ]
+        [ tbody []
+            (if Dict.size params == 0 then
+                [ tr [] [ td [] [ text "None" ] ] ]
+             else
+                Dict.toList params |> List.map viewParameter
+            )
         ]
 
 
@@ -589,38 +559,31 @@ viewParameter (id, value) =
 
 viewHistory : List Agave.JobHistory -> Bool -> Bool -> Html Msg
 viewHistory history loaded loading =
-    let
-        body =
-            case history of
-                [] ->
-                    [ tr []
-                        [ td []
-                            [ if loaded then
-                                text "None"
-                            else if loading then
-                                text "Loading..." --spinner
-                            else
-                                button [ class "btn btn-default", onClick GetHistory ] [ text "Show History" ]
-                            ]
+    table [ class "table table-sm" ]
+        [ tbody []
+            (if history == [] then
+                [ tr []
+                    [ td []
+                        [ if loaded then
+                            text "None"
+                        else if loading then
+                            text "Loading..." --spinner
+                        else
+                            button [ class "btn btn-outline-secondary", onClick GetHistory ] [ text "Show History" ]
                         ]
                     ]
-
-                _ ->
-                    (List.map viewEvent history)
-    in
-    div []
-        [ h2 [] [ text "History" ]
-        , table [ class "table" ]
-            [ tbody [] body
-            ]
+                ]
+            else
+                List.map viewEvent history
+            )
         ]
 
 
 viewEvent : Agave.JobHistory -> Html msg
 viewEvent event =
     tr []
-        [ td [ class "nowrap" ] [ text event.created ]
-        , td [ class "nowrap" ] [ text event.status ]
+        [ td [ class "text-nowrap" ] [ text event.created ]
+        , td [ class "text-nowrap" ] [ text event.status ]
         , td [] [ text event.description ]
         ]
 
@@ -654,8 +617,7 @@ viewOutputs model =
             "https://de.cyverse.org/de/?type=data&folder=/iplant/home/" ++ model.username ++ "/archive/jobs/job-" ++ model.jobId --FIXME move base url to config
     in
     div []
-        [ h2 [] [ text "Outputs" ]
-        , div []
+        [ div []
             [ text "Browse and view output files in the "
             , a [ target "_blank", href de_url ] [ text "CyVerse Data Store" ]
             , text "."

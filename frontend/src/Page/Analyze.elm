@@ -10,6 +10,7 @@ import Json.Encode as Encode
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
 import App exposing (App)
+import Agave exposing (Job)
 import Debug exposing (toString)
 
 
@@ -20,6 +21,7 @@ import Debug exposing (toString)
 type alias Model =
     { session : Session
     , apps : Maybe (List App)
+    , jobs : Maybe (List Job)
     }
 
 
@@ -27,9 +29,11 @@ init : Session -> ( Model, Cmd Msg )
 init session =
     ( { session = session
       , apps = Nothing
+      , jobs = Nothing
       }
       , Cmd.batch
         [ App.fetchAll |> Http.toTask |> Task.attempt GetAppsCompleted
+        , Agave.getJobs session.token |> Http.toTask |> Task.map .result |> Task.attempt GetJobsCompleted
         ]
     )
 
@@ -45,6 +49,7 @@ toSession model =
 
 type Msg
     = GetAppsCompleted (Result Http.Error (List App))
+    | GetJobsCompleted (Result Http.Error (List Job))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -59,6 +64,15 @@ update msg model =
             in
             ( model, Cmd.none )
 
+        GetJobsCompleted (Ok jobs) ->
+            ( { model | jobs = Just jobs }, Cmd.none )
+
+        GetJobsCompleted (Err error) -> --TODO
+            let
+                _ = Debug.log "GetJobsCompleted" (toString error)
+            in
+            ( model, Cmd.none )
+
 
 
 -- VIEW --
@@ -66,17 +80,14 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    case model.apps of
-        Nothing ->
-            text ""
-
-        Just apps ->
+    case ( model.apps, model.jobs ) of
+        ( Just apps, Just jobs ) ->
             let
                 numApps =
                     List.length apps
 
                 numJobs =
-                    0
+                    List.length jobs
             in
             div [ class "container" ]
                 [ div [ class "pt-5" ]
@@ -100,14 +111,17 @@ view model =
                         ]
                     ]
                 , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
-                    [ text "None" ] --[ viewJobs jobs ]
+                    [ viewJobs jobs ]
                 ]
+
+        ( _, _ ) ->
+            text ""
 
 
 viewApps : List App -> Html Msg
 viewApps apps =
     let
-        appRow app =
+        row app =
             tr []
                 [ td [] [ a [ Route.href (Route.App app.id)] [ text app.name ] ]
                 , td [] [ text "" ]
@@ -123,5 +137,32 @@ viewApps apps =
                 ]
             ]
         , tbody []
-            (apps |> List.map appRow)
+            (apps |> List.map row)
+        ]
+
+
+viewJobs : List Job -> Html Msg
+viewJobs jobs =
+    let
+        row job =
+            tr []
+                [ td [] [ a [ Route.href (Route.Job job.id)] [ text job.name ] ]
+                , td [] [ text "" ]
+                , td [] [ text "" ]
+                , td [] [ text "" ]
+                , td [] [ text job.status ]
+                ]
+    in
+    table [ class "table" ]
+        [ thead []
+            [ tr []
+                [ th [] [ text "Name" ]
+                , th [] [ text "App" ]
+                , th [] [ text "Start" ]
+                , th [] [ text "End" ]
+                , th [] [ text "Status" ]
+                ]
+            ]
+        , tbody []
+            (jobs |> List.map row)
         ]

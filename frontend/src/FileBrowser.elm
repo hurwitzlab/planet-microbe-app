@@ -17,7 +17,7 @@ import Time
 import Http
 import Route
 import Filesize
---import View.Spinner exposing (spinner)
+import Page exposing (viewSpinner)
 --import View.Dialog exposing (confirmationDialogConfig)
 --import View.SearchableDropdown
 import Session exposing (Session)
@@ -580,10 +580,10 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
         , if errorMessage /= Nothing then
             div [ class "alert alert-danger" ] [ text (Maybe.withDefault "An error occurred" errorMessage) ]
           else if isBusy then
-            text "Loading ..." --spinner
+            viewSpinner
           else
             div [ style "overflow-y" "auto", style "height" "100%" ] --("height","60vh")] ]
-                [ viewFileTable contents selectedPaths ] --[ Table.view (tableConfig config selectedPaths) tableState contents ]
+                [ viewFileTable config contents selectedPaths ] --[ Table.view (tableConfig config selectedPaths) tableState contents ]
 --        , Dialog.view
 --            (if (confirmationDialog /= Nothing) then
 --                confirmationDialog
@@ -600,49 +600,63 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
         ]
 
 
-toTableAttrs : List (Attribute Msg)
-toTableAttrs =
-    [ attribute "class" "table table-hover"
-    ]
+--toTableAttrs : List (Attribute Msg)
+--toTableAttrs =
+--    [ attribute "class" "table table-hover"
+--    ]
+--
+--
+--toRowAttrs : Config -> Maybe (List String) -> FileResult -> List (Attribute Msg)
+--toRowAttrs config selectedPaths data =
+--    onClick (SelectPath data.path)
+--    :: (case selectedPaths of
+--            Nothing ->
+--                []
+--
+--            Just paths ->
+--                if (List.member data.path paths && (data.type_ == "file" || config.allowDirSelection)) then
+--                    [ attribute "class" "active" ]
+--                else
+--                    []
+--       )
+--    |> List.append
+--        (if data.type_ == "dir" then
+--            [ onDoubleClick (LoadPath data.path) ]
+--        else if data.type_ == "file" && config.allowFileViewing then
+--            [ onDoubleClick (OpenPath data.path data.length) ]
+--        else
+--            []
+--        )
 
 
-toRowAttrs : Config -> Maybe (List String) -> FileResult -> List (Attribute Msg)
-toRowAttrs config selectedPaths data =
-    onClick (SelectPath data.path)
-    :: (case selectedPaths of
-            Nothing ->
-                []
-
-            Just paths ->
-                if (List.member data.path paths && (data.type_ == "file" || config.allowDirSelection)) then
-                    [ attribute "class" "active" ]
-                else
-                    []
-       )
-    |> List.append
-        (if data.type_ == "dir" then
-            [ onDoubleClick (LoadPath data.path) ]
-        else if data.type_ == "file" && config.allowFileViewing then
-            [ onDoubleClick (OpenPath data.path data.length) ]
-        else
-            []
-        )
-
-
-viewFileTable : List FileResult -> Maybe (List String) -> Html Msg
-viewFileTable files selectedRowIds =
+viewFileTable : Config -> List FileResult -> Maybe (List String) -> Html Msg
+viewFileTable config files selectedPaths =
     let
-        fileRow f =
-            tr []
-                [ td []
-                    [ if f.type_ == "dir" then
-                        a [ onClick (LoadPath f.path) ] [ text f.name ]
+        fileRow file =
+            let
+                isSelected =
+                    selectedPaths
+                        |> Maybe.withDefault []
+                        |> (\paths ->
+                            List.member file.path paths && (file.type_ == "file" || config.allowDirSelection)
+                        )
+
+                action f =
+                    if f.name /= ".. (previous)" then --FIXME kludge
+                        [ onClick (SelectPath file.path) ]
                     else
-                        text f.name
+                        []
+            in
+            tr ((action file) ++ [ classList [ ("bg-primary", isSelected), ("text-light", isSelected) ] ])
+                [ td []
+                    [ if file.type_ == "dir" then
+                        a [ href "", classList [ ("text-light", isSelected) ], onClick (LoadPath file.path) ] [ text file.name ]
+                    else
+                        text file.name
                     ]
                 , td []
-                    [ if f.length > 0 then
-                        text (Filesize.format f.length)
+                    [ if file.length > 0 then
+                        text (Filesize.format file.length)
                       else
                         text ""
                     ]
@@ -722,7 +736,7 @@ viewFileTable files selectedRowIds =
 --                    disabled isBusy
 --            in
 --                div []
---                    [ button [ class "btn btn-default pull-left", onClick CloseNewFolderDialog, disable ] [ text "Cancel" ]
+--                    [ button [ class "btn btn-default float-left", onClick CloseNewFolderDialog, disable ] [ text "Cancel" ]
 --                    , button [ class "btn btn-primary", onClick CreateNewFolder, disable ] [ text "OK" ]
 --                    ]
 --    in
@@ -754,7 +768,7 @@ viewFileTable files selectedRowIds =
 --        footer =
 --            div []
 --                [ if errorMsg == Nothing && not isBusy then
---                    em [ class "pull-left" ] [ "Showing first " ++ (toString maxViewFileSz) ++ " bytes only" |> text ]
+--                    em [ class "float-left" ] [ "Showing first " ++ (toString maxViewFileSz) ++ " bytes only" |> text ]
 --                  else
 --                    text ""
 --                , button [ class "btn btn-primary", onClick CloseViewFileDialog ] [ text "Close" ]
@@ -856,14 +870,14 @@ viewPermission isMe isEditable username permission =
             , if isEditable && not isMe then
                 viewPermissionDropdown username permission
               else
-                span [ class "pull-right" ] [ permissionDesc permission |> text ]
+                span [ class "float-right" ] [ permissionDesc permission |> text ]
             ]
         ]
 
 
 viewPermissionDropdown : String -> Permission -> Html Msg
 viewPermissionDropdown username permission =
-    div [ class "pull-right dropdown" ]
+    div [ class "float-right dropdown" ]
         [ button [ class "btn btn-default btn-xs dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ]
             [ permissionDesc permission |> text
             , text " "

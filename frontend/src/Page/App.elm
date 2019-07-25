@@ -9,6 +9,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onCheck, onInput)
 import Http
+import Route
 import Page exposing (viewSpinner)
 --import Page.Error as Error exposing (PageLoadError)
 import Json.Decode as Decode
@@ -181,9 +182,9 @@ update msg model =
             )
 
         GetAppCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetAppCompleted" (toString error)
---            in
+            let
+                _ = Debug.log "GetAppCompleted" (toString error)
+            in
             ( model, Cmd.none )
 
         SetInput source id value ->
@@ -311,13 +312,19 @@ update msg model =
             let
                 shareJob =
                     Agave.shareJob model.session.token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
+
+                cmd =
+                    case model.session.navKey of
+                        Nothing ->
+                            Cmd.none --FIXME
+
+                        Just key ->
+                            ( (Route.replaceUrl key (Route.Job response.result.id)
+                                :: (if not isPlanB then [ shareJob ] else []))
+                                |> Cmd.batch
+                            )
             in
-            ( model
---            , ((Route.modifyUrl (Route.Job response.result.id)
---                :: (if not isPlanB then [ shareJob ] else [])
---             ) |> Cmd.batch)
-            , Cmd.none
-            )
+            ( model, cmd )
 
         RunJobCompleted (Err error) ->
             let
@@ -752,7 +759,7 @@ viewAppParameter input =
 --                ]
 --
 --        closeButton =
---            button [ class "btn btn-default pull-right margin-right", onClick CancelCartDialog ] [ text "Close" ]
+--            button [ class "btn btn-default float-right margin-right", onClick CancelCartDialog ] [ text "Close" ]
 --
 --        empty =
 --            Cart.size model.cart == 0
@@ -762,12 +769,12 @@ viewAppParameter input =
 --                closeButton
 --            else
 --                div [ style [("display","inline")] ]
---                    [ button [ class "btn btn-default pull-left", onClick Cart.SelectAllInCart ]
+--                    [ button [ class "btn btn-default float-left", onClick Cart.SelectAllInCart ]
 --                        [ text "Select All" ] |> Html.map CartMsg
---                    , button [ class "btn btn-default pull-left", onClick Cart.UnselectAllInCart ]
+--                    , button [ class "btn btn-default float-left", onClick Cart.UnselectAllInCart ]
 --                        [ text "Unselect All" ] |> Html.map CartMsg
---                    , div [ class "pull-left", style [("margin-left","2em")] ] [ viewFileTypeSelector model ]
---                    , button [ class "btn btn-primary pull-right" , onClick CloseCartDialog ]
+--                    , div [ class "float-left", style [("margin-left","2em")] ] [ viewFileTypeSelector model ]
+--                    , button [ class "btn btn-primary float-right" , onClick CloseCartDialog ]
 --                        [ text "Select" ]
 --                    , closeButton
 --                    ]
@@ -897,7 +904,7 @@ viewAppParameter input =
 --                    FileBrowser.getSelected fileBrowser |> List.map .path |> String.join ";"
 --            in
 --            div []
---                [ button [ class "btn btn-default pull-left", onClick CloseFileBrowserDialog ] [ text "Cancel" ]
+--                [ button [ class "btn btn-default float-left", onClick CloseFileBrowserDialog ] [ text "Cancel" ]
 --                , button [ class "btn btn-primary", onClick (SetInput CYVERSE inputId selectedFilepaths) ] [ text "Select" ]
 --                ]
 --    in
@@ -928,7 +935,7 @@ viewFileBrowserDialog fileBrowser inputId isBusy =
                     FileBrowser.getSelected fileBrowser |> List.map .path |> String.join ";"
             in
             div []
-                [ button [ class "btn btn-outline-secondary pull-left mr-2", onClick CloseFileBrowserDialog ] [ text "Cancel" ]
+                [ button [ class "btn btn-outline-secondary float-left mr-2", onClick CloseFileBrowserDialog ] [ text "Cancel" ]
                 , button [ class "btn btn-primary", onClick (SetInput CYVERSE inputId selectedFilepaths) ] [ text "Select" ]
                 ]
 

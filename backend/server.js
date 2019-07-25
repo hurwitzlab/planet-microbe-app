@@ -656,6 +656,50 @@ app.get('/apps/:id(\\d+)', async (req, res) => {
     res.json(result.rows[0]);
 });
 
+app.get('/apps/:name([\\w\\.\\-\\_]+)', async (req, res) => {
+    let name = req.params.name;
+    let result = await query({
+        text: "SELECT app_id,name,provider,is_active,is_maintenance FROM app \
+            WHERE name=$1",
+        values: [name]
+    });
+
+    res.json(result.rows[0]);
+});
+
+app.post('/apps/runs', async (req, res) => {
+    var app_id = req.body.app_id;
+    var params = req.body.params;
+
+    //errorOnNull(app_id, params);
+
+    requireAuth(req);
+
+    let run = await query({
+        text: "INSERT INTO app_run (app_id,user_id,params) VALUES ($1,$2,$3) RETURNING *",
+        values: [app_id,user_id,params]
+    });
+
+    toJsonOrError(res, next,
+        models.app_run.create({
+            app_id: app_id,
+            user_id: req.auth.user.user_id,
+            params: params
+        })
+        .then( () =>
+            models.app.findOne({ where: { app_id: app_id } })
+        )
+        .then( app =>
+            logAdd(req, {
+                title: "Ran app " + app.app_name,
+                type: "runApp",
+                app_id: app_id,
+                app_name: app.app_name
+            })
+        )
+    );
+});
+
 app.post('/token', async (req, res) => {
     let provider = req.body.provider;
     let code = req.body.code;
@@ -699,39 +743,6 @@ app.post('/users/login', async (req, res) => { // TODO add try/catch error handl
     });
 
     res.json(user.rows[0]);
-});
-
-app.post('/apps/runs', async (req, res) => {
-    var app_id = req.body.app_id;
-    var params = req.body.params;
-
-    //errorOnNull(app_id, params);
-
-    requireAuth(req);
-
-    let run = await query({
-        text: "INSERT INTO app_run (app_id,user_id,params) VALUES ($1,$2,$3) RETURNING *",
-        values: [app_id,user_id,params]
-    });
-
-    toJsonOrError(res, next,
-        models.app_run.create({
-            app_id: app_id,
-            user_id: req.auth.user.user_id,
-            params: params
-        })
-        .then( () =>
-            models.app.findOne({ where: { app_id: app_id } })
-        )
-        .then( app =>
-            logAdd(req, {
-                title: "Ran app " + app.app_name,
-                type: "runApp",
-                app_id: app_id,
-                app_name: app.app_name
-            })
-        )
-    );
 });
 
 app.use(errorHandler);
