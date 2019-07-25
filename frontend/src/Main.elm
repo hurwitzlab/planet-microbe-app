@@ -6,7 +6,6 @@ import Url exposing (Url)
 import Http
 import Task
 import Json.Decode as Decode
-import OAuth
 import OAuth.AuthorizationCode
 import Agave
 import Html exposing (..)
@@ -289,7 +288,9 @@ changeRouteTo maybeRoute model =
                             )
 
                         Route.Logout ->
-                            ( model, Cmd.none ) --TODO
+                            ( model
+                            , Cmd.batch [ Session.store Session.default, Browser.Navigation.load "/" ]
+                            )
 
                         Route.Browse ->
                             Browse.init session
