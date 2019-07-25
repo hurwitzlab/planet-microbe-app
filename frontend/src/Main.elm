@@ -19,6 +19,7 @@ import Page.Browse as Browse
 import Page.Search as Search
 import Page.Analyze as Analyze
 import Page.App as App
+import Page.Job as Job
 import Page.Project as Project
 import Page.Sample as Sample
 import Page.Campaign as Campaign
@@ -75,6 +76,7 @@ type Model -- FIXME inherited this from elm-spa-example but I don't like it becu
     | Search Search.Model
     | Analyze Analyze.Model
     | App App.Model
+    | Job Job.Model
     | Project Project.Model
     | Sample Sample.Model
     | Campaign Campaign.Model
@@ -185,6 +187,7 @@ type Msg
     | SearchMsg Search.Msg
     | AnalyzeMsg Analyze.Msg
     | AppMsg App.Msg
+    | JobMsg Job.Msg
     | ProjectMsg Project.Msg
     | SampleMsg Sample.Msg
     | CampaignMsg Campaign.Msg
@@ -225,6 +228,9 @@ toSession page =
 
         App app ->
             App.toSession app
+
+        Job job ->
+            Job.toSession job
 
         Project project ->
             Project.toSession project
@@ -300,6 +306,10 @@ changeRouteTo maybeRoute model =
                         Route.App id ->
                             App.init session id
                                 |> updateWith App AppMsg model
+
+                        Route.Job id ->
+                            Job.init session id
+                                |> updateWith Job JobMsg model
 
                         Route.Project id ->
                             Project.init session id
@@ -387,6 +397,10 @@ update msg model =
         ( AppMsg subMsg, App subModel ) ->
             App.update subMsg subModel
                 |> updateWith App AppMsg model
+
+        ( JobMsg subMsg, Job subModel ) ->
+            Job.update subMsg subModel
+                |> updateWith Job JobMsg model
 
         ( ProjectMsg subMsg, Project subModel ) ->
             Project.update subMsg subModel
@@ -545,6 +559,9 @@ view model =
 
         App subModel ->
             Page.view session Page.App (App.view subModel |> Html.map AppMsg)
+
+        Job subModel ->
+            Page.view session Page.Job (Job.view subModel |> Html.map JobMsg)
 
         Project subModel ->
             Page.view session Page.Project (Project.view subModel |> Html.map ProjectMsg)
