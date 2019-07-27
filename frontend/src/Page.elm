@@ -37,6 +37,7 @@ type Page
     | Experiment
     | Contact
     | Account
+    | Cart
 
 
 {-| Take a page's Html and frames it with a header and footer.
@@ -73,13 +74,13 @@ viewHeader session page =
         loginButton =
             case session.user of
                 Nothing ->
-                    a [ class "nav-link text-nowrap", classList [ ("active", page == Browse) ], Route.href Route.Login ]
+                    a [ class "nav-link text-nowrap", Route.href Route.Login ]
                         [ i [ class "fas fa-sign-in-alt" ] []
                         , text " Sign-in to CyVerse"
                         ]
 
                 Just user ->
-                    a [ class "nav-link text-nowrap", classList [ ("active", page == Browse) ], Route.href Route.Account ]
+                    a [ class "nav-link text-nowrap", classList [ ("active", page == Account) ], Route.href Route.Account ]
                         [ i [ class "fas fa-user" ] []
                         , text " My Account"
                         ]
@@ -95,7 +96,7 @@ viewHeader session page =
                     else
                         String.fromInt numItemsInCart
             in
-            a [ class "nav-link text-nowrap", classList [ ("active", page == Browse) ] ]--Route.href (Route.Cart Nothing) ]
+            a [ class "nav-link text-nowrap", classList [ ("active", page == Cart) ], Route.href Route.Cart ]
                 [ i [ class "fas fa-shopping-cart" ] []
                 , text " "
                 , span [ class "gray absolute" ] [ text label ]

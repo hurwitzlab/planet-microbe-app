@@ -27,6 +27,7 @@ type Route
     | Experiment Int
     | Contact
     | Account
+    | Cart
 
 
 parser : Parser (Route -> a) a
@@ -47,6 +48,7 @@ parser =
         , Parser.map Experiment (s "experiments" </> int)
         , Parser.map Contact (s "contact")
         , Parser.map Account (s "account")
+        , Parser.map Cart (s "cart")
         ]
 
 
@@ -126,5 +128,8 @@ routeToString page =
 
                 Account ->
                     [ "account" ]
+
+                Cart ->
+                    [ "cart" ]
     in
     "#/" ++ String.join "/" pieces

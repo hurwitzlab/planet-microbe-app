@@ -1,4 +1,4 @@
-module Main exposing (..) -- this line is required for Parcel elm-hot HMR file change detection
+module Main exposing (main) -- this line is required for Parcel elm-hot HMR file change detection
 
 import Browser
 import Browser.Navigation
@@ -26,6 +26,7 @@ import Page.SamplingEvent as SamplingEvent
 import Page.Experiment as Experiment
 import Page.Contact as Contact
 import Page.Account as Account
+import Page.Cart as Cart
 import GAnalytics
 import Session exposing (Session)
 import User exposing (User)
@@ -49,6 +50,9 @@ main =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model of
+        Redirect _ ->
+            Sub.map GotSession (Session.onSessionChange (Decode.decodeString Session.decoder >> Result.withDefault Session.default))
+
         Search search ->
             Sub.map SearchMsg (Search.subscriptions search)
 
@@ -66,11 +70,11 @@ subscriptions model =
 -- MODEL
 
 
-type Model -- FIXME inherited this from elm-spa-example but I don't like it becuase of redundancy in toSession/changeRouteTo/view functions
+type Model -- FIXME inherited this from elm-spa-example but I don't like it because of redundancy in toSession/changeRouteTo/view functions
     = Redirect Session
     | NotFound Session
     | Login Session
-    | Home Session --Home.Model
+    | Home Session
     | Browse Browse.Model
     | Search Search.Model
     | Analyze Analyze.Model
@@ -83,6 +87,7 @@ type Model -- FIXME inherited this from elm-spa-example but I don't like it becu
     | Experiment Experiment.Model
     | Contact Contact.Model
     | Account Account.Model
+    | Cart Cart.Model
 
 
 init : String -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -93,14 +98,14 @@ init flags url navKey =
                 |> Decode.decodeString Session.decoder
                 |> Result.withDefault Session.default
 
-        (model, msg) =
+        (model, cmd) =
             changeRouteTo (Route.fromUrl url)
                 (Redirect { session | navKey = Just navKey })
     in
     case OAuth.AuthorizationCode.parseCode url of
         OAuth.AuthorizationCode.Success { code, state } ->
             let
-                _ = Debug.log "code" code
+                _ = Debug.log "OAuth.AuthorizationCode.Success" ("code=" ++ code)
             in
 --            if Maybe.map randomBytesFromState state /= Just model.state then
 --                ( { model | error = Just "'state' doesn't match, the request has likely been forged by an adversary!" }
@@ -109,14 +114,23 @@ init flags url navKey =
 --
 --            else
                 ( model
-                , getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken --config model.redirectUri code
+                , Cmd.batch
+                    [ cmd
+                    , getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken --config model.redirectUri code
+                    ]
                 )
 
         OAuth.AuthorizationCode.Empty ->
-            ( model, Cmd.none )
+            let
+                _ = Debug.log "OAuth.AuthorizationCode.Empty" ""
+            in
+            ( model, cmd )
 
-        OAuth.AuthorizationCode.Error err ->
-            ( model, Cmd.none )
+        OAuth.AuthorizationCode.Error err -> -- TODO
+            let
+                _ = Debug.log "OAuth.AuthorizationCode.Error" ""
+            in
+            ( model, cmd )
 --            ( { model | error = Just (OAuth.errorCodeToString err.error) }
 --            , Cmd.none
 --            )
@@ -181,8 +195,7 @@ stringDropLeftUntil predicate str =
 
 
 type Msg
-    = --HomeMsg Home.Msg
-      BrowseMsg Browse.Msg
+    = BrowseMsg Browse.Msg
     | SearchMsg Search.Msg
     | AnalyzeMsg Analyze.Msg
     | AppMsg App.Msg
@@ -194,6 +207,7 @@ type Msg
     | ExperimentMsg Experiment.Msg
     | ContactMsg Contact.Msg
     | AccountMsg Account.Msg
+    | CartMsg Cart.Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
     | GotAccessToken (Result Http.Error Agave.TokenResponse) --OAuth.AuthorizationCode.AuthenticationSuccess)
@@ -251,6 +265,9 @@ toSession page =
 
         Account account ->
             Account.toSession account
+
+        Cart cart ->
+            Cart.toSession cart
 
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
@@ -339,6 +356,10 @@ changeRouteTo maybeRoute model =
                         Route.Account ->
                             Account.init session
                                 |> updateWith Account AccountMsg model
+
+                        Route.Cart ->
+                            Cart.init session
+                                |> updateWith Cart CartMsg model
             in
             ( newModel
             , Cmd.batch
@@ -431,6 +452,10 @@ update msg model =
             Account.update subMsg subModel
                 |> updateWith Account AccountMsg model
 
+        ( CartMsg subMsg, Cart subModel ) ->
+            Cart.update subMsg subModel
+                |> updateWith Cart CartMsg model
+
         ( GotAccessToken res, _ ) ->
             case res of
 --                Err (Http.BadBody body) ->
@@ -499,10 +524,15 @@ update msg model =
 
         ( GotSession newSession, _ ) -> --Redirect _ ) ->
             let
-                _ = Debug.log "session" (toString newSession)
+                _ = Debug.log "GotSession" (toString newSession)
             in
-            ( Home newSession
-            , Cmd.none --Route.replaceUrl newSession.navKey Route.Home
+            ( Redirect newSession
+            , case newSession.navKey of
+                Nothing -> -- FIXME
+                    Cmd.none
+
+                Just key ->
+                    Route.replaceUrl key Route.Home
             )
 
         ( _, _ ) ->
@@ -526,15 +556,6 @@ view model =
     let
         session =
             toSession model
-
-        viewPage page toMsg content  =
-            let
-                { title, body } =
-                    Page.view session page content
-            in
-            { title = title
-            , body = List.map (Html.map toMsg) body
-            }
     in
     case model of
         Redirect _ ->
@@ -546,7 +567,7 @@ view model =
         Login _ ->
             Page.view session Page.Other Blank.view
 
-        Home subModel ->
+        Home _ ->
             Page.view session Page.Home Home.view
 
         Browse subModel ->
@@ -584,3 +605,6 @@ view model =
 
         Account subModel ->
             Page.view session Page.Account (Account.view subModel |> Html.map AccountMsg)
+
+        Cart subModel ->
+            Page.view session Page.Cart (Cart.view subModel |> Html.map CartMsg)
