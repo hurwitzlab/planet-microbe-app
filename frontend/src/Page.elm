@@ -11,6 +11,7 @@ import Route exposing (Route)
 import Session exposing (Session)
 --import Username exposing (Username)
 --import Viewer exposing (Viewer)
+import Cart
 import Config
 
 
@@ -82,6 +83,23 @@ viewHeader session page =
                         [ i [ class "fas fa-user" ] []
                         , text " My Account"
                         ]
+
+        cartButton =
+            let
+                numItemsInCart =
+                    Cart.size session.cart
+
+                label =
+                    if numItemsInCart == 0 then
+                        ""
+                    else
+                        String.fromInt numItemsInCart
+            in
+            a [ class "nav-link text-nowrap", classList [ ("active", page == Browse) ] ]--Route.href (Route.Cart Nothing) ]
+                [ i [ class "fas fa-shopping-cart" ] []
+                , text " "
+                , span [ class "gray absolute" ] [ text label ]
+                ]
     in
     div []
         [ (case Config.alertBannerText of
@@ -123,6 +141,8 @@ viewHeader session page =
                     , ul [ class "navbar-nav ml-auto" ]
                         [ li [ class "nav-item mr-5" ]
                             [ loginButton ]
+                        , li [ class "nav-item mr-5" ]
+                            [ cartButton]
                         , li [ class "nav-item" ]
                             [ a [ class "nav-link", title "Get Help", Route.href Route.Contact ]
                                 [ i [ class "fa fa-question-circle fa-lg" ] [] ]

@@ -1,6 +1,6 @@
 port module Session exposing (..)
 
---import Data.Cart as Cart exposing (Cart)
+import Cart exposing (Cart)
 import User as User exposing (User)
 import Browser.Navigation
 import Json.Decode as Decode exposing (Decoder)
@@ -10,11 +10,11 @@ import Json.Encode.Extra exposing (maybe)
 
 
 -- IMPORTANT!!!
--- When changing the structure of this record be sure to change the version below to prevent
+-- When changing the structure of this record be sure to change the cookie name to prevent
 -- errors when decoding the old cookies (can manifest as infinite login loop)
 type alias Session =
---    { cart : Cart
-    { token : String
+    { cart : Cart
+    , token : String
     , refreshToken : String
     , expiresIn : Maybe Int
 --    , expiresAt : Maybe Int
@@ -24,15 +24,10 @@ type alias Session =
     }
 
 
-version : String
-version =
-    "0.0.1"
-
-
 default : Session
 default =
---    { cart = Cart.empty
-    { token = ""
+    { cart = Cart.empty
+    , token = ""
     , refreshToken = ""
     , expiresIn = Nothing
 --    , expiresAt = Nothing
@@ -60,7 +55,7 @@ default =
 decoder : Decoder Session
 decoder =
     Decode.succeed Session
---        |> required "cart" Cart.decoder
+        |> optional "cart" Cart.decoder Cart.empty
         |> optional "token" Decode.string ""
         |> optional "refreshToken" Decode.string ""
         |> optional "expiresIn" (Decode.nullable Decode.int) Nothing
@@ -73,8 +68,8 @@ decoder =
 encode : Session -> Value
 encode session =
     Encode.object
---        [ ("cart", Cart.encode session.cart)
-        [ ("token", Encode.string session.token)
+        [ ("cart", Cart.encode session.cart)
+        , ("token", Encode.string session.token)
         , ("refreshToken", Encode.string session.refreshToken)
         , ("expiresIn", maybe Encode.int session.expiresIn)
 --        , ("expiresAt", maybe Encode.int session.expiresAt)

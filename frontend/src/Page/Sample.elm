@@ -19,7 +19,8 @@ import Time
 import String.Extra
 import List.Extra
 import Json.Encode as Encode
---import Debug exposing (toString)
+import Cart
+import Debug exposing (toString)
 
 
 
@@ -46,6 +47,9 @@ type alias ToolTip a = --TODO move tooltip code into own module
 
 init : Session -> Int -> ( Model, Cmd Msg )
 init session id =
+    let
+        _ = Debug.log "foo" (toString session)
+    in
     ( { session = session
       , sample = Nothing
       , samplingEvents = Nothing
@@ -93,6 +97,7 @@ type Msg
     | ShowTooltip PURL
     | HideTooltip
     | GotElement PURL (Result Browser.Dom.Error Browser.Dom.Element)
+    | CartMsg Cart.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -204,6 +209,26 @@ update msg model =
 --            in
             ( { model | tooltip = Nothing }, Cmd.none )
 
+        CartMsg subMsg ->
+            let
+                _ = Debug.log "Sample.CartMsg" (toString subMsg)
+
+                ( newCart, _ ) =
+                    Cart.update subMsg model.session.cart
+
+                session =
+                    model.session
+
+                newSession =
+                    { session | cart = newCart }
+            in
+            ( { model | session = newSession }
+            , Cmd.batch
+                [ --Cmd.map CartMsg subCmd
+                Session.store newSession
+                ]
+            )
+
 
 
 -- VIEW --
@@ -213,7 +238,7 @@ view : Model -> Html Msg
 view model =
     case model.sample of
         Nothing ->
-            text ""
+            text "Error"
 
         Just sample ->
             let
@@ -221,7 +246,14 @@ view model =
                     model.experiments |> Maybe.map List.length |> Maybe.withDefault 0
             in
             div [ class "container" ]
-                [ Page.viewTitle "Sample" sample.accn
+                [ div [ class "pb-2 mt-5 mb-2 border-bottom", style "width" "100%" ]
+                    [ h1 [ class "font-weight-bold d-inline" ]
+                        [ span [ style "color" "dimgray" ] [ text "Sample" ]
+                        , small [ class "ml-3", style "color" "gray" ] [ text sample.accn ]
+                        ]
+                    , span [ class "float-right" ]
+                        [ Cart.addToCartButton2 model.session.cart sample.id |> Html.map CartMsg ]
+                    ]
                 , div []
                     [ viewSample sample (model.samplingEvents |> Maybe.withDefault []) ]
                 , div [ class "pt-3" ]
