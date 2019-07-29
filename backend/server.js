@@ -364,12 +364,26 @@ app.get('/projects/:id(\\d+)/samples', async (req, res) => {
 });
 
 app.get('/samples', async (req, res) => {
-    let result = await query({
-        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name \
-            FROM sample s \
-            JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
-            JOIN project p ON p.project_id=pts.project_id"
-    });
+    let result;
+
+    if (req.body.ids) {
+        result = await query({
+            text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name \
+                FROM sample s \
+                JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
+                JOIN project p ON p.project_id=pts.project_id \
+                WHERE s.sample_id IN ($1)",
+            values: [ids.join(",")]
+        });
+    }
+    else {
+        result = await query({
+            text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name \
+                FROM sample s \
+                JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
+                JOIN project p ON p.project_id=pts.project_id"
+        });
+    }
 
     res.json(result.rows);
 });
@@ -1023,6 +1037,8 @@ async function search(db, params) {
             console.log("term:", term);
 
             let selectStr = "";
+            if (!term.schemas || term.schemas.length == 0)
+                console.log("Error: schema not found for term", param);
 
             for (schemaId in term.schemas) {
                 for (alias in term.schemas[schemaId]) {
@@ -1031,6 +1047,7 @@ async function search(db, params) {
                     // FIXME should use query substitution here -- SQL injection risk
                     let field, clause, bounds;
                     if (val === '') { // empty - don't query just show in results
+                        console.log("empty val match");
                         if (term.type == "string")
                             field = "string_vals[" + arrIndex + "]";
                         else if (term.type == "number")

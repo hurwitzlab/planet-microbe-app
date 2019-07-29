@@ -6,6 +6,7 @@ import Json.Encode as Encode exposing (Value)
 import Set exposing (Set)
 --import Session exposing (Session)
 import Html exposing (..)
+import Html.Keyed
 import Html.Attributes exposing (class, type_, checked)
 import Html.Events exposing (onClick)
 import Route
@@ -75,6 +76,11 @@ add (Cart cart) id =
     Cart { cart | contents = Set.insert id cart.contents }
 
 
+toList : Cart -> List Int
+toList (Cart cart) =
+    cart.contents |> Set.toList
+
+
 addList : Cart -> List Int -> Cart
 addList (Cart cart) ids =
     Cart { cart | contents = Set.union (Set.fromList ids) cart.contents }
@@ -139,52 +145,32 @@ type Msg
     | UnselectAllInCart
 
 
-update : Msg -> Cart -> ( Cart, Cmd Msg )
+update : Msg -> Cart -> Cart
 update msg cart =
     case msg of
         AddToCart id ->
-            let
-                newCart =
-                    add cart id
-            in
-            ( newCart, Cmd.none )
+            add cart id
 
         RemoveFromCart id ->
-            let
-                newCart =
-                    remove cart id
-            in
-            ( newCart, Cmd.none )
+            remove cart id
 
         AddAllToCart ids ->
-            let
-                newCart =
-                    addList cart ids
-            in
-            ( newCart, Cmd.none )
+            addList cart ids
 
         RemoveAllFromCart ids ->
-            let
-                newCart =
-                    removeList cart ids
-            in
-            ( newCart, Cmd.none )
+            removeList cart ids
 
         ToggleSelectInCart id ->
-            let
-                newCart =
-                    if selected cart id then
-                        unselect cart id
-                    else
-                        select cart id
-            in
-            ( newCart, Cmd.none )
+            if selected cart id then
+                unselect cart id
+            else
+                select cart id
 
         SelectAllInCart ->
-            ( selectAll cart, Cmd.none )
+            selectAll cart
 
         UnselectAllInCart ->
-            ( unselectAll cart, Cmd.none )
+            unselectAll cart
 
 
 
@@ -223,15 +209,16 @@ update msg cart =
 --    ]
 
 
-viewCart : Cart -> List { a | id : Int, accn : String, projectId : Int, projectName : String } -> Html Msg
-viewCart (Cart cart) samples =
+view : Cart -> List { a | id : Int, accn : String, projectId : Int, projectName : String } -> Html Msg
+view (Cart cart) samples =
 --    Table.view (config model) model.tableState (samplesInCart model.cart samples)
     let
         row sample =
             tr []
                 [ td [] [ text sample.projectName ]
                 , td [] [ text sample.accn ]
-                , td [] [  ]
+                , td []
+                    [ button [ class "btn btn-outline-secondary btn-sm float-right", onClick (RemoveFromCart sample.id) ] [ text "Remove" ] ]
                 ]
     in
     table [ class "table" ]
@@ -263,13 +250,13 @@ viewCart (Cart cart) samples =
 --    Table.HtmlDetails []
 --        [ selectInCartCheckbox sample.sample_id isChecked -- |> Html.map (\_ -> ToggleSelectInCart sample.sample_id)
 --        ]
-
-
-selectInCartCheckbox : Int -> Bool -> Html Msg
-selectInCartCheckbox id isChecked =
-    input [ type_ "checkbox", checked isChecked, onClick (ToggleSelectInCart id) ] []
-
-
+--
+--
+--selectInCartCheckbox : Int -> Bool -> Html Msg
+--selectInCartCheckbox id isChecked =
+--    input [ type_ "checkbox", checked isChecked, onClick (ToggleSelectInCart id) ] []
+--
+--
 --projectColumn : Table.Column { a | sample_id : Int, sample_name : String, project : { b | project_id : Int, project_name : String } } Msg
 --projectColumn =
 --    Table.veryCustomColumn
@@ -320,9 +307,9 @@ selectInCartCheckbox id isChecked =
 --        ]
 
 
-removeFromCartButton : Int -> Html Msg
-removeFromCartButton id =
-    button [ class "btn btn-default btn-xs", onClick (RemoveFromCart id) ] [ text "Remove" ]
+--removeFromCartButton : Int -> Html Msg
+--removeFromCartButton id =
+--    button [ class "btn btn-default btn-xs", onClick (RemoveFromCart id) ] [ text "Remove" ]
 
 
 addToCartButton : Cart -> Int -> Html Msg
@@ -349,10 +336,26 @@ addToCartButton2 cart id =
                 , text label
                 ]
     in
-    if contains cart id then
-        btn "Remove from Cart" (RemoveFromCart id)
-    else
-        btn "Add to Cart" (AddToCart id)
+--    if contains cart id then
+--        btn "Remove from Cart" (RemoveFromCart id)
+--    else
+--        btn "Add to Cart" (AddToCart id)
+--    span []
+--        [ btn "Remove from Cart" (RemoveFromCart id)
+--        , btn "Add to Cart" (AddToCart id)
+--        ]
+    span []
+        [ button [ class "btn btn-sm btn-outline-secondary", onClick (RemoveFromCart id) ]
+                [ --i [ class "fas fa-shopping-cart" ] []
+                text " "
+                , text "Remove from Cart"
+                ]
+        , button [ class "btn btn-sm btn-outline-secondary", onClick (AddToCart id) ]
+                [ --i [ class "fas fa-shopping-cart" ] []
+                text " "
+                , text  "Add to Cart"
+                ]
+        ]
 
 
 addAllToCartButton : Cart -> Maybe (String, String) -> List Int -> Html Msg
