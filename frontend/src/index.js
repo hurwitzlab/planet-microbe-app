@@ -30,16 +30,16 @@ app.ports.storeSession.subscribe(function(session) {
     localStorage.setItem(COOKIE_NAME, JSON.stringify(session));
 });
 
-// This event is only triggered when localStorage is modified from another window
-//window.addEventListener("storage",
-//    function(event) {
-//        if (event.storageArea === localStorage && event.key === COOKIE_NAME) {
-//            console.log("storage listener:", event.newValue);
-//            app.ports.onSessionChange.send(event.newValue);
-//        }
-//    },
-//    false
-//);
+// This event is only triggered when cookie is modified in another tab/window
+window.addEventListener("storage",
+    function(event) {
+        if (event.storageArea === localStorage && event.key === COOKIE_NAME) {
+            console.log("storage listener:", event.newValue);
+            app.ports.onSessionChange.send(event.newValue);
+        }
+    },
+    false
+);
 
 
 /*
