@@ -47,9 +47,6 @@ type alias ToolTip a = --TODO move tooltip code into own module
 
 init : Session -> Int -> ( Model, Cmd Msg )
 init session id =
-    let
-        _ = Debug.log "foo" (toString session)
-    in
     ( { session = session
       , sample = Nothing
       , samplingEvents = Nothing
@@ -211,9 +208,7 @@ update msg model =
 
         CartMsg subMsg ->
             let
-                _ = Debug.log "Sample.CartMsg" (toString subMsg)
-
-                ( newCart, _ ) =
+                newCart =
                     Cart.update subMsg model.session.cart
 
                 session =
@@ -238,7 +233,7 @@ view : Model -> Html Msg
 view model =
     case model.sample of
         Nothing ->
-            text "Error"
+            text ""
 
         Just sample ->
             let
