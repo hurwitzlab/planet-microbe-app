@@ -80,42 +80,59 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    case ( model.apps, model.jobs ) of
-        ( Just apps, Just jobs ) ->
-            let
-                numApps =
-                    List.length apps
-
-                numJobs =
-                    List.length jobs
-            in
-            div [ class "container" ]
-                [ div [ class "pt-5" ]
-                    [ Page.viewTitle2 "Apps" False
-                    , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
-                        [ if numApps == 0 then
-                            text ""
-                          else
-                            text (String.fromInt numApps)
+    let
+        appsRow =
+            case model.apps of
+                Just apps ->
+                    let
+                        numApps =
+                            List.length apps
+                    in
+                    div []
+                        [ div [ class "pt-5" ]
+                            [ Page.viewTitle2 "Apps" False
+                            , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
+                                [ if numApps == 0 then
+                                    text ""
+                                  else
+                                    text (String.fromInt numApps)
+                                ]
+                            ]
+                        , div []
+                            [ viewApps apps ]
                         ]
-                    ]
-                , div []
-                    [ viewApps apps ]
-                , div [ class "pt-3" ]
-                    [ Page.viewTitle2 "Jobs" False
-                    , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
-                        [ if numJobs == 0 then
-                            text ""
-                          else
-                            text (String.fromInt numJobs)
-                        ]
-                    ]
-                , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
-                    [ viewJobs jobs ]
-                ]
 
-        ( _, _ ) ->
-            text ""
+                Nothing ->
+                    Page.viewSpinner
+
+        jobsRow =
+            case model.jobs of
+                Just jobs  ->
+                    let
+                        numJobs =
+                            List.length jobs
+                    in
+                    div []
+                        [ div [ class "pt-3" ]
+                            [ Page.viewTitle2 "Jobs" False
+                            , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
+                                [ if numJobs == 0 then
+                                    text ""
+                                  else
+                                    text (String.fromInt numJobs)
+                                ]
+                            ]
+                        , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
+                            [ viewJobs jobs ]
+                        ]
+
+                Nothing ->
+                    Page.viewSpinner
+    in
+    div [ class "container" ]
+        [ appsRow
+        , jobsRow
+        ]
 
 
 viewApps : List App -> Html Msg
