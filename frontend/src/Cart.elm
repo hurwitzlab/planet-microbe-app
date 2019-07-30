@@ -316,7 +316,7 @@ addToCartButton : Cart -> Int -> Html Msg
 addToCartButton cart id =
     let
         btn label clickMsg =
-            button [ class "btn btn-sm btn-outline-secondary", onClick clickMsg ]
+            button [ class "btn btn-xs btn-outline-secondary", onClick clickMsg ]
                 [ text label ]
     in
     if contains cart id then
@@ -330,7 +330,7 @@ addToCartButton2 : Cart -> Int -> Html Msg
 addToCartButton2 cart id =
     let
         btn label clickMsg =
-            button [ class "btn btn-sm btn-outline-secondary", onClick clickMsg ]
+            button [ class "btn btn-xs btn-outline-secondary", onClick clickMsg ]
                 [ i [ class "fas fa-shopping-cart" ] []
                 , text " "
                 , text label
@@ -345,12 +345,12 @@ addToCartButton2 cart id =
 --        , btn "Add to Cart" (AddToCart id)
 --        ]
     span []
-        [ button [ class "btn btn-sm btn-outline-secondary", onClick (RemoveFromCart id) ]
+        [ button [ class "btn btn-xs btn-outline-secondary", onClick (RemoveFromCart id) ]
                 [ --i [ class "fas fa-shopping-cart" ] []
                 text " "
                 , text "Remove from Cart"
                 ]
-        , button [ class "btn btn-sm btn-outline-secondary", onClick (AddToCart id) ]
+        , button [ class "btn btn-xs btn-outline-secondary", onClick (AddToCart id) ]
                 [ --i [ class "fas fa-shopping-cart" ] []
                 text " "
                 , text  "Add to Cart"
@@ -373,8 +373,9 @@ addAllToCartButton (Cart cart) optionalLabels ids =
             Set.intersect (Set.fromList ids) cart.contents |> Set.toList
 
         btn label clickMsg =
-            button [ class "btn btn-sm btn-outline-secondary", onClick clickMsg ]
-                [ text label ]
+            button [ class "btn btn-xs btn-outline-secondary align-middle", onClick clickMsg ]
+                [ text label
+                ]
     in
     if intersection == [] then
         btn addLbl (AddAllToCart ids)

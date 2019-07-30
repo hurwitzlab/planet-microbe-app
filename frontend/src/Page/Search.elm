@@ -1549,9 +1549,14 @@ viewResults model =
                     )
                 ]
 
+        addToCartTh =
+            th []
+                [ i [ class "fas fa-shopping-cart mr-2" ] []
+                , Cart.addAllToCartButton model.session.cart Nothing (model.results |> Maybe.withDefault [] |> List.map .sampleId) |> Html.map CartMsg
+                ]
+
         columns =
-            List.indexedMap mkTh paramNames
-                ++ [ th [] [ i [ class "fas fa-shopping-cart" ] [], text " Cart" ] ]
+            List.indexedMap mkTh paramNames ++ [ addToCartTh ]
 
         mkTd label =
             td [ style "max-width" maxColWidth ] [ text label ]
