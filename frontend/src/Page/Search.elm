@@ -1551,7 +1551,7 @@ viewResults model =
 
         columns =
             List.indexedMap mkTh paramNames
-                ++ [ th [] [ text "Cart" ] ]
+                ++ [ th [] [ i [ class "fas fa-shopping-cart" ] [], text " Cart" ] ]
 
         mkTd label =
             td [ style "max-width" maxColWidth ] [ text label ]
