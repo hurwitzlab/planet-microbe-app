@@ -97,7 +97,7 @@ viewHeader session page =
                         String.fromInt numItemsInCart
             in
             a [ class "nav-link text-nowrap", classList [ ("active", page == Cart) ], Route.href Route.Cart ]
-                [ i [ class "fas fa-shopping-cart" ] []
+                [ i [ class "fas fa-shopping-cart fa-lg" ] []
                 , text " "
                 , span [ class "gray absolute" ] [ text label ]
                 ]
