@@ -474,18 +474,15 @@ update msg model =
         CartMsg subMsg ->
             let
                 newCart =
-                    Cart.update subMsg model.session.cart
-
-                session =
-                    model.session
+                    Cart.update subMsg (Session.getCart model.session)
 
                 newSession =
-                    { session | cart = newCart }
+                    Session.setCart model.session newCart
             in
             ( { model | session = newSession }
             , Cmd.batch
                 [ --Cmd.map CartMsg subCmd
-                Session.store newSession
+                Cart.store newCart
                 ]
             )
 
@@ -1552,7 +1549,7 @@ viewResults model =
         addToCartTh =
             th []
                 [ i [ class "fas fa-shopping-cart mr-2" ] []
-                , Cart.addAllToCartButton model.session.cart Nothing (model.results |> Maybe.withDefault [] |> List.map .sampleId) |> Html.map CartMsg
+                , Cart.addAllToCartButton (Session.getCart model.session) Nothing (model.results |> Maybe.withDefault [] |> List.map .sampleId) |> Html.map CartMsg
                 ]
 
         columns =
@@ -1576,9 +1573,9 @@ viewResults model =
             tr []
                 (List.concat --FIXME kludgey
                     [ [ mkTd result.projectName ]
-                    , [ td [] [ a [ Route.href (Route.Sample result.sampleId)  ] [ text (List.head result.values |> Maybe.withDefault NoResultValue |> formatVal) ] ] ]
+                    , [ td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text (List.head result.values |> Maybe.withDefault NoResultValue |> formatVal) ] ] ]
                     , result.values |> List.tail |> Maybe.withDefault [] |> List.map (formatVal >> mkTd)
-                    , [ td [] [ Cart.addToCartButton model.session.cart result.sampleId |> Html.map CartMsg ] ]
+                    , [ td [] [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ] ]
                     ])
 
         count =

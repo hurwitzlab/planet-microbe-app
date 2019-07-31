@@ -35,7 +35,7 @@ init : Session -> ( Model, Cmd Msg ) --Maybe Int -> ( Model, Cmd Msg )
 init session = --id =
     let
         id_list =
-            Cart.toList session.cart
+            Cart.toList (Session.getCart session)
 
 --        loadSampleList =
 --            if id_list == [] then
@@ -164,18 +164,15 @@ update msg model =
         CartMsg subMsg ->
             let
                 newCart =
-                    Cart.update subMsg model.session.cart
-
-                session =
-                    model.session
+                    Cart.update subMsg (Session.getCart model.session)
 
                 newSession =
-                    { session | cart = newCart }
+                    Session.setCart model.session newCart
             in
             ( { model | session = newSession }
             , Cmd.batch
                 [ --Cmd.map CartMsg subCmd
-                Session.store newSession
+                Cart.store newCart
                 ]
             )
 
@@ -260,14 +257,11 @@ update msg model =
 --            case model.selectedCartId of
 --                Nothing ->
                     let
-                        session =
-                            model.session
-
                         newSession =
-                            { session | cart = Cart.empty }
+                            Session.setCart model.session Cart.empty
                     in
                     ( { model | session = newSession, samples = Nothing }
-                    , Session.store newSession
+                    , Cart.store Cart.empty
                     ) -- => SetCart newCart
 
 --                Just id ->
@@ -380,7 +374,7 @@ view model =
 
         cart =
 --            if isCurrent then
-                model.session.cart
+                Session.getCart model.session
 --            else
 --                Cart.init (Data.Cart.Cart (samples |> List.map .sample_id |> Set.fromList)) Cart.Editable
 

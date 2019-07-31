@@ -14,7 +14,7 @@ import Config exposing (apiBaseUrl)
 
 -- IMPORTANT!!!
 -- This type exists in the Session.
--- When changing the structure of this record be sure to change the version in Config.elm
+-- When changing the structure of this record be sure to change the cookie name
 -- to prevent errors when decoding the old cookies (can manifest as infinite login loop)
 type alias User =
     { user_id : Int

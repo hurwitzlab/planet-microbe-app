@@ -62,13 +62,13 @@ view : Model -> Html Msg
 view model =
     let
         username =
-            model.session.user |> Maybe.map .user_name |> Maybe.withDefault ""
+            Session.getUser model.session |> Maybe.map .user_name |> Maybe.withDefault ""
 
         firstName =
-            model.session.user |> Maybe.map .first_name |> Maybe.withDefault ""
+            Session.getUser model.session |> Maybe.map .first_name |> Maybe.withDefault ""
 
         lastName =
-            model.session.user |> Maybe.map .last_name |> Maybe.withDefault ""
+            Session.getUser model.session |> Maybe.map .last_name |> Maybe.withDefault ""
     in
     div [ class "container" ]
         [ div [ class "pb-2 mt-5 mb-2 border-bottom", style "width" "100%" ]

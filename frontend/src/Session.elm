@@ -1,91 +1,105 @@
-port module Session exposing (..)
+module Session exposing (..)
 
 import Cart exposing (Cart)
+import Credentials exposing (Credentials)
 import User as User exposing (User)
-import Browser.Navigation
+import Browser.Navigation as Nav
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode exposing (Value)
 import Json.Encode.Extra exposing (maybe)
 
 
--- IMPORTANT!!!
--- When changing the structure of this record be sure to change the cookie name to prevent
--- errors when decoding the old cookies (can manifest as infinite login loop)
-type alias Session =
-    { cart : Cart
-    , token : String
-    , refreshToken : String
-    , expiresIn : Maybe Int
---    , expiresAt : Maybe Int
-    , user : Maybe User
---    , url : String
-    , navKey : Maybe Browser.Navigation.Key
-    }
+
+type Session
+    = LoggedIn Nav.Key Cart Credentials
+    | Guest Nav.Key Cart
 
 
-default : Session
-default =
-    { cart = Cart.empty
-    , token = ""
-    , refreshToken = ""
-    , expiresIn = Nothing
---    , expiresAt = Nothing
-    , user = Nothing
---    , url = ""
-    , navKey = Nothing
-    }
+fromKey : Nav.Key -> Session
+fromKey key =
+    Guest key Cart.empty
 
 
---expired : Session -> Session
---expired session =
---    { session
---        | expiresAt = Nothing
---        , expiresIn = Nothing
---        , token = ""
-----        , user = Nothing
---    }
+navKey : Session -> Nav.Key
+navKey session =
+    case session of
+        LoggedIn key _ _ ->
+            key
+
+        Guest key _ ->
+            key
 
 
---isLoggedIn : Session -> Bool
---isLoggedIn session =
---    session.token /= ""
+getCart : Session -> Cart
+getCart session =
+    case session of
+        LoggedIn _ c _ ->
+            c
+
+        Guest _ c ->
+            c
 
 
-decoder : Decoder Session
-decoder =
-    Decode.succeed Session
-        |> optional "cart" Cart.decoder Cart.empty
-        |> optional "token" Decode.string ""
-        |> optional "refreshToken" Decode.string ""
-        |> optional "expiresIn" (Decode.nullable Decode.int) Nothing
---        |> optional "expiresAt" (Decode.nullable Decode.int) Nothing
-        |> optional "user" (Decode.nullable User.userDecoder) Nothing
-        |> optional "navKey" (Decode.succeed Nothing) Nothing
---        |> optional "url" Decode.string ""
+setCart : Session -> Cart -> Session
+setCart session cart =
+    case session of
+        LoggedIn key _ cred ->
+            LoggedIn key cart cred
+
+        Guest key _ ->
+            Guest key cart
 
 
-encode : Session -> Value
-encode session =
-    Encode.object
-        [ ("cart", Cart.encode session.cart)
-        , ("token", Encode.string session.token)
-        , ("refreshToken", Encode.string session.refreshToken)
-        , ("expiresIn", maybe Encode.int session.expiresIn)
---        , ("expiresAt", maybe Encode.int session.expiresAt)
-        , ("user", maybe User.encodeUser session.user)
---        , ("url", Encode.string session.url)
-        ]
+credentials : Session -> Maybe Credentials
+credentials session =
+    case session of
+        LoggedIn _ _ cred ->
+            Just cred
+
+        Guest _ _ ->
+            Nothing
 
 
-store : Session -> Cmd msg
-store session =
-    encode session
-        |> Just
-        |> storeSession
+setCredentials : Session -> Credentials -> Session
+setCredentials session cred =
+    case session of
+        LoggedIn key cart _ ->
+            LoggedIn key cart cred
+
+        Guest key cart ->
+            LoggedIn key cart cred
 
 
-port storeSession : Maybe Value -> Cmd msg
+token : Session -> String
+token session =
+    case session of
+        LoggedIn _ _ cred ->
+            cred.token
+
+        Guest _ _ ->
+            ""
 
 
-port onSessionChange : (String -> msg) -> Sub msg
+getUser : Session -> Maybe User
+getUser session =
+    case session of
+        LoggedIn _ _ cred ->
+            cred.user
+
+        Guest _ _ ->
+            Nothing
+
+
+setUser : Session -> User -> Session
+setUser session user =
+    let
+        default =
+            Credentials.default
+    in
+    case session of
+        LoggedIn key cart cred ->
+            LoggedIn key cart { cred | user = Just user }
+
+        Guest key cart ->
+            LoggedIn key cart { default | user = Just user }

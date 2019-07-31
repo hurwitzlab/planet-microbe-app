@@ -52,7 +52,7 @@ init session id =
         _ = Debug.log "Job.init session:" (toString session)
 
         loadJobFromAgave =
-            Agave.getJob session.token id |> Http.toTask |> Task.map .result
+            Agave.getJob (Session.token session) id |> Http.toTask |> Task.map .result
 
 --        loadJobFromPlanB =
 --            PlanB.getJob session.token id |> Http.toTask |> Task.map .result
@@ -67,7 +67,7 @@ init session id =
             App.fetchByName app_name |> Http.toTask
 
         username =
-            session.user |> Maybe.map .user_name |> Maybe.withDefault ""
+            Session.getUser session |> Maybe.map .user_name |> Maybe.withDefault ""
     in
     ( { session = session
       , username = username
@@ -128,10 +128,10 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
         username =
-            model.session.user |> Maybe.map .user_name |> Maybe.withDefault ""
+            Session.getUser model.session |> Maybe.map .user_name |> Maybe.withDefault ""
 
         loadJobFromAgave =
-            Agave.getJob model.session.token model.jobId |> Http.toTask |> Task.map .result
+            Agave.getJob (Session.token model.session) model.jobId |> Http.toTask |> Task.map .result
 
 --        loadJobFromPlanB =
 --            PlanB.getJob model.session.token model.jobId |> Http.toTask |> Task.map .result
@@ -160,7 +160,7 @@ update msg model =
         GetHistory ->
             let
                 loadHistoryFromAgave =
-                    Agave.getJobHistory model.session.token model.jobId |> Http.toTask |> Task.map .result
+                    Agave.getJobHistory (Session.token model.session) model.jobId |> Http.toTask |> Task.map .result
 
 --                loadHistoryFromPlanB =
 --                    PlanB.getJobHistory model.session.token model.jobId |> Http.toTask |> Task.map .result
@@ -213,19 +213,19 @@ update msg model =
                     model.job |> Maybe.map .owner |> Maybe.withDefault ""
 
                 loadOutputs path =
-                    Agave.getJobOutputs owner model.session.token model.jobId (Just path)
+                    Agave.getJobOutputs owner (Session.token model.session) model.jobId (Just path)
                         |> Http.toTask
                         |> Task.map .result
                         |> Task.map (List.filter (\r -> r.name /= "." && String.endsWith ".tab" r.name) >> List.map .path) -- filter out current path "." #FIXME hardcoded for .tab files (for ohana-blast) 
 
                 -- Expects relative path
                 loadOutput path =
-                    Agave.getJobOutput owner model.session.token model.jobId path
+                    Agave.getJobOutput owner (Session.token model.session) model.jobId path
                         |> Http.toTask |> Task.map (\data -> List.singleton (path, data))
 
                 -- Expects full path
                 loadFile path =
-                    Agave.getFile model.session.token path
+                    Agave.getFile (Session.token model.session) path
                         |> Http.toTask |> Task.map (\data -> List.singleton (path, data))
 
                 -- Gets a single file or every file in a directory if path ends in "/"
@@ -345,7 +345,7 @@ update msg model =
         CancelJob ->
             let
                 stopJob =
-                    Agave.stopJob model.session.token model.jobId
+                    Agave.stopJob (Session.token model.session) model.jobId
                         |> Http.toTask
                         |> Task.andThen (\_ -> loadJob)
             in

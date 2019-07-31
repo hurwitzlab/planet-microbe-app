@@ -72,14 +72,14 @@ viewHeader : Session -> Page -> Html msg
 viewHeader session page =
     let
         loginButton =
-            case session.user of
-                Nothing ->
+            case session of
+                Session.Guest _ _ ->
                     a [ class "nav-link text-nowrap", Route.href Route.Login ]
                         [ i [ class "fas fa-sign-in-alt" ] []
                         , text " Sign-in to CyVerse"
                         ]
 
-                Just user ->
+                Session.LoggedIn _ _ _ ->
                     a [ class "nav-link text-nowrap", classList [ ("active", page == Account) ], Route.href Route.Account ]
                         [ i [ class "fas fa-user" ] []
                         , text " My Account"
@@ -88,7 +88,7 @@ viewHeader session page =
         cartButton =
             let
                 numItemsInCart =
-                    Cart.size session.cart
+                    Cart.size (Session.getCart session)
 
                 label =
                     if numItemsInCart == 0 then

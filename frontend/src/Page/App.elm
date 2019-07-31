@@ -61,7 +61,7 @@ init session id =
 
         loadAppFromAgave name =
 --            Agave.getApp session.token name |> Http.toTask |> Task.map .result
-            Agave.getApp session.token name |> Http.toTask |> Task.map .result
+            Agave.getApp (Session.token session) name |> Http.toTask |> Task.map .result
 
 --        loadAppFromPlanB name =
 --            Request.PlanB.getApp session.token name |> Http.toTask |> Task.map .result
@@ -289,13 +289,13 @@ update msg model =
                             Agave.JobRequest jobName app.name True jobInputs jobParameters []
 
                         launchAgave =
-                            Agave.launchJob model.session.token jobRequest |> Http.send RunJobCompleted
+                            Agave.launchJob (Session.token model.session) jobRequest |> Http.send RunJobCompleted
 
         --                launchPlanB =
         --                    Request.PlanB.launchJob session.token jobRequest |> Http.send RunJobCompleted
 
                         sendAppRun =
-                            App.run model.session.token model.appId (Agave.encodeJobRequest jobRequest |> toString) |> Http.send AppRunCompleted
+                            App.run (Session.token model.session) model.appId (Agave.encodeJobRequest jobRequest |> toString) |> Http.send AppRunCompleted
 
                         launchApp =
         --                    if isPlanB then
@@ -311,18 +311,13 @@ update msg model =
         RunJobCompleted (Ok response) ->
             let
                 shareJob =
-                    Agave.shareJob model.session.token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
+                    Agave.shareJob (Session.token model.session) response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
 
                 cmd =
-                    case model.session.navKey of
-                        Nothing ->
-                            Cmd.none --FIXME
-
-                        Just key ->
-                            ( (Route.replaceUrl key (Route.Job response.result.id)
-                                :: (if not isPlanB then [ shareJob ] else []))
-                                |> Cmd.batch
-                            )
+                    ( (Route.replaceUrl (Session.navKey model.session) (Route.Job response.result.id)
+                        :: (if not isPlanB then [ shareJob ] else []))
+                        |> Cmd.batch
+                    )
             in
             ( model, cmd )
 

@@ -20,6 +20,7 @@ import String.Extra
 import List.Extra
 import Json.Encode as Encode
 import Cart
+import Set
 import Debug exposing (toString)
 
 
@@ -35,6 +36,7 @@ type alias Model =
     , metadata : Maybe Metadata
     , mapLoaded : Bool
     , tooltip : Maybe (ToolTip (List Annotation))
+    , cart : Cart.Cart
     }
 
 
@@ -54,6 +56,7 @@ init session id =
       , metadata = Nothing
       , mapLoaded = False
       , tooltip = Nothing
+      , cart = Cart.empty
       }
       , Cmd.batch
         [ GMap.removeMap "" -- workaround for blank map on navigating back to this page
@@ -209,18 +212,15 @@ update msg model =
         CartMsg subMsg ->
             let
                 newCart =
-                    Cart.update subMsg model.session.cart
-
-                session =
-                    model.session
+                    Cart.update subMsg (Session.getCart model.session)
 
                 newSession =
-                    { session | cart = newCart }
+                    Session.setCart model.session newCart
             in
             ( { model | session = newSession }
             , Cmd.batch
                 [ --Cmd.map CartMsg subCmd
-                Session.store newSession
+                Cart.store newCart
                 ]
             )
 
@@ -247,7 +247,7 @@ view model =
                         , small [ class "ml-3", style "color" "gray" ] [ text sample.accn ]
                         ]
                     , span [ class "float-right" ]
-                        [ Cart.addToCartButton2 model.session.cart sample.id |> Html.map CartMsg ]
+                        [ Cart.addToCartButton2 (Session.getCart model.session) sample.id |> Html.map CartMsg ]
                     ]
                 , div []
                     [ viewSample sample (model.samplingEvents |> Maybe.withDefault []) ]

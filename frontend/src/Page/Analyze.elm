@@ -33,7 +33,7 @@ init session =
       }
       , Cmd.batch
         [ App.fetchAll |> Http.toTask |> Task.attempt GetAppsCompleted
-        , Agave.getJobs session.token |> Http.toTask |> Task.map .result |> Task.attempt GetJobsCompleted
+        , Agave.getJobs (Session.token session) |> Http.toTask |> Task.map .result |> Task.attempt GetJobsCompleted
         ]
     )
 

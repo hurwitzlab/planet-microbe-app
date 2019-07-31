@@ -91,7 +91,7 @@ init : Session -> Maybe Config -> Model --Task Http.Error Model
 init session maybeConfig =
     let
         username =
-            session.user |> Maybe.map .user_name |> Maybe.withDefault ""
+            Session.getUser session |> Maybe.map .user_name |> Maybe.withDefault ""
 
         config =
             maybeConfig |> Maybe.withDefault defaultConfig
@@ -226,7 +226,7 @@ updateInternal session msg model =
 
         LoadPath path ->
             ( { model | path = path, selectedPaths = Nothing, errorMessage = Nothing, isBusy = True }
-            , Task.attempt LoadPathCompleted (loadPath session.token path)
+            , Task.attempt LoadPathCompleted (loadPath (Session.token session) path)
             )
 
         LoadPathCompleted (Ok files) ->
@@ -265,12 +265,7 @@ updateInternal session msg model =
                         Http.BadStatus response ->
                             case response.status.code of
                                 401 ->
-                                    case session.navKey of
-                                        Nothing ->
-                                            ("Unauthorized", Cmd.none) -- FIXME error
-
-                                        Just key ->
-                                            ("Unauthorized", Route.replaceUrl key Route.Login) -- redirect to Login page
+                                    ("Unauthorized", Route.replaceUrl (Session.navKey session) Route.Login) -- redirect to Login page
 
                                 403 ->
                                     ("Permission denied", Cmd.none)
@@ -297,7 +292,7 @@ updateInternal session msg model =
                     Agave.getFileRange token path_ (Just (0, chunkSz)) |> Http.toTask
             in
             ( { model | showViewFileDialog = True, showViewFileBusy = True, filePath = Just path }
-            , Task.attempt OpenPathCompleted (openPath session.token path)
+            , Task.attempt OpenPathCompleted (openPath (Session.token session) path)
             )
 
         OpenPathCompleted (Ok data) ->
@@ -321,9 +316,11 @@ updateInternal session msg model =
         CreateNewFolder ->
             let
                 createFolder =
-                    Agave.mkdir session.token model.path model.newFolderName |> Http.toTask
+                    Agave.mkdir (Session.token session) model.path model.newFolderName |> Http.toTask
             in
-            ( { model | showNewFolderBusy = True }, Task.attempt CreateNewFolderCompleted createFolder )
+            ( { model | showNewFolderBusy = True }
+            , Task.attempt CreateNewFolderCompleted createFolder
+            )
 
         CreateNewFolderCompleted (Ok _) ->
             updateInternal session RefreshPath { model | showNewFolderDialog = False }
@@ -338,7 +335,7 @@ updateInternal session msg model =
             else
                 let
                     delete =
-                        Agave.delete session.token path |> Http.toTask
+                        Agave.delete (Session.token session) path |> Http.toTask
                 in
 --                ( { model | isBusy = True, confirmationDialog = Nothing }, Task.attempt DeletePathCompleted delete )
                 ( { model | isBusy = True }, Task.attempt DeletePathCompleted delete )
@@ -352,7 +349,7 @@ updateInternal session msg model =
         OpenShareDialog path ->
             let
                 getPermission =
-                    Agave.getFilePermission session.token path |> Http.toTask |> Task.map .result
+                    Agave.getFilePermission (Session.token session) path |> Http.toTask |> Task.map .result
             in
             ( { model | showShareDialog = True, showShareBusy = True }, Task.attempt GetPermissionCompleted getPermission )
 

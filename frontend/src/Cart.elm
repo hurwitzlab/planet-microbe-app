@@ -1,4 +1,4 @@
-module Cart exposing (..)
+port module Cart exposing (..)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
@@ -50,6 +50,19 @@ encode (Cart cart) =
     Encode.object
         [ ( "contents", cart.contents |> Set.toList |> Encode.list Encode.int )
         ]
+
+
+store : Cart -> Cmd msg
+store cart =
+    encode cart
+        |> Just
+        |> storeCart
+
+
+port storeCart : Maybe Value -> Cmd msg
+
+
+port onCartChange : (String -> msg) -> Sub msg
 
 
 
@@ -210,7 +223,7 @@ update msg cart =
 
 
 view : Cart -> List { a | id : Int, accn : String, projectId : Int, projectName : String } -> Html Msg
-view (Cart cart) samples =
+view cart samples =
 --    Table.view (config model) model.tableState (samplesInCart model.cart samples)
     let
         row sample =
@@ -228,7 +241,7 @@ view (Cart cart) samples =
             , th [] []
             ]
         , tbody []
-            (samplesInCart (Cart cart) samples |> List.map row)
+            (samplesInCart cart samples |> List.map row)
         ]
 
 

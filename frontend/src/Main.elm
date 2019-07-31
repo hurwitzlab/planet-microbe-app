@@ -5,11 +5,12 @@ import Browser.Navigation
 import Url exposing (Url)
 import Http
 import Task
-import Json.Decode as Decode
+import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline exposing (optional, required)
+import Json.Encode as Encode exposing (Value)
 import OAuth.AuthorizationCode
 import Agave
 import Html exposing (..)
-import Json.Encode as Encode exposing (Value)
 import Page exposing (Page, view)
 import Page.NotFound as NotFound
 import Page.Blank as Blank
@@ -29,6 +30,8 @@ import Page.Account as Account
 import Page.Cart as Cart
 import GAnalytics
 import Session exposing (Session)
+import Credentials exposing (Credentials)
+import Cart as CartData
 import User exposing (User)
 import Route exposing (Route)
 import Config
@@ -51,7 +54,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     case model of
         Redirect _ ->
-            Sub.map GotSession (Session.onSessionChange (Decode.decodeString Session.decoder >> Result.withDefault Session.default))
+            Sub.map GotCredentials (Credentials.onCredentialsChange (Decode.decodeString Credentials.decoder >> Result.withDefault Credentials.default))
 
         Search search ->
             Sub.map SearchMsg (Search.subscriptions search)
@@ -90,17 +93,38 @@ type Model -- FIXME inherited this from elm-spa-example but I don't like it beca
     | Cart Cart.Model
 
 
-init : String -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+type alias Flags =
+    { cart : CartData.Cart
+    , cred : Credentials
+    }
+
+
+flagsDecoder : Decoder Flags
+flagsDecoder =
+    Decode.succeed Flags
+        |> required "cart" CartData.decoder
+        |> required "cred" Credentials.decoder
+
+
+init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url navKey =
     let
         session =
-            flags
-                |> Decode.decodeString Session.decoder
-                |> Result.withDefault Session.default
+            case flags |> Decode.decodeValue flagsDecoder of
+                Ok f ->
+                    Session.LoggedIn navKey f.cart f.cred
+
+                Err error ->
+                    let
+                        _ = Debug.log "init" (toString error)
+                    in
+                    Session.Guest navKey CartData.empty
+
+        _ = Debug.log "init" (toString session)
 
         (model, cmd) =
             changeRouteTo (Route.fromUrl url)
-                (Redirect { session | navKey = Just navKey })
+                (Redirect session)
     in
     case OAuth.AuthorizationCode.parseCode url of
         OAuth.AuthorizationCode.Success { code, state } ->
@@ -212,7 +236,7 @@ type Msg
     | ClickedLink Browser.UrlRequest
     | GotAccessToken (Result Http.Error Agave.TokenResponse) --OAuth.AuthorizationCode.AuthenticationSuccess)
     | GotUserInfo (Result Http.Error User)--(Agave.Response Agave.Profile))
-    | GotSession Session
+    | GotCredentials Credentials
 
 
 toSession : Model -> Session
@@ -306,7 +330,7 @@ changeRouteTo maybeRoute model =
 
                         Route.Logout ->
                             ( model
-                            , Cmd.batch [ Session.store Session.default, Browser.Navigation.load "/" ]
+                            , Cmd.batch [ Credentials.store Credentials.default, Browser.Navigation.load "/" ]
                             )
 
                         Route.Browse ->
@@ -484,12 +508,14 @@ update msg model =
                     let
                         _ = Debug.log "token" accessToken
 
+                        default =
+                            Credentials.default
+
+                        newCred =
+                            { default | token = accessToken, refreshToken = refreshToken, expiresIn = Just expiresIn, user = Nothing }
+
                         newSession =
-                            { session |
-                                token = accessToken
-                                , refreshToken = refreshToken
-                                , expiresIn = Just expiresIn
-                            }
+                            Session.setCredentials session newCred
                     in
 --                    ( Login { subModel | token = Just token }
 --                    , Agave.getProfile (OAuth.tokenToString token) |> Http.toTask |> Task.attempt GotUserInfo --getUserInfo token
@@ -497,7 +523,7 @@ update msg model =
                     ( Redirect newSession,
                       Cmd.batch
                           [ User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo --Agave.getProfile accessToken |> Http.toTask |> Task.attempt GotUserInfo
-                          , Session.store newSession
+                          , Credentials.store newCred
                           ]
                     )
 
@@ -514,25 +540,31 @@ update msg model =
 
                 Ok user ->
                     let
+                        cred =
+                            Session.credentials session |> Maybe.withDefault Credentials.default
+
+                        newCred =
+                            { cred | user = Just user }
+
                         newSession =
-                            { session | user = Just user }
+                            Session.setCredentials session newCred
                     in
 --                    ( Login { subModel | profile = Just response.result }
 --                    , Cmd.none
 --                    )
-                    ( Redirect newSession, Session.store newSession )
+                    ( Redirect newSession
+                    , Credentials.store newCred
+                    )
 
-        ( GotSession newSession, _ ) -> --Redirect _ ) ->
+        ( GotCredentials newCredentials, _ ) -> --Redirect _ ) ->
             let
-                _ = Debug.log "GotSession" (toString newSession)
+                _ = Debug.log "GotCredentials" (toString newCredentials)
+
+                newSession =
+                    Session.setCredentials session newCredentials
             in
             ( Redirect newSession
-            , case newSession.navKey of
-                Nothing -> -- FIXME
-                    Cmd.none
-
-                Just key ->
-                    Route.replaceUrl key Route.Home
+            , Route.replaceUrl (Session.navKey newSession) Route.Home
             )
 
         ( _, _ ) ->
