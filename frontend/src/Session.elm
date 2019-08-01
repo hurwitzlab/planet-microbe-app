@@ -103,3 +103,13 @@ setUser session user =
 
         Guest key cart ->
             LoggedIn key cart { default | user = Just user }
+
+
+logout : Session -> Session
+logout session =
+    case session of
+        LoggedIn key cart _ ->
+            Guest key cart
+
+        _ ->
+            session

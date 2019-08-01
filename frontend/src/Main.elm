@@ -76,7 +76,6 @@ subscriptions model =
 type Model -- FIXME inherited this from elm-spa-example but I don't like it because of redundancy in toSession/changeRouteTo/view functions
     = Redirect Session
     | NotFound Session
-    | Login Session
     | Home Session
     | Browse Browse.Model
     | Search Search.Model
@@ -94,16 +93,16 @@ type Model -- FIXME inherited this from elm-spa-example but I don't like it beca
 
 
 type alias Flags =
-    { cart : CartData.Cart
-    , cred : Credentials
+    { cart : Maybe CartData.Cart
+    , cred : Maybe Credentials
     }
 
 
 flagsDecoder : Decoder Flags
 flagsDecoder =
     Decode.succeed Flags
-        |> required "cart" CartData.decoder
-        |> required "cred" Credentials.decoder
+        |> required "cart" (Decode.nullable CartData.decoder)
+        |> required "cred" (Decode.nullable Credentials.decoder)
 
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -112,15 +111,24 @@ init flags url navKey =
         session =
             case flags |> Decode.decodeValue flagsDecoder of
                 Ok f ->
-                    Session.LoggedIn navKey f.cart f.cred
+                    let
+                        cart =
+                            f.cart |> Maybe.withDefault CartData.empty
+                    in
+                    case f.cred of
+                        Just cred ->
+                            Session.LoggedIn navKey cart cred
+
+                        Nothing ->
+                            Session.Guest navKey cart
 
                 Err error ->
                     let
-                        _ = Debug.log "init" (toString error)
+                        _ = Debug.log "init error" (toString error)
                     in
                     Session.Guest navKey CartData.empty
 
-        _ = Debug.log "init" (toString session)
+        _ = Debug.log "init session" (toString session)
 
         (model, cmd) =
             changeRouteTo (Route.fromUrl url)
@@ -248,9 +256,6 @@ toSession page =
         NotFound session ->
             session
 
-        Login session ->
-            session
-
         Home session ->
             session
 
@@ -330,7 +335,10 @@ changeRouteTo maybeRoute model =
 
                         Route.Logout ->
                             ( model
-                            , Cmd.batch [ Credentials.store Credentials.default, Browser.Navigation.load "/" ]
+                            , Cmd.batch
+                                [ Credentials.storeCredentials Nothing
+                                , Browser.Navigation.load "/"
+                                ]
                             )
 
                         Route.Browse ->
@@ -517,9 +525,6 @@ update msg model =
                         newSession =
                             Session.setCredentials session newCred
                     in
---                    ( Login { subModel | token = Just token }
---                    , Agave.getProfile (OAuth.tokenToString token) |> Http.toTask |> Task.attempt GotUserInfo --getUserInfo token
---                    )
                     ( Redirect newSession,
                       Cmd.batch
                           [ User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo --Agave.getProfile accessToken |> Http.toTask |> Task.attempt GotUserInfo
@@ -549,9 +554,6 @@ update msg model =
                         newSession =
                             Session.setCredentials session newCred
                     in
---                    ( Login { subModel | profile = Just response.result }
---                    , Cmd.none
---                    )
                     ( Redirect newSession
                     , Credentials.store newCred
                     )
@@ -595,9 +597,6 @@ view model =
 
         NotFound _ ->
             Page.view session Page.Other NotFound.view
-
-        Login _ ->
-            Page.view session Page.Other Blank.view
 
         Home _ ->
             Page.view session Page.Home Home.view

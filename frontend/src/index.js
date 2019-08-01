@@ -20,8 +20,8 @@ var CART_COOKIE_NAME = COOKIE_NAME + '.cart';
 var app = Elm.Main.init({
   node: document.getElementById('main'),
   flags: {
-    cred: JSON.parse(localStorage.getItem(CRED_COOKIE_NAME)) || {},
-    cart: JSON.parse(localStorage.getItem(CART_COOKIE_NAME)) || {},
+    cred: JSON.parse(localStorage.getItem(CRED_COOKIE_NAME)) || null,
+    cart: JSON.parse(localStorage.getItem(CART_COOKIE_NAME)) || null,
   }
 });
 
