@@ -194,7 +194,7 @@ update msg model =
                     FileBrowser.defaultConfig
 
                 outputsPath =
-                    model.job |> Maybe.map .owner |> Maybe.withDefault "" |> String.append ( "/archive/jobs/job-" ++ model.jobId )
+                    ( model.job |> Maybe.map .owner |> Maybe.withDefault "" ) ++ ( "/archive/jobs/job-" ++ model.jobId )
 
                 fileBrowser =
                     FileBrowser.init model.session (Just { defaultConfig | showMenuBar = False, homePath = Just outputsPath })
@@ -385,6 +385,9 @@ view model =
             let
                 status =
                     job.status |> String.replace "_" " "  -- replace _ with space
+
+                deUrl =
+                    "https://de.cyverse.org/de/?type=data&folder=/iplant/home/" ++ model.username ++ "/archive/jobs/job-" ++ model.jobId --FIXME move base url to config
             in
             div [ class "container" ]
                 [ Page.viewTitle "Job" job.name
@@ -399,7 +402,18 @@ view model =
                 , Page.viewTitle2 "History" False
                 , viewHistory model.history model.loadedHistory model.loadingHistory
                 , br [] []
-                , Page.viewTitle2 "Outputs" False
+                , div [ class "mt-4 border-bottom", style "width" "100%" ]
+                    [ h2 [ class "font-weight-bold d-inline" ]
+                        [ span [ style "color" "dimgray" ] [ text "Outputs" ]
+                        ]
+                    , span [ class "float-right pt-2" ]
+                        [ text "View output files in the "
+                        , a [ target "_blank", href deUrl ]
+                            [ text "CyVerse Data Store "
+                            , i [ class "fas fa-external-link-alt fa-xs align-baseline" ] []
+                            ]
+                        ]
+                    ]
                 , viewOutputs model
 --                , Page.viewTitle2 "Results" False
 --                , viewResults model
@@ -560,23 +574,19 @@ viewParameter (id, value) =
 
 viewHistory : List Agave.JobHistory -> Bool -> Bool -> Html Msg
 viewHistory history loaded loading =
+    if history == [] then
+        div [ class "border-top w-100 pt-2" ]
+            [ if loaded then
+                text "None"
+              else if loading then
+                text "Loading..." --spinner
+              else
+                button [ class "btn btn-outline-secondary", onClick GetHistory ] [ text "Show History" ]
+            ]
+    else
     table [ class "table table-sm" ]
         [ tbody []
-            (if history == [] then
-                [ tr []
-                    [ td []
-                        [ if loaded then
-                            text "None"
-                        else if loading then
-                            text "Loading..." --spinner
-                        else
-                            button [ class "btn btn-outline-secondary", onClick GetHistory ] [ text "Show History" ]
-                        ]
-                    ]
-                ]
-            else
-                List.map viewEvent history
-            )
+            (List.map viewEvent history)
         ]
 
 
@@ -599,7 +609,8 @@ viewOutputs model =
                         "FINISHED" ->
                             case model.fileBrowser of
                                 Nothing ->
-                                    button [ class "btn btn-default", onClick ShowOutputs ] [ text "Show Outputs" ]
+                                    div [ class "mt-2" ]
+                                        [ button [ class "btn btn-outline-secondary", onClick ShowOutputs ] [ text "Show Outputs" ] ]
 
                                 Just fileBrowser ->
                                     div [ style "height" "60vh", style "overflow-y" "auto" ]
@@ -613,20 +624,9 @@ viewOutputs model =
 
                 Nothing ->
                     text ""
-
-        de_url =
-            "https://de.cyverse.org/de/?type=data&folder=/iplant/home/" ++ model.username ++ "/archive/jobs/job-" ++ model.jobId --FIXME move base url to config
     in
     div []
-        [ div []
-            [ text "Browse and view output files in the "
-            , a [ target "_blank", href de_url ] [ text "CyVerse Data Store" ]
-            , text "."
-            ]
-        , table [ class "table" ]
-            [ tbody [] [ tr [] [ td [] [ body ] ] ]
-            ]
-        ]
+        [ body ]
 
 
 viewResults : Model -> Html Msg

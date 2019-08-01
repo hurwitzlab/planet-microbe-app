@@ -574,11 +574,10 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
             menuBar
           else
             text ""
-        , br [] []
         , if errorMessage /= Nothing then
             div [ class "alert alert-danger" ] [ text (Maybe.withDefault "An error occurred" errorMessage) ]
           else if isBusy then
-            viewSpinner
+            text "Loading..." --viewSpinner
           else
             div [ style "overflow-y" "auto", style "height" "100%" ] --("height","60vh")] ]
                 [ viewFileTable config contents selectedPaths ] --[ Table.view (tableConfig config selectedPaths) tableState contents ]
