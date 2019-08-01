@@ -47,3 +47,8 @@ agaveBaseUrl =
 agaveOAuthClientId : String
 agaveOAuthClientId =
     ""
+
+
+agaveRedirectUrl : String
+agaveRedirectUrl =
+    ""

@@ -168,20 +168,6 @@ init flags url navKey =
 --            )
 
 
-redirectUrl =
-    { defaultHttpsUrl | protocol = Url.Http, host = "localhost", port_ = Just 1234 }
-
-
-defaultHttpsUrl =
-    { protocol = Url.Https
-    , host = ""
-    , path = ""
-    , port_ = Nothing
-    , query = Nothing
-    , fragment = Nothing
-    }
-
-
 getAccessToken : String -> String -> Http.Request Agave.TokenResponse
 getAccessToken provider code =
     let
@@ -321,6 +307,21 @@ changeRouteTo maybeRoute model =
 
                         Route.Login ->
                             let
+                                defaultHttpsUrl =
+                                    { protocol = Url.Https
+                                    , host = ""
+                                    , path = ""
+                                    , port_ = Nothing
+                                    , query = Nothing
+                                    , fragment = Nothing
+                                    }
+
+                                authorizationUrl =
+                                    Config.agaveBaseUrl ++ "/authorize" |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+
+                                redirectUrl =
+                                    Config.agaveRedirectUrl |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+
                                 auth =
                                     { clientId = Config.agaveOAuthClientId
                                     , redirectUri = redirectUrl
@@ -328,9 +329,6 @@ changeRouteTo maybeRoute model =
                                     , state = Nothing
                                     , url = authorizationUrl
                                     }
-
-                                authorizationUrl =
-                                    Config.agaveBaseUrl ++ "/authorize" |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
                             in
                             ( model
                             , auth |> OAuth.AuthorizationCode.makeAuthUrl |> Url.toString |> Browser.Navigation.load
@@ -340,7 +338,7 @@ changeRouteTo maybeRoute model =
                             ( model
                             , Cmd.batch
                                 [ Credentials.storeCredentials Nothing
-                                , Browser.Navigation.load "/"
+                                , Browser.Navigation.load Config.agaveRedirectUrl
                                 ]
                             )
 
