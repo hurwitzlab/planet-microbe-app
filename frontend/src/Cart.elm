@@ -338,37 +338,21 @@ addToCartButton cart id =
         btn "Add" (AddToCart id)
 
 
--- Kludge
+-- Kludge, merge with addToCartButton
 addToCartButton2 : Cart -> Int -> Html Msg
 addToCartButton2 cart id =
     let
         btn label clickMsg =
-            button [ class "btn btn-xs btn-outline-secondary", onClick clickMsg ]
+            button [ class "btn btn-sm btn-outline-secondary", onClick clickMsg ]
                 [ i [ class "fas fa-shopping-cart" ] []
                 , text " "
                 , text label
                 ]
     in
---    if contains cart id then
---        btn "Remove from Cart" (RemoveFromCart id)
---    else
---        btn "Add to Cart" (AddToCart id)
---    span []
---        [ btn "Remove from Cart" (RemoveFromCart id)
---        , btn "Add to Cart" (AddToCart id)
---        ]
-    span []
-        [ button [ class "btn btn-xs btn-outline-secondary", onClick (RemoveFromCart id) ]
-                [ --i [ class "fas fa-shopping-cart" ] []
-                text " "
-                , text "Remove from Cart"
-                ]
-        , button [ class "btn btn-xs btn-outline-secondary", onClick (AddToCart id) ]
-                [ --i [ class "fas fa-shopping-cart" ] []
-                text " "
-                , text  "Add to Cart"
-                ]
-        ]
+    if contains cart id then
+        btn "Remove from Cart" (RemoveFromCart id)
+    else
+        btn "Add to Cart" (AddToCart id)
 
 
 addAllToCartButton : Cart -> Maybe (String, String) -> List Int -> Html Msg
