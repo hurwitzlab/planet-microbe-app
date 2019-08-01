@@ -10,4 +10,11 @@ h6 {
     color: #008d97 !important;
 }
 
-@import "../../node_modules/bootstrap/scss/bootstrap"
+@import "../../node_modules/bootstrap/scss/bootstrap";
+
+.btn-group-xs > .btn, .btn-xs {
+    padding  : .25rem .4rem;
+    font-size  : .875rem;
+    line-height  : 1;
+    border-radius : .2rem;
+}

@@ -1,12 +1,17 @@
 module Config exposing (..)
 
 
--- Backend REST API
+
+---- Backend REST API ----
 
 
 apiBaseUrl : String
 apiBaseUrl =
     "http://localhost:3020"
+
+
+
+---- Misc ----
 
 
 alertBannerText : Maybe String
@@ -27,3 +32,18 @@ dataCommonsUrl =
 discoveryEnvironmentUrl : String
 discoveryEnvironmentUrl =
     "https://de.cyverse.org/de/?type=data&folder="
+
+
+
+---- Agave API ----
+
+
+agaveBaseUrl : String
+agaveBaseUrl =
+    "https://agave.iplantc.org"
+
+
+-- OAuth2 Configuration
+agaveOAuthClientId : String
+agaveOAuthClientId =
+    ""

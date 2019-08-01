@@ -19,7 +19,9 @@ import Time
 import String.Extra
 import List.Extra
 import Json.Encode as Encode
---import Debug exposing (toString)
+import Cart
+import Set
+import Debug exposing (toString)
 
 
 
@@ -34,6 +36,7 @@ type alias Model =
     , metadata : Maybe Metadata
     , mapLoaded : Bool
     , tooltip : Maybe (ToolTip (List Annotation))
+    , cart : Cart.Cart
     }
 
 
@@ -53,6 +56,7 @@ init session id =
       , metadata = Nothing
       , mapLoaded = False
       , tooltip = Nothing
+      , cart = Cart.empty
       }
       , Cmd.batch
         [ GMap.removeMap "" -- workaround for blank map on navigating back to this page
@@ -93,6 +97,7 @@ type Msg
     | ShowTooltip PURL
     | HideTooltip
     | GotElement PURL (Result Browser.Dom.Error Browser.Dom.Element)
+    | CartMsg Cart.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -204,6 +209,21 @@ update msg model =
 --            in
             ( { model | tooltip = Nothing }, Cmd.none )
 
+        CartMsg subMsg ->
+            let
+                newCart =
+                    Cart.update subMsg (Session.getCart model.session)
+
+                newSession =
+                    Session.setCart model.session newCart
+            in
+            ( { model | session = newSession }
+            , Cmd.batch
+                [ --Cmd.map CartMsg subCmd
+                Cart.store newCart
+                ]
+            )
+
 
 
 -- VIEW --
@@ -221,7 +241,14 @@ view model =
                     model.experiments |> Maybe.map List.length |> Maybe.withDefault 0
             in
             div [ class "container" ]
-                [ Page.viewTitle "Sample" sample.accn
+                [ div [ class "pb-2 mt-5 mb-2 border-bottom", style "width" "100%" ]
+                    [ h1 [ class "font-weight-bold d-inline" ]
+                        [ span [ style "color" "dimgray" ] [ text "Sample" ]
+                        , small [ class "ml-3", style "color" "gray" ] [ text sample.accn ]
+                        ]
+                    , span [ class "float-right" ]
+                        [ Cart.addToCartButton2 (Session.getCart model.session) sample.id |> Html.map CartMsg ]
+                    ]
                 , div []
                     [ viewSample sample (model.samplingEvents |> Maybe.withDefault []) ]
                 , div [ class "pt-3" ]

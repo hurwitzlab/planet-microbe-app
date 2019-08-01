@@ -1,10 +1,16 @@
-module Main exposing (..) -- this line is required for Parcel elm-hot HMR file change detection
+module Main exposing (main) -- this line is required for Parcel elm-hot HMR file change detection
 
 import Browser
 import Browser.Navigation
 import Url exposing (Url)
-import Html exposing (..)
+import Http
+import Task
+import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode exposing (Value)
+import OAuth.AuthorizationCode
+import Agave
+import Html exposing (..)
 import Page exposing (Page, view)
 import Page.NotFound as NotFound
 import Page.Blank as Blank
@@ -12,17 +18,24 @@ import Page.Home as Home
 import Page.Browse as Browse
 import Page.Search as Search
 import Page.Analyze as Analyze
+import Page.App as App
+import Page.Job as Job
 import Page.Project as Project
 import Page.Sample as Sample
 import Page.Campaign as Campaign
 import Page.SamplingEvent as SamplingEvent
 import Page.Experiment as Experiment
 import Page.Contact as Contact
+import Page.Account as Account
+import Page.Cart as Cart
 import GAnalytics
 import Session exposing (Session)
+import Credentials exposing (Credentials)
+import Cart as CartData
+import User exposing (User)
 import Route exposing (Route)
-import Config exposing (googleAnalyticsTrackingId)
---import Debug exposing (toString)
+import Config
+import Debug exposing (toString)
 
 
 
@@ -40,6 +53,9 @@ main =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     case model of
+        Redirect _ ->
+            Sub.map GotCredentials (Credentials.onCredentialsChange (Decode.decodeString Credentials.decoder >> Result.withDefault Credentials.default))
+
         Search search ->
             Sub.map SearchMsg (Search.subscriptions search)
 
@@ -57,26 +73,153 @@ subscriptions model =
 -- MODEL
 
 
-type Model
+type Model -- FIXME inherited this from elm-spa-example but I don't like it because of redundancy in toSession/changeRouteTo/view functions
     = Redirect Session
     | NotFound Session
-    | Home Home.Model
+    | Home Session
     | Browse Browse.Model
     | Search Search.Model
     | Analyze Analyze.Model
+    | App App.Model
+    | Job Job.Model
     | Project Project.Model
     | Sample Sample.Model
     | Campaign Campaign.Model
     | SamplingEvent SamplingEvent.Model
     | Experiment Experiment.Model
     | Contact Contact.Model
+    | Account Account.Model
+    | Cart Cart.Model
+
+
+type alias Flags =
+    { cart : Maybe CartData.Cart
+    , cred : Maybe Credentials
+    }
+
+
+flagsDecoder : Decoder Flags
+flagsDecoder =
+    Decode.succeed Flags
+        |> required "cart" (Decode.nullable CartData.decoder)
+        |> required "cred" (Decode.nullable Credentials.decoder)
 
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url navKey =
-    changeRouteTo (Route.fromUrl url)
---        (Redirect Session.empty) --(Session.fromViewer navKey maybeViewer))
-        (Redirect (Session "" Nothing Nothing "" navKey))
+    let
+        session =
+            case flags |> Decode.decodeValue flagsDecoder of
+                Ok f ->
+                    let
+                        cart =
+                            f.cart |> Maybe.withDefault CartData.empty
+                    in
+                    case f.cred of
+                        Just cred ->
+                            Session.LoggedIn navKey cart cred
+
+                        Nothing ->
+                            Session.Guest navKey cart
+
+                Err error ->
+                    let
+                        _ = Debug.log "init error" (toString error)
+                    in
+                    Session.Guest navKey CartData.empty
+
+        _ = Debug.log "init session" (toString session)
+
+        (model, cmd) =
+            changeRouteTo (Route.fromUrl url)
+                (Redirect session)
+    in
+    case OAuth.AuthorizationCode.parseCode url of
+        OAuth.AuthorizationCode.Success { code, state } ->
+            let
+                _ = Debug.log "OAuth.AuthorizationCode.Success" ("code=" ++ code)
+            in
+--            if Maybe.map randomBytesFromState state /= Just model.state then
+--                ( { model | error = Just "'state' doesn't match, the request has likely been forged by an adversary!" }
+--                , Cmd.none
+--                )
+--
+--            else
+                ( model
+                , Cmd.batch
+                    [ cmd
+                    , getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken --config model.redirectUri code
+                    ]
+                )
+
+        OAuth.AuthorizationCode.Empty ->
+            let
+                _ = Debug.log "OAuth.AuthorizationCode.Empty" ""
+            in
+            ( model, cmd )
+
+        OAuth.AuthorizationCode.Error err -> -- TODO
+            let
+                _ = Debug.log "OAuth.AuthorizationCode.Error" ""
+            in
+            ( model, cmd )
+--            ( { model | error = Just (OAuth.errorCodeToString err.error) }
+--            , Cmd.none
+--            )
+
+
+redirectUrl =
+    { defaultHttpsUrl | protocol = Url.Http, host = "localhost", port_ = Just 1234 }
+
+
+defaultHttpsUrl =
+    { protocol = Url.Https
+    , host = ""
+    , path = ""
+    , port_ = Nothing
+    , query = Nothing
+    , fragment = Nothing
+    }
+
+
+getAccessToken : String -> String -> Http.Request Agave.TokenResponse
+getAccessToken provider code =
+    let
+        body =
+            Encode.object
+                [ ( "provider", Encode.string provider )
+                , ( "code", Encode.string code )
+                ]
+    in
+    Http.request
+        { method = "POST"
+        , body = Http.jsonBody body
+        , headers = []
+        , url = Config.apiBaseUrl ++ "/token"
+        , expect = Http.expectJson Agave.tokenResponseDecoder
+        , timeout = Nothing
+--        , tracker = Nothing
+        , withCredentials = False
+        }
+
+
+randomBytesFromState : String -> String
+randomBytesFromState str =
+    str
+        |> stringDropLeftUntil (\c -> c == ".")
+
+
+stringDropLeftUntil : (String -> Bool) -> String -> String
+stringDropLeftUntil predicate str =
+    let
+        ( h, q ) =
+            ( String.left 1 str, String.dropLeft 1 str )
+    in
+    if q == "" || predicate h then
+        q
+
+    else
+        stringDropLeftUntil predicate q
 
 
 
@@ -84,18 +227,24 @@ init flags url navKey =
 
 
 type Msg
-    = HomeMsg Home.Msg
-    | BrowseMsg Browse.Msg
+    = BrowseMsg Browse.Msg
     | SearchMsg Search.Msg
     | AnalyzeMsg Analyze.Msg
+    | AppMsg App.Msg
+    | JobMsg Job.Msg
     | ProjectMsg Project.Msg
     | SampleMsg Sample.Msg
     | CampaignMsg Campaign.Msg
     | SamplingEventMsg SamplingEvent.Msg
     | ExperimentMsg Experiment.Msg
     | ContactMsg Contact.Msg
+    | AccountMsg Account.Msg
+    | CartMsg Cart.Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
+    | GotAccessToken (Result Http.Error Agave.TokenResponse) --OAuth.AuthorizationCode.AuthenticationSuccess)
+    | GotUserInfo (Result Http.Error User)--(Agave.Response Agave.Profile))
+    | GotCredentials Credentials
 
 
 toSession : Model -> Session
@@ -107,8 +256,8 @@ toSession page =
         NotFound session ->
             session
 
-        Home home ->
-            Home.toSession home
+        Home session ->
+            session
 
         Browse browse ->
             Browse.toSession browse
@@ -118,6 +267,12 @@ toSession page =
 
         Analyze analyze ->
             Analyze.toSession analyze
+
+        App app ->
+            App.toSession app
+
+        Job job ->
+            Job.toSession job
 
         Project project ->
             Project.toSession project
@@ -137,6 +292,12 @@ toSession page =
         Contact contact ->
             Contact.toSession contact
 
+        Account account ->
+            Account.toSession account
+
+        Cart cart ->
+            Cart.toSession cart
+
 
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
 changeRouteTo maybeRoute model =
@@ -153,8 +314,32 @@ changeRouteTo maybeRoute model =
                 ( newModel, newCmd ) =
                     case route of
                         Route.Home ->
-                            Home.init session
-                                |> updateWith Home HomeMsg model
+                            ( Home session, Cmd.none )
+
+                        Route.Login ->
+                            let
+                                auth =
+                                    { clientId = Config.agaveOAuthClientId
+                                    , redirectUri = redirectUrl
+                                    , scope = [ "PRODUCTION" ]
+                                    , state = Nothing
+                                    , url = authorizationUrl
+                                    }
+
+                                authorizationUrl =
+                                    Config.agaveBaseUrl ++ "/authorize" |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+                            in
+                            ( model
+                            , auth |> OAuth.AuthorizationCode.makeAuthUrl |> Url.toString |> Browser.Navigation.load
+                            )
+
+                        Route.Logout ->
+                            ( model
+                            , Cmd.batch
+                                [ Credentials.storeCredentials Nothing
+                                , Browser.Navigation.load "/"
+                                ]
+                            )
 
                         Route.Browse ->
                             Browse.init session
@@ -168,40 +353,60 @@ changeRouteTo maybeRoute model =
                             Analyze.init session
                                 |> updateWith Analyze AnalyzeMsg model
 
-                        (Route.Project id) ->
+                        Route.App id ->
+                            App.init session id
+                                |> updateWith App AppMsg model
+
+                        Route.Job id ->
+                            Job.init session id
+                                |> updateWith Job JobMsg model
+
+                        Route.Project id ->
                             Project.init session id
                                 |> updateWith Project ProjectMsg model
 
-                        (Route.Sample id) ->
+                        Route.Sample id ->
                             Sample.init session id
                                 |> updateWith Sample SampleMsg model
 
-                        (Route.Campaign id) ->
+                        Route.Campaign id ->
                             Campaign.init session id
                                 |> updateWith Campaign CampaignMsg model
 
-                        (Route.SamplingEvent id) ->
+                        Route.SamplingEvent id ->
                             SamplingEvent.init session id
                                 |> updateWith SamplingEvent SamplingEventMsg model
 
-                        (Route.Experiment id) ->
+                        Route.Experiment id ->
                             Experiment.init session id
                                 |> updateWith Experiment ExperimentMsg model
 
                         Route.Contact ->
                             Contact.init session
                                 |> updateWith Contact ContactMsg model
+
+                        Route.Account ->
+                            Account.init session
+                                |> updateWith Account AccountMsg model
+
+                        Route.Cart ->
+                            Cart.init session
+                                |> updateWith Cart CartMsg model
             in
             ( newModel
             , Cmd.batch
                 [ newCmd
-                , GAnalytics.send (Route.routeToString route) googleAnalyticsTrackingId -- Google Analytics
+                , GAnalytics.send (Route.routeToString route) Config.googleAnalyticsTrackingId -- Google Analytics
                 ]
             )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        session =
+            toSession model
+    in
     case ( msg, model ) of
         ( ClickedLink urlRequest, _ ) ->
             case urlRequest of
@@ -243,6 +448,14 @@ update msg model =
             Analyze.update subMsg subModel
                 |> updateWith Analyze AnalyzeMsg model
 
+        ( AppMsg subMsg, App subModel ) ->
+            App.update subMsg subModel
+                |> updateWith App AppMsg model
+
+        ( JobMsg subMsg, Job subModel ) ->
+            Job.update subMsg subModel
+                |> updateWith Job JobMsg model
+
         ( ProjectMsg subMsg, Project subModel ) ->
             Project.update subMsg subModel
                 |> updateWith Project ProjectMsg model
@@ -267,6 +480,95 @@ update msg model =
             Contact.update subMsg subModel
                 |> updateWith Contact ContactMsg model
 
+        ( AccountMsg subMsg, Account subModel ) ->
+            Account.update subMsg subModel
+                |> updateWith Account AccountMsg model
+
+        ( CartMsg subMsg, Cart subModel ) ->
+            Cart.update subMsg subModel
+                |> updateWith Cart CartMsg model
+
+        ( GotAccessToken res, _ ) ->
+            case res of
+--                Err (Http.BadBody body) ->
+--                    case Json.decodeString OAuth.AuthorizationCode.defaultAuthenticationErrorDecoder body of
+--                        Ok { error, errorDescription } ->
+--                            let
+--                                errMsg =
+--                                    "Unable to retrieve token: " ++ errorResponseToString { error = error, errorDescription = errorDescription }
+--                            in
+--                            ( { model | error = Just errMsg }
+--                            , Cmd.nonex
+--                            )
+--
+--                        _ ->
+--                            ( { model | error = Just ("Unable to retrieve token: " ++ body) }
+--                            , Cmd.none
+--                            )
+
+                Err _ ->
+--                    ( Login { subModel | error = Just "Unable to retrieve token: HTTP request failed. CORS is likely disabled on the authorization server." }
+--                    , Cmd.none
+--                    )
+                    ( model, Cmd.none )
+
+                Ok { accessToken, refreshToken, expiresIn } ->
+                    let
+                        _ = Debug.log "token" accessToken
+
+                        default =
+                            Credentials.default
+
+                        newCred =
+                            { default | token = accessToken, refreshToken = refreshToken, expiresIn = Just expiresIn, user = Nothing }
+
+                        newSession =
+                            Session.setCredentials session newCred
+                    in
+                    ( Redirect newSession,
+                      Cmd.batch
+                          [ User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo --Agave.getProfile accessToken |> Http.toTask |> Task.attempt GotUserInfo
+                          , Credentials.store newCred
+                          ]
+                    )
+
+        ( GotUserInfo res, _ ) ->
+            let
+                _ = Debug.log "GotUserInfo" (toString res)
+            in
+            case res of
+                Err _ ->
+--                    ( Login { subModel | error = Just "Unable to retrieve user profile: HTTP request failed." }
+--                    , Cmd.none
+--                    )
+                    ( model, Cmd.none )
+
+                Ok user ->
+                    let
+                        cred =
+                            Session.credentials session |> Maybe.withDefault Credentials.default
+
+                        newCred =
+                            { cred | user = Just user }
+
+                        newSession =
+                            Session.setCredentials session newCred
+                    in
+                    ( Redirect newSession
+                    , Credentials.store newCred
+                    )
+
+        ( GotCredentials newCredentials, _ ) -> --Redirect _ ) ->
+            let
+                _ = Debug.log "GotCredentials" (toString newCredentials)
+
+                newSession =
+                    Session.setCredentials session newCredentials
+            in
+            ( Redirect newSession
+            , Route.replaceUrl (Session.navKey newSession) Route.Home
+            )
+
         ( _, _ ) ->
             -- Disregard messages that arrived for the wrong page.
             ( model, Cmd.none )
@@ -286,51 +588,54 @@ updateWith toModel toMsg model ( subModel, subCmd ) =
 view : Model -> Browser.Document Msg
 view model =
     let
---        viewer =
---            Session.viewer (toSession model)
-
-        viewPage page toMsg content  =
-            let
-                { title, body } =
-                    Page.view page content
-            in
-            { title = title
-            , body = List.map (Html.map toMsg) body
-            }
+        session =
+            toSession model
     in
     case model of
         Redirect _ ->
-            Page.view Page.Other Blank.view
+            Page.view session Page.Other Blank.view
 
         NotFound _ ->
-            Page.view Page.Other NotFound.view
+            Page.view session Page.Other NotFound.view
 
-        Home subModel ->
-            viewPage Page.Home HomeMsg (Home.view subModel)
+        Home _ ->
+            Page.view session Page.Home Home.view
 
         Browse subModel ->
-            Page.view Page.Browse (Browse.view subModel |> Html.map BrowseMsg)
+            Page.view session Page.Browse (Browse.view subModel |> Html.map BrowseMsg)
 
         Search subModel ->
-            Page.view Page.Search (Search.view subModel |> Html.map SearchMsg)
+            Page.view session Page.Search (Search.view subModel |> Html.map SearchMsg)
 
         Analyze subModel ->
-            Page.view Page.Analyze (Analyze.view subModel |> Html.map AnalyzeMsg)
+            Page.view session Page.Analyze (Analyze.view subModel |> Html.map AnalyzeMsg)
+
+        App subModel ->
+            Page.view session Page.App (App.view subModel |> Html.map AppMsg)
+
+        Job subModel ->
+            Page.view session Page.Job (Job.view subModel |> Html.map JobMsg)
 
         Project subModel ->
-            Page.view Page.Project (Project.view subModel |> Html.map ProjectMsg)
+            Page.view session Page.Project (Project.view subModel |> Html.map ProjectMsg)
 
         Sample subModel ->
-            Page.view Page.Sample (Sample.view subModel |> Html.map SampleMsg)
+            Page.view session Page.Sample (Sample.view subModel |> Html.map SampleMsg)
 
         Campaign subModel ->
-            Page.view Page.Campaign (Campaign.view subModel |> Html.map CampaignMsg)
+            Page.view session Page.Campaign (Campaign.view subModel |> Html.map CampaignMsg)
 
         SamplingEvent subModel ->
-            Page.view Page.SamplingEvent (SamplingEvent.view subModel |> Html.map SamplingEventMsg)
+            Page.view session Page.SamplingEvent (SamplingEvent.view subModel |> Html.map SamplingEventMsg)
 
         Experiment subModel ->
-            Page.view Page.Experiment (Experiment.view subModel |> Html.map ExperimentMsg)
+            Page.view session Page.Experiment (Experiment.view subModel |> Html.map ExperimentMsg)
 
         Contact subModel ->
-            Page.view Page.Contact (Contact.view subModel |> Html.map ContactMsg)
+            Page.view session Page.Contact (Contact.view subModel |> Html.map ContactMsg)
+
+        Account subModel ->
+            Page.view session Page.Account (Account.view subModel |> Html.map AccountMsg)
+
+        Cart subModel ->
+            Page.view session Page.Cart (Cart.view subModel |> Html.map CartMsg)

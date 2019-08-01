@@ -15,7 +15,6 @@ import FormatNumber.Locales exposing (usLocale)
 --import DatePicker exposing (DateEvent(..), defaultSettings)
 import Time exposing (Weekday(..))
 import Task
-import Time
 import String.Extra
 import List.Extra
 import Set
@@ -24,6 +23,7 @@ import Dict exposing (Dict)
 import Route
 import Page exposing (viewBlank, viewSpinner)
 import Sample exposing (SearchTerm, PURL, annotationsToHide)
+import Cart
 --import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
 
@@ -191,6 +191,7 @@ type Msg
     | ToggleMap
     | UpdateLocationFromMap (Maybe GMap.Location)
     | MapLoaded Bool
+    | CartMsg Cart.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -469,6 +470,21 @@ update msg model =
 
         MapLoaded success ->
             ( { model | mapLoaded = True }, Cmd.none )
+
+        CartMsg subMsg ->
+            let
+                newCart =
+                    Cart.update subMsg (Session.getCart model.session)
+
+                newSession =
+                    Session.setCart model.session newCart
+            in
+            ( { model | session = newSession }
+            , Cmd.batch
+                [ --Cmd.map CartMsg subCmd
+                Cart.store newCart
+                ]
+            )
 
 
 defined : String -> Bool
@@ -1232,7 +1248,7 @@ viewStringFilterDialog term val =
         CloseStringFilterDialog
 
 
--- Our own Boostrap modal since elm-dialog has not yet been ported to Elm 0.19
+-- TODO move into module.  This is our own Boostrap modal since elm-dialog has not yet been ported to Elm 0.19
 viewDialog : String -> List (Html Msg) -> List (Html Msg) -> Msg -> Html Msg
 viewDialog title body footer closeMsg =
     div []
@@ -1530,9 +1546,14 @@ viewResults model =
                     )
                 ]
 
+        addToCartTh =
+            th []
+                [ i [ class "fas fa-shopping-cart mr-2" ] []
+                , Cart.addAllToCartButton (Session.getCart model.session) Nothing (model.results |> Maybe.withDefault [] |> List.map .sampleId) |> Html.map CartMsg
+                ]
+
         columns =
-            List.indexedMap mkTh paramNames
---                ++ [ th [] [ text "Cart" ] ]
+            List.indexedMap mkTh paramNames ++ [ addToCartTh ]
 
         mkTd label =
             td [ style "max-width" maxColWidth ] [ text label ]
@@ -1548,16 +1569,13 @@ viewResults model =
                 NoResultValue ->
                     ""
 
-        addToCartButton =
-            button [ class "btn btn-sm btn-outline-dark", style "font-size" "0.5em" ] [ text "Add" ]
-
         mkRow result =
             tr []
                 (List.concat --FIXME kludgey
                     [ [ mkTd result.projectName ]
-                    , [ td [] [ a [ Route.href (Route.Sample result.sampleId)  ] [ text (List.head result.values |> Maybe.withDefault NoResultValue |> formatVal) ] ] ]
+                    , [ td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text (List.head result.values |> Maybe.withDefault NoResultValue |> formatVal) ] ] ]
                     , result.values |> List.tail |> Maybe.withDefault [] |> List.map (formatVal >> mkTd)
---                    , [ td [] [ addToCartButton ] ]
+                    , [ td [] [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ] ]
                     ])
 
         count =

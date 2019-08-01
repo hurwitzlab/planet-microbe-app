@@ -8,9 +8,10 @@ import Html.Attributes exposing (id, class, classList, src, style, title)
 import Html.Events exposing (onClick)
 --import Profile
 import Route exposing (Route)
---import Session exposing (Session)
+import Session exposing (Session)
 --import Username exposing (Username)
 --import Viewer exposing (Viewer)
+import Cart
 import Config
 
 
@@ -27,12 +28,16 @@ type Page
     | Browse
     | Search
     | Analyze
+    | App
+    | Job
     | Project
     | Sample
     | Campaign
     | SamplingEvent
     | Experiment
     | Contact
+    | Account
+    | Cart
 
 
 {-| Take a page's Html and frames it with a header and footer.
@@ -51,11 +56,11 @@ in the header. (This comes up during slow page transitions.)
 --    }
 
 
-view : Page -> Html msg -> Document msg
-view page content =
+view : Session -> Page -> Html msg -> Document msg
+view session page content =
     { title = "Planet Microbe"
     , body =
-        [ viewHeader page
+        [ viewHeader session page
 --        , br [] []
         , content
         , viewFooter
@@ -63,13 +68,38 @@ view page content =
     }
 
 
-viewHeader : Page -> Html msg --Page -> Maybe Viewer -> Html msg
-viewHeader page = --page maybeViewer =
+viewHeader : Session -> Page -> Html msg
+viewHeader session page =
     let
-        helpButton =
-            li [ class "nav-item" ]
-                [ a [ class "nav-link", title "Get Help", Route.href Route.Contact ]
-                    [ i [ class "fa fa-question-circle fa-lg" ] [] ]
+        loginButton =
+            case session of
+                Session.Guest _ _ ->
+                    a [ class "nav-link text-nowrap", Route.href Route.Login ]
+                        [ i [ class "fas fa-sign-in-alt" ] []
+                        , text " Sign-in to CyVerse"
+                        ]
+
+                Session.LoggedIn _ _ _ ->
+                    a [ class "nav-link text-nowrap", classList [ ("active", page == Account) ], Route.href Route.Account ]
+                        [ i [ class "fas fa-user" ] []
+                        , text " My Account"
+                        ]
+
+        cartButton =
+            let
+                numItemsInCart =
+                    Cart.size (Session.getCart session)
+
+                label =
+                    if numItemsInCart == 0 then
+                        ""
+                    else
+                        String.fromInt numItemsInCart
+            in
+            a [ class "nav-link text-nowrap", classList [ ("active", page == Cart) ], Route.href Route.Cart ]
+                [ i [ class "fas fa-shopping-cart fa-lg" ] []
+                , text " "
+                , span [ class "gray absolute" ] [ text label ]
                 ]
     in
     div []
@@ -110,9 +140,14 @@ viewHeader page = --page maybeViewer =
                             ]
                         ]
                     , ul [ class "navbar-nav ml-auto" ]
-                        [ helpButton
---                            , dashboardButton
---                            , cartButton
+                        [ li [ class "nav-item mr-5" ]
+                            [ loginButton ]
+                        , li [ class "nav-item mr-5" ]
+                            [ cartButton]
+                        , li [ class "nav-item" ]
+                            [ a [ class "nav-link", title "Get Help", Route.href Route.Contact ]
+                                [ i [ class "fa fa-question-circle fa-lg" ] [] ]
+                            ]
                         ]
                     ]
                 ]

@@ -13,9 +13,54 @@ import { Elm } from './Main.elm';
  * Initialize Elm app
  */
 
+var COOKIE_NAME = 'planetmicrobe-0.0.1';
+var CRED_COOKIE_NAME = COOKIE_NAME + '.cred';
+var CART_COOKIE_NAME = COOKIE_NAME + '.cart';
+
 var app = Elm.Main.init({
-  node: document.getElementById('main')
+  node: document.getElementById('main'),
+  flags: {
+    cred: JSON.parse(localStorage.getItem(CRED_COOKIE_NAME)) || null,
+    cart: JSON.parse(localStorage.getItem(CART_COOKIE_NAME)) || null,
+  }
 });
+
+
+/*
+ * Define ports for storing/watching credentials and cart
+ */
+
+app.ports.storeCredentials.subscribe(function(session) {
+    console.log("storeCredentials: ", session);
+    localStorage.setItem(CRED_COOKIE_NAME, JSON.stringify(session));
+});
+
+// This event is only triggered when cookie is modified in another tab/window
+window.addEventListener("storage",
+    function(event) {
+        if (event.storageArea === localStorage && event.key === CRED_COOKIE_NAME) {
+            console.log("storage listener:", event.newValue);
+            app.ports.onCredentialsChange.send(event.newValue);
+        }
+    },
+    false
+);
+
+app.ports.storeCart.subscribe(function(session) {
+    console.log("storeCart: ", session);
+    localStorage.setItem(CART_COOKIE_NAME, JSON.stringify(session));
+});
+
+// This event is only triggered when cookie is modified in another tab/window
+window.addEventListener("storage",
+    function(event) {
+        if (event.storageArea === localStorage && event.key === CART_COOKIE_NAME) {
+            console.log("storage listener:", event.newValue);
+            app.ports.onSessionChange.send(event.newValue);
+        }
+    },
+    false
+);
 
 
 /*

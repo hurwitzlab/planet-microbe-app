@@ -9,7 +9,22 @@ const shortid = require('shortid');
 const fs = require('fs');
 const stringSimilarity = require('string-similarity');
 const sendmail = require('sendmail')();
+const requestp = require('request-promise');
 const config = require('./config.json');
+
+
+// Create error types
+class MyError extends Error {
+    constructor(message, statusCode) {
+        super(message);
+        this.statusCode = statusCode;
+    }
+}
+
+const ERR_BAD_REQUEST = new MyError("Bad request", 400);
+const ERR_UNAUTHORIZED = new MyError("Unauthorized", 401);
+const ERR_PERMISSION_DENIED = new MyError("Permission denied", 403);
+const ERR_NOT_FOUND = new MyError("Not found", 404);
 
 var rdfTermIndex = {};
 var db;
@@ -35,6 +50,7 @@ var db;
 app.use(logger('dev'));
 app.use(cors());
 app.use(bodyParser.json()); // support json encoded bodies
+app.use(agaveTokenValidator);
 
 app.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog of terms
     res.json(rdfTermIndex);
@@ -348,12 +364,26 @@ app.get('/projects/:id(\\d+)/samples', async (req, res) => {
 });
 
 app.get('/samples', async (req, res) => {
-    let result = await query({
-        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name \
-            FROM sample s \
-            JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
-            JOIN project p ON p.project_id=pts.project_id"
-    });
+    let result;
+
+    if (req.body.ids) {
+        result = await query({
+            text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name \
+                FROM sample s \
+                JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
+                JOIN project p ON p.project_id=pts.project_id \
+                WHERE s.sample_id IN ($1)",
+            values: [ids.join(",")]
+        });
+    }
+    else {
+        result = await query({
+            text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name \
+                FROM sample s \
+                JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
+                JOIN project p ON p.project_id=pts.project_id"
+        });
+    }
 
     res.json(result.rows);
 });
@@ -618,7 +648,232 @@ app.post('/contact', (req, res) => {
     });
 });
 
+app.get('/apps', async (req, res) => {
+    let result = await query({
+        text: "SELECT app_id,name,provider,is_active,is_maintenance FROM app"
+    });
+    res.json(result.rows);
+//    .catch(err => {
+//        console.log(err);
+//        res.send(err);
+//    });
+});
+
+app.get('/apps/:id(\\d+)', async (req, res) => {
+    let id = req.params.id;
+    let result = await query({
+        text: "SELECT app_id,name,provider,is_active,is_maintenance FROM app \
+            WHERE app_id=$1",
+        values: [id]
+    });
+
+    res.json(result.rows[0]);
+});
+
+app.get('/apps/:name([\\w\\.\\-\\_]+)', async (req, res) => {
+    let name = req.params.name;
+    let result = await query({
+        text: "SELECT app_id,name,provider,is_active,is_maintenance FROM app \
+            WHERE name=$1",
+        values: [name]
+    });
+
+    res.json(result.rows[0]);
+});
+
+app.post('/apps/runs', async (req, res) => {
+    var app_id = req.body.app_id;
+    var params = req.body.params;
+
+    //errorOnNull(app_id, params);
+
+    requireAuth(req);
+
+    let run = await query({
+        text: "INSERT INTO app_run (app_id,user_id,params) VALUES ($1,$2,$3) RETURNING *",
+        values: [app_id,user_id,params]
+    });
+
+    toJsonOrError(res, next,
+        models.app_run.create({
+            app_id: app_id,
+            user_id: req.auth.user.user_id,
+            params: params
+        })
+        .then( () =>
+            models.app.findOne({ where: { app_id: app_id } })
+        )
+        .then( app =>
+            logAdd(req, {
+                title: "Ran app " + app.app_name,
+                type: "runApp",
+                app_id: app_id,
+                app_name: app.app_name
+            })
+        )
+    );
+});
+
+app.post('/token', async (req, res) => {
+    let provider = req.body.provider;
+    let code = req.body.code;
+    let tokenResponse = await agaveGetToken(provider, code);
+    res.send(tokenResponse);
+});
+
+app.post('/users/login', async (req, res) => { // TODO add try/catch error handling
+    requireAuth(req);
+
+    var username = "mbomhoff";//req.auth.user.user_name;
+
+    // Add user if not already present
+    let user = await query({
+        text: "SELECT * FROM \"user\" WHERE user_name=$1",
+        values: [username]
+    });
+
+    if (user.rowCount == 0) {
+        user = await query({
+            text: "INSERT INTO \"user\" (user_name) VALUES ($1) RETURNING *",
+            values: [username]
+        });
+    }
+
+    // For new user set first_name/last_name/email, or update for existing user (in case they changed any of those fields)
+    // Only do this once at login and not in agaveTokenValidator
+    user = await query({
+        text: "UPDATE \"user\" SET first_name=$1, last_name=$2, email=$3 WHERE user_name=$4",
+        values: [req.auth.user.first_name,req.auth.user.last_name, req.auth.user.email, username]
+    });
+
+    user = await query({
+        text: "SELECT * FROM \"user\" WHERE user_name=$1",
+        values: [username]
+    });
+
+    let login = await query({
+        text: "INSERT INTO login (user_id) VALUES ($1) RETURNING *",
+        values: [user.rows[0].user_id]
+    });
+
+    res.json(user.rows[0]);
+});
+
+app.use(errorHandler);
+
+// Catch-all function
+app.get('*', function(req, res, next){
+    res.status(404).send("Unknown route: " + req.path);
+});
+
 //----------------------------------------------------------------------------------------------------------------------
+
+function requireAuth(req) {
+    if (!req || !req.auth || !req.auth.validToken || !req.auth.user)
+        throw(ERR_UNAUTHORIZED);
+}
+
+function errorHandler(error, req, res, next) {
+    console.log("ERROR ".padEnd(80, "!"));
+    console.log(error.stack);
+
+    let statusCode = error.statusCode || 500;
+    let message = error.message || "Unknown error";
+
+    res.status(statusCode).send(message);
+}
+
+async function agaveTokenValidator(req, res, next) {
+    var token;
+    if (req && req.headers)
+        token = req.headers.authorization;
+    console.log("validateAgaveToken: token:", token);
+
+    req.auth = {
+        validToken: false
+    };
+
+    if (token) {
+//        try {
+            let response = await getAgaveProfile(token);
+            if (!response || response.status != "success") {
+                console.log('validateAgaveToken: !!!! Bad profile status: ' + response.status);
+            }
+            else {
+                response.result.token = token;
+            }
+
+            let profile = response.result;
+            if (profile) {
+                console.log("validateAgaveToken: *** success ***  username:", profile.username);
+
+                req.auth = {
+                    validToken: true,
+                    profile: profile
+                };
+
+                // Add user if not already present
+                let user = await query({
+                    text: "SELECT * FROM \"user\" WHERE user_name=$1",
+                    values: [profile.username]
+                });
+
+                if (user.rowCount == 0) {
+                    user = await query({
+                        text: "INSERT INTO \"user\" (user_name) VALUES ($1) RETURNING *",
+                        values: [profile.username]
+                    });
+                }
+
+                user = user.rows[0];
+                user.first_name = profile.first_name;
+                user.last_name = profile.last_name;
+                user.email = profile.email
+
+                if (user)
+                    req.auth.user = user;
+            }
+//        }
+//        catch( error => {
+//            console.log("validateAgaveToken: !!!!", error.message);
+//        })
+//        .finally(next);
+    }
+
+    next();
+}
+
+async function getAgaveProfile(token) {
+    return await requestp({
+        method: "GET",
+        uri: "https://agave.iplantc.org/profiles/v2/me", // FIXME hardcoded
+        headers: {
+            Authorization: token,
+            Accept: "application/json"
+        },
+        json: true
+    });
+}
+
+async function agaveGetToken(provider, code) {
+    let url = config.oauthProviders[provider].tokenUrl;
+    let options = {
+        method: "POST",
+        uri: url,
+        form: {
+            grant_type: "authorization_code",
+            client_id: config.oauthProviders.agave.clientId,
+            client_secret: config.oauthProviders.agave.clientSecret,
+            redirect_uri: config.oauthProviders.agave.redirectUrl,
+            code: code
+        }
+    };
+
+    console.log(provider, ": sending authorization POST", url);
+    let response = await requestp(options);
+    console.log(response);
+    return(response);
+}
 
 async function generateTermIndex(db, ontologyDescriptors) {
     //let result = await query('select fields[1].string from sample limit 1')
@@ -782,6 +1037,8 @@ async function search(db, params) {
             console.log("term:", term);
 
             let selectStr = "";
+            if (!term.schemas || term.schemas.length == 0)
+                console.log("Error: schema not found for term", param);
 
             for (schemaId in term.schemas) {
                 for (alias in term.schemas[schemaId]) {
@@ -790,6 +1047,7 @@ async function search(db, params) {
                     // FIXME should use query substitution here -- SQL injection risk
                     let field, clause, bounds;
                     if (val === '') { // empty - don't query just show in results
+                        console.log("empty val match");
                         if (term.type == "string")
                             field = "string_vals[" + arrIndex + "]";
                         else if (term.type == "number")

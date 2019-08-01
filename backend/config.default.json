@@ -1,11 +1,19 @@
 {
     "serverPort": 3010,
+    "supportEmail": "",
     "postgres": {
         "db": "",
         "username": "",
         "password": ""
     },
-    "supportEmail": "",
+    "oauthProviders": {
+        "agave": {
+            "tokenUrl": "https://agave.iplantc.org/token",
+            "clientId": "",
+            "clientSecret": "",
+            "redirectUrl": ""
+        }
+    },
     "ontologies": [
         {
             "name": "PMO",

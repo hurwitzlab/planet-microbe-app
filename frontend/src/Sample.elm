@@ -1,4 +1,4 @@
-module Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation, annotationsToHide, fetch, fetchAll, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
+module Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation, annotationsToHide, fetch, fetchAll, fetchSome, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
 
 {-| The interface to the Sample data structure.
 -}
@@ -153,6 +153,22 @@ fetchAll =
             apiBaseUrl ++ "/samples"
     in
     HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchSome : List Int -> Http.Request (List Sample)
+fetchSome id_list =
+    let
+        url =
+            apiBaseUrl ++ "/samples"
+
+        body =
+            Encode.object
+                [ ( "ids", Encode.string (id_list |> List.map String.fromInt |> String.join ",") ) ]
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withJsonBody body
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))
         |> HttpBuilder.toRequest
 

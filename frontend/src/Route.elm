@@ -13,30 +13,42 @@ import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, int, string)
 
 type Route
     = Home
+    | Login
+    | Logout
     | Browse
     | Search
     | Analyze
+    | App Int
+    | Job String
     | Project Int
     | Sample Int
     | Campaign Int
     | SamplingEvent Int
     | Experiment Int
     | Contact
+    | Account
+    | Cart
 
 
 parser : Parser (Route -> a) a
 parser =
     oneOf
         [ Parser.map Home Parser.top
+        , Parser.map Login (s "login")
+        , Parser.map Logout (s "logout")
         , Parser.map Browse (s "browse")
         , Parser.map Search (s "search")
         , Parser.map Analyze (s "analyze")
+        , Parser.map App (s "apps" </> int)
+        , Parser.map Job (s "jobs" </> string)
         , Parser.map Project (s "projects" </> int)
         , Parser.map Sample (s "samples" </> int)
         , Parser.map Campaign (s "campaigns" </> int)
         , Parser.map SamplingEvent (s "sampling_events" </> int)
         , Parser.map Experiment (s "experiments" </> int)
         , Parser.map Contact (s "contact")
+        , Parser.map Account (s "account")
+        , Parser.map Cart (s "cart")
         ]
 
 
@@ -75,6 +87,12 @@ routeToString page =
                 Home ->
                     []
 
+                Login ->
+                    [ "login" ]
+
+                Logout ->
+                    [ "logout" ]
+
                 Browse ->
                     [ "browse" ]
 
@@ -83,6 +101,12 @@ routeToString page =
 
                 Analyze ->
                     [ "analyze" ]
+
+                App id ->
+                    [ "apps", String.fromInt id ]
+
+                Job id ->
+                    [ "jobs", id ]
 
                 Project id ->
                     [ "projects", String.fromInt id ]
@@ -101,5 +125,11 @@ routeToString page =
 
                 Contact ->
                     [ "contact" ]
+
+                Account ->
+                    [ "account" ]
+
+                Cart ->
+                    [ "cart" ]
     in
     "#/" ++ String.join "/" pieces
