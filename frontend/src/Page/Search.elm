@@ -54,7 +54,7 @@ purlBiome =
 
 
 purlDepth =
-    "http://purl.obolibrary.org/obo/PMO_00000029"
+    "http://purl.obolibrary.org/obo/ENVO_3100031" --"http://purl.obolibrary.org/obo/PMO_00000029"
 
 
 purlDateTime =
