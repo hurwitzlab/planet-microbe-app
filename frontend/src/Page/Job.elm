@@ -392,12 +392,16 @@ view model =
             div [ class "container" ]
                 [ Page.viewTitle "Job" job.name
                 , viewJob job app
+                , br [] []
                 , Page.viewTitle2 "Inputs" False
                 , viewInputs job.inputs
+                , br [] []
                 , Page.viewTitle2 "Parameters" False
                 , viewParameters job.parameters
+                , br [] []
                 , Page.viewTitle2 "History" False
                 , viewHistory model.history model.loadedHistory model.loadingHistory
+                , br [] []
                 , Page.viewTitle2 "Outputs" False
                 , viewOutputs model
 --                , Page.viewTitle2 "Results" False
@@ -435,11 +439,11 @@ viewJob job app =
             ]
         , tr []
             [ th [] [ text "Start Time" ]
-            , td [] [ text job.startTime ]
+            , td [] [ text job.created ]
             ]
         , tr []
             [ th [] [ text "End Time" ]
-            , td [] [ text job.endTime ]
+            , td [] [ text job.ended ]
             ]
         , tr []
             [ th [ class "top" ] [ text "Status" ]
