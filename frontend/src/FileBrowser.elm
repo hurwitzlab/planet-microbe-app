@@ -23,7 +23,8 @@ import Page exposing (viewSpinner)
 import Session exposing (Session)
 import Agave exposing (FileResult, PermissionResult, Permission)
 import List.Extra
-import Debug exposing (toString)
+import Error
+--import Debug exposing (toString)
 
 
 
@@ -279,7 +280,7 @@ updateInternal session msg model =
                                             (response.body, Cmd.none)
 
                         _ ->
-                            (toString error, Cmd.none)
+                            (Error.toString error, Cmd.none)
             in
             ( { model | errorMessage = (Just errMsg), isBusy = False }, cmd )
 
@@ -299,7 +300,7 @@ updateInternal session msg model =
             ( { model | fileContent = Just data, showViewFileBusy = False }, Cmd.none )
 
         OpenPathCompleted (Err error) ->
-            ( { model | fileErrorMessage = (Just (toString error)) }, Cmd.none )
+            ( { model | fileErrorMessage = (Just (Error.toString error)) }, Cmd.none )
 
         CloseViewFileDialog ->
             ( { model | showViewFileDialog = False }, Cmd.none )
@@ -326,7 +327,7 @@ updateInternal session msg model =
             updateInternal session RefreshPath { model | showNewFolderDialog = False }
 
         CreateNewFolderCompleted (Err error) ->
-            ( { model | showNewFolderDialog = False, errorMessage = Just (toString error) }, Cmd.none )
+            ( { model | showNewFolderDialog = False, errorMessage = Just (Error.toString error) }, Cmd.none )
 
         DeletePath path ->
             if path == "" || path == "/" || path == model.homePath then -- don't let them try something stupid
@@ -417,9 +418,9 @@ updateInternal session msg model =
             ( model, Cmd.none )
 
         SearchUsersCompleted (Err error) -> -- TODO
-            let
-                _ = Debug.log "SearchUsersCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "SearchUsersCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         ShareWithUser permission username _ ->
@@ -469,9 +470,9 @@ updateInternal session msg model =
             updateInternal session (OpenShareDialog firstSelected) model
 
         ShareWithUserCompleted (Err error) -> -- TODO
-            let
-                _ = Debug.log "ShareWithUserCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "ShareWithUserCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         OpenConfirmationDialog confirmationText yesMsg ->

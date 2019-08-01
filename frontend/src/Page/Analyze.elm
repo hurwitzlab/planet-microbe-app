@@ -11,7 +11,7 @@ import Json.Encode as Encode
 import Task exposing (Task)
 import App exposing (App)
 import Agave exposing (Job)
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -59,18 +59,18 @@ update msg model =
             ( { model | apps = Just apps }, Cmd.none )
 
         GetAppsCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetAppsCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetAppsCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetJobsCompleted (Ok jobs) ->
             ( { model | jobs = Just jobs }, Cmd.none )
 
         GetJobsCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetJobsCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetJobsCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
 

@@ -35,7 +35,7 @@ import Cart as CartData
 import User exposing (User)
 import Route exposing (Route)
 import Config
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -123,12 +123,12 @@ init flags url navKey =
                             Session.Guest navKey cart
 
                 Err error ->
-                    let
-                        _ = Debug.log "init error" (toString error)
-                    in
+--                    let
+--                        _ = Debug.log "init error" (toString error)
+--                    in
                     Session.Guest navKey CartData.empty
 
-        _ = Debug.log "init session" (toString session)
+--        _ = Debug.log "init session" (toString session)
 
         (model, cmd) =
             changeRouteTo (Route.fromUrl url)
@@ -136,9 +136,9 @@ init flags url navKey =
     in
     case OAuth.AuthorizationCode.parseCode url of
         OAuth.AuthorizationCode.Success { code, state } ->
-            let
-                _ = Debug.log "OAuth.AuthorizationCode.Success" ("code=" ++ code)
-            in
+--            let
+--                _ = Debug.log "OAuth.AuthorizationCode.Success" ("code=" ++ code)
+--            in
 --            if Maybe.map randomBytesFromState state /= Just model.state then
 --                ( { model | error = Just "'state' doesn't match, the request has likely been forged by an adversary!" }
 --                , Cmd.none
@@ -153,15 +153,15 @@ init flags url navKey =
                 )
 
         OAuth.AuthorizationCode.Empty ->
-            let
-                _ = Debug.log "OAuth.AuthorizationCode.Empty" ""
-            in
+--            let
+--                _ = Debug.log "OAuth.AuthorizationCode.Empty" ""
+--            in
             ( model, cmd )
 
         OAuth.AuthorizationCode.Error err -> -- TODO
-            let
-                _ = Debug.log "OAuth.AuthorizationCode.Error" ""
-            in
+--            let
+--                _ = Debug.log "OAuth.AuthorizationCode.Error" ""
+--            in
             ( model, cmd )
 --            ( { model | error = Just (OAuth.errorCodeToString err.error) }
 --            , Cmd.none
@@ -514,7 +514,7 @@ update msg model =
 
                 Ok { accessToken, refreshToken, expiresIn } ->
                     let
-                        _ = Debug.log "token" accessToken
+--                        _ = Debug.log "token" accessToken
 
                         default =
                             Credentials.default
@@ -533,9 +533,9 @@ update msg model =
                     )
 
         ( GotUserInfo res, _ ) ->
-            let
-                _ = Debug.log "GotUserInfo" (toString res)
-            in
+--            let
+--                _ = Debug.log "GotUserInfo" (toString res)
+--            in
             case res of
                 Err _ ->
 --                    ( Login { subModel | error = Just "Unable to retrieve user profile: HTTP request failed." }
@@ -560,7 +560,7 @@ update msg model =
 
         ( GotCredentials newCredentials, _ ) -> --Redirect _ ) ->
             let
-                _ = Debug.log "GotCredentials" (toString newCredentials)
+--                _ = Debug.log "GotCredentials" (toString newCredentials)
 
                 newSession =
                     Session.setCredentials session newCredentials

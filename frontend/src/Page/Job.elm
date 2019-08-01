@@ -7,18 +7,15 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Http
-import Json.Decode as Decode exposing (Decoder)
---import Page.Error as Error exposing (PageLoadError, errorString)
 import Route
 import Page
 import Task exposing (Task)
 import Dict exposing (Dict)
 import Time
-import String.Extra
-import List.Extra
 --import View.Spinner exposing (spinner)
 import FileBrowser
-import Debug exposing (toString)
+import Error
+--import Debug exposing (toString)
 
 
 
@@ -49,7 +46,7 @@ type alias Model =
 init : Session -> String -> ( Model, Cmd Msg )
 init session id =
     let
-        _ = Debug.log "Job.init session:" (toString session)
+--        _ = Debug.log "Job.init session:" (toString session)
 
         loadJobFromAgave =
             Agave.getJob (Session.token session) id |> Http.toTask |> Task.map .result
@@ -152,9 +149,9 @@ update msg model =
             )
 
         GetJobCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetJobCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetJobCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetHistory ->
@@ -177,9 +174,9 @@ update msg model =
                             SetHistory h
 
                         Err _ ->
-                            let
-                                _ = Debug.log "Error" "could not retrieve job history"
-                            in
+--                            let
+--                                _ = Debug.log "Error" "could not retrieve job history"
+--                            in
                             SetHistory []
             in
             ( { model | loadingHistory = True }, Task.attempt handleHistory loadHistory )
@@ -264,9 +261,9 @@ update msg model =
             ( model, Cmd.none )
 
         SetResults (Err error) ->
-            let
-                _ = Debug.log "SetResults" ("Error retrieving results: " ++ (toString error))
-            in
+--            let
+--                _ = Debug.log "SetResults" ("Error retrieving results: " ++ (toString error))
+--            in
             ( { model | loadedResults = True }, Cmd.none )
 
         SetJob job ->
@@ -277,7 +274,7 @@ update msg model =
                 Just job ->
                     if model.loadingJob == False && isRunning job then
                         let
-                            _ = Debug.log "Job.Poll" ("polling job " ++ job.id)
+--                            _ = Debug.log "Job.Poll" ("polling job " ++ job.id)
 
                             startTime =
                                 if model.startTime == 0 then
@@ -303,9 +300,9 @@ update msg model =
                                         SetJob j
 
                                     Err error ->
-                                        let
-                                            _ = Debug.log "Error" ("could not poll job" ++ (errorString error))
-                                        in
+--                                        let
+--                                            _ = Debug.log "Error" ("could not poll job" ++ (errorString error))
+--                                        in
                                         SetJob job
 
                             second =
@@ -359,7 +356,7 @@ update msg model =
             ( { model | cancelDialogMessage = Just errorMsg, job = Just job }, Cmd.none )
 
         CancelJobCompleted (Err error) ->
-            ( { model | cancelDialogMessage = Just (errorString error) }, Cmd.none )
+            ( { model | cancelDialogMessage = Just (Error.toString error) }, Cmd.none )
 
         CloseCancelDialog ->
             ( { model | showCancelDialog = False }, Cmd.none )
@@ -473,8 +470,8 @@ viewStatus status =
                     String.replace "_" " " status -- replace _ with space
             in
             div [ class "progress float-left d-inline-block", style "width" "20em", style "height" "2.5em" ]
-                [ div [ class "progress-bar progress-bar-striped active", style "width" ((toString pct) ++ "%"), style "height" "2.5em",
-                        attribute "role" "progressbar", attribute "aria-valuenow" (toString pct), attribute "aria-valuemin" "0", attribute "aria-valuemax" "100" ]
+                [ div [ class "progress-bar progress-bar-striped active", style "width" ((String.fromInt pct) ++ "%"), style "height" "2.5em",
+                        attribute "role" "progressbar", attribute "aria-valuenow" (String.fromInt pct), attribute "aria-valuemin" "0", attribute "aria-valuemax" "100" ]
                     [ text label ]
                 ]
     in
@@ -550,7 +547,7 @@ viewParameter (id, value) =
                         "False"
 
                 Agave.NumberValue n ->
-                    toString n
+                    String.fromFloat n
 
                 Agave.ArrayValue l ->
                     String.join ";" l
@@ -706,32 +703,3 @@ viewResults model =
 --    , body = Just content
 --    , footer = Just footer
 --    }
-
-
-errorString : Http.Error -> String
-errorString error =
-    case error of
-        Http.NetworkError ->
-            "Cannot connect to remote host"
-
-        Http.BadStatus response ->
-            case response.status.code of
-                401 ->
-                    "Unauthorized"
-
-                403 ->
-                    "Permission denied"
-
-                _ ->
-                    if String.length response.body == 0 then
-                        "Bad status"
-                    else
-                        case Decode.decodeString Agave.decoderJobError response.body of
-                            Ok result ->
-                                result.message
-
-                            _ ->
-                                response.body
-
-        _ ->
-            toString error

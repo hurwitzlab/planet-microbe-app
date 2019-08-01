@@ -11,19 +11,18 @@ import Html.Events exposing (onClick, onCheck, onInput)
 import Http
 import Route
 import Page exposing (viewSpinner)
---import Page.Error as Error exposing (PageLoadError)
 import Json.Decode as Decode
+import Json.Encode as Encode
 import Task exposing (Task)
 --import View.Cart as Cart
 --import View.Spinner exposing (spinner)
 --import View.FileBrowser as FileBrowser
 import List.Extra
-import String.Extra
 import Maybe exposing (withDefault)
-import Set
 import Dict exposing (Dict)
 import FileBrowser
-import Debug exposing (toString)
+import Error
+--import Debug exposing (toString)
 
 
 
@@ -182,9 +181,9 @@ update msg model =
             )
 
         GetAppCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetAppCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetAppCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         SetInput source id value ->
@@ -295,7 +294,7 @@ update msg model =
         --                    Request.PlanB.launchJob session.token jobRequest |> Http.send RunJobCompleted
 
                         sendAppRun =
-                            App.run (Session.token model.session) model.appId (Agave.encodeJobRequest jobRequest |> toString) |> Http.send AppRunCompleted
+                            App.run (Session.token model.session) model.appId (Agave.encodeJobRequest jobRequest |> Encode.encode 0) |> Http.send AppRunCompleted
 
                         launchApp =
         --                    if isPlanB then
@@ -323,7 +322,7 @@ update msg model =
 
         RunJobCompleted (Err error) ->
             let
-                _ = Debug.log "error" (toString error)
+--                _ = Debug.log "error" (toString error)
 
                 errorMsg =
                     case error of
@@ -340,7 +339,7 @@ update msg model =
                                         Err _ ->
                                             Just response.body
 
-                        _ -> Just (toString error)
+                        _ -> Just (Error.toString error)
             in
             ( { model | dialogError = errorMsg }, Cmd.none )
 
@@ -653,7 +652,7 @@ viewAppParameter input =
 
         checkbox =
             label []
-                [ Html.input [ type_ "checkbox", onCheck (toString >> (SetParameter id)) ] []
+                [ Html.input [ type_ "checkbox", onCheck (Encode.bool >> Encode.encode 0 >> (SetParameter id)) ] []
                 ]
 
         interface =
