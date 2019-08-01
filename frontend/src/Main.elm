@@ -185,6 +185,9 @@ defaultHttpsUrl =
 getAccessToken : String -> String -> Http.Request Agave.TokenResponse
 getAccessToken provider code =
     let
+        url =
+            Config.apiBaseUrl ++ "/token"
+
         body =
             Encode.object
                 [ ( "provider", Encode.string provider )
@@ -195,7 +198,7 @@ getAccessToken provider code =
         { method = "POST"
         , body = Http.jsonBody body
         , headers = []
-        , url = Config.apiBaseUrl ++ "/token"
+        , url = url
         , expect = Http.expectJson Agave.tokenResponseDecoder
         , timeout = Nothing
 --        , tracker = Nothing
@@ -203,23 +206,23 @@ getAccessToken provider code =
         }
 
 
-randomBytesFromState : String -> String
-randomBytesFromState str =
-    str
-        |> stringDropLeftUntil (\c -> c == ".")
-
-
-stringDropLeftUntil : (String -> Bool) -> String -> String
-stringDropLeftUntil predicate str =
-    let
-        ( h, q ) =
-            ( String.left 1 str, String.dropLeft 1 str )
-    in
-    if q == "" || predicate h then
-        q
-
-    else
-        stringDropLeftUntil predicate q
+--randomBytesFromState : String -> String
+--randomBytesFromState str =
+--    str
+--        |> stringDropLeftUntil (\c -> c == ".")
+--
+--
+--stringDropLeftUntil : (String -> Bool) -> String -> String
+--stringDropLeftUntil predicate str =
+--    let
+--        ( h, q ) =
+--            ( String.left 1 str, String.dropLeft 1 str )
+--    in
+--    if q == "" || predicate h then
+--        q
+--
+--    else
+--        stringDropLeftUntil predicate q
 
 
 
@@ -527,8 +530,8 @@ update msg model =
                     in
                     ( Redirect newSession,
                       Cmd.batch
-                          [ User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo --Agave.getProfile accessToken |> Http.toTask |> Task.attempt GotUserInfo
-                          , Credentials.store newCred
+                          [ Credentials.store newCred
+                          , User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo --Agave.getProfile accessToken |> Http.toTask |> Task.attempt GotUserInfo
                           ]
                     )
 
@@ -555,10 +558,13 @@ update msg model =
                             Session.setCredentials session newCred
                     in
                     ( Redirect newSession
-                    , Credentials.store newCred
+                    , Cmd.batch
+                        [ Credentials.store newCred
+                        --, Route.replaceUrl (Session.navKey newSession) Route.Home
+                        ]
                     )
 
-        ( GotCredentials newCredentials, _ ) -> --Redirect _ ) ->
+        ( GotCredentials newCredentials, _ ) -> --Redirect _ ) -> -- Cookie was updated in another window/tab
             let
 --                _ = Debug.log "GotCredentials" (toString newCredentials)
 
@@ -566,7 +572,7 @@ update msg model =
                     Session.setCredentials session newCredentials
             in
             ( Redirect newSession
-            , Route.replaceUrl (Session.navKey newSession) Route.Home
+            , Cmd.none
             )
 
         ( _, _ ) ->
