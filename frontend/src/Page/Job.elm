@@ -14,6 +14,7 @@ import Dict exposing (Dict)
 import Time
 --import View.Spinner exposing (spinner)
 import FileBrowser
+import Icon
 import Error
 --import Debug exposing (toString)
 
@@ -410,7 +411,7 @@ view model =
                         [ text "View output files in the "
                         , a [ target "_blank", href deUrl ]
                             [ text "CyVerse Data Store "
-                            , i [ class "fas fa-external-link-alt fa-xs align-baseline" ] []
+                            , span [ class "align-baseline ml-2"] [ Icon.externalLink ]
                             ]
                         ]
                     ]

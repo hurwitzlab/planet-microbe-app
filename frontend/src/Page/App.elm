@@ -21,6 +21,7 @@ import List.Extra
 import Maybe exposing (withDefault)
 import Dict exposing (Dict)
 import FileBrowser
+import Icon
 import Error
 --import Debug exposing (toString)
 
@@ -609,7 +610,7 @@ viewAppInput input =
 
         browserButton lbl msg =
             button [ class "btn btn-outline-secondary btn-sm", onClick msg ]
-                [ i [ class "fas fa-cloud" ] []
+                [ Icon.cloud
                 , text " "
                 , text lbl
                 ]

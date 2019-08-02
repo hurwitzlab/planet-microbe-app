@@ -20,6 +20,7 @@ import String.Extra
 import List.Extra
 import Json.Encode as Encode
 import Cart
+import Icon
 import Set
 --import Debug exposing (toString)
 
@@ -429,7 +430,7 @@ viewMetadata maybeMetadata  =
                         ]
 
                 extLinkIcon =
-                    i [ class "fas fa-external-link-alt fa-xs align-baseline ml-2" ] []
+                   span [ class "align-baseline ml-2" ] [ Icon.externalLink ]
             in
             table [ class "table table-sm" ]
                 [ thead []

@@ -6,6 +6,7 @@ import Browser exposing (Document)
 import Html exposing (Html, a, button, h1, h2, div, span, img, i, li, nav, p, text, ul, small, footer)
 import Html.Attributes exposing (id, class, classList, src, style, title)
 import Html.Events exposing (onClick)
+import Icon
 --import Profile
 import Route exposing (Route)
 import Session exposing (Session)
@@ -75,13 +76,13 @@ viewHeader session page =
             case session of
                 Session.Guest _ _ ->
                     a [ class "nav-link text-nowrap", Route.href Route.Login ]
-                        [ i [ class "fas fa-sign-in-alt" ] []
+                        [ Icon.signIn
                         , text " Sign-in to CyVerse"
                         ]
 
                 Session.LoggedIn _ _ _ ->
                     a [ class "nav-link text-nowrap", classList [ ("active", page == Account) ], Route.href Route.Account ]
-                        [ i [ class "fas fa-user" ] []
+                        [ Icon.user
                         , text " My Account"
                         ]
 
@@ -97,7 +98,7 @@ viewHeader session page =
                         String.fromInt numItemsInCart
             in
             a [ class "nav-link text-nowrap", classList [ ("active", page == Cart) ], Route.href Route.Cart ]
-                [ i [ class "fas fa-shopping-cart fa-lg" ] []
+                [ Icon.shoppingCart
                 , text " "
                 , span [ class "gray absolute" ] [ text label ]
                 ]
@@ -109,7 +110,7 @@ viewHeader session page =
 
             Just alertBannerText ->
                 div [ class "text-center border-bottom", style "color" "gray", style "background-color" "PowderBlue" ]
-                    [ i [ class "fas fa-exclamation-triangle" ] []
+                    [ Icon.exclamationTriangle
                     , text " "
                     , text alertBannerText
                     ]
@@ -122,19 +123,19 @@ viewHeader session page =
                     [ ul [ class "navbar-nav" ]
                         [ li [ class "nav-item", style "width" "9em" ]
                             [ a [ class "nav-link", classList [ ("active", page == Browse) ], Route.href Route.Browse ]
-                                [ i [ class "fa fa-table" ] []
+                                [ Icon.table
                                 , text " Browse"
                                 ]
                             ]
                         , li [ class "nav-item", style "width" "9em" ]
                             [ a [ class "nav-link", classList [ ("active", page == Search) ], Route.href Route.Search ]
-                                [ i [ class "fa fa-search" ] []
+                                [ Icon.search
                                 , text " Search"
                                 ]
                             ]
                         , li [ class "nav-item", style "width" "9em" ]
                             [ a [ class "nav-link", classList [ ("active", page == Analyze) ], Route.href Route.Analyze  ]
-                                [ i [ class "fa fa-chart-bar" ] []
+                                [ Icon.barChart
                                 , text " Analyze"
                                 ]
                             ]
@@ -146,7 +147,7 @@ viewHeader session page =
                             [ cartButton]
                         , li [ class "nav-item" ]
                             [ a [ class "nav-link", title "Get Help", Route.href Route.Contact ]
-                                [ i [ class "fa fa-question-circle fa-lg" ] [] ]
+                                [ Icon.questionCircle ]
                             ]
                         ]
                     ]

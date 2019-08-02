@@ -15,6 +15,7 @@ import Task exposing (Task)
 import String.Extra
 import Json.Encode as Encode
 --import Debug exposing (toString)
+import Icon
 import Config exposing (discoveryEnvironmentUrl)
 
 
@@ -186,7 +187,7 @@ viewRuns maybeRuns =
             { usLocale | decimals = 0 }
 
         extLinkIcon =
-            i [ class "fas fa-external-link-alt fa-xs align-baseline ml-2" ] []
+            span [ class "align-baseline ml-2" ] [ Icon.externalLink ]
 
         mkRow run =
             tr []

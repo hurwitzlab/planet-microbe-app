@@ -23,6 +23,7 @@ import Page exposing (viewSpinner)
 import Session exposing (Session)
 import Agave exposing (FileResult, PermissionResult, Permission)
 import List.Extra
+import Icon
 import Error
 --import Debug exposing (toString)
 
@@ -857,7 +858,7 @@ viewPermission : Bool -> Bool -> String -> Permission -> Html Msg
 viewPermission isMe isEditable username permission =
     tr []
         [ td []
-            [ i [ class "fas fa-user" ] []
+            [ Icon.user
             , text " "
             , text username
             , if isMe then

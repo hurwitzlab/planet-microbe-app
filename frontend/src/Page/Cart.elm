@@ -11,6 +11,7 @@ import Route
 import Task exposing (Task)
 import Set
 import List.Extra
+import Icon
 --import Debug exposing (toString)
 
 
@@ -397,7 +398,7 @@ view model =
                     , span [ class "float-right" ]
                         [ viewCartControls isEmpty isLoggedIn --model.selectedCartId model.sampleGroups
                         , button [ type_ "button", class "btn btn-primary", classList [ ("disabled", isEmpty) ] ]
-                            [ i [ class "fas fa-file" ] []
+                            [ Icon.file
                             , text " Show Files"
                             ]
                         ]
@@ -465,7 +466,7 @@ viewCartControls isEmpty isLoggedIn = -- selectedCartId sampleGroups =
 --            , button [ class "margin-right btn btn-default btn-sm", onClick OpenShareCartDialog, disabled (isEmpty || not isLoggedIn) ] [ span [ class "glyphicon glyphicon-user"] [], text " Share" ]
 --            , button [ class "margin-right btn btn-default btn-sm", attribute "type" "submit" ] [ text "Download" ]
             , button [ class "btn btn-primary mr-3", onClick EmptyCart, disabled isEmpty ]
-                [ i [ class "fas fa-ban" ] [], text " Empty" ]
+                [ Icon.ban, text " Empty" ]
 --            , button [ class "btn btn-default btn-sm", onClick RemoveCart, disabled (isCurrent || not isLoggedIn) ] [ span [ class "glyphicon glyphicon-trash"] [], text " Delete" ]
             ]
         ]

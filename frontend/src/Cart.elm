@@ -9,6 +9,7 @@ import Html exposing (..)
 import Html.Keyed
 import Html.Attributes exposing (class, type_, checked)
 import Html.Events exposing (onClick)
+import Icon
 import Route
 
 
@@ -344,7 +345,7 @@ addToCartButton2 cart id =
     let
         btn label clickMsg =
             button [ class "btn btn-sm btn-outline-secondary", onClick clickMsg ]
-                [ i [ class "fas fa-shopping-cart" ] []
+                [ Icon.shoppingCart
                 , text " "
                 , text label
                 ]

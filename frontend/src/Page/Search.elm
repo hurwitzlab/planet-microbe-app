@@ -24,6 +24,7 @@ import Route
 import Page exposing (viewBlank, viewSpinner)
 import Sample exposing (SearchTerm, PURL, annotationsToHide)
 import Cart
+import Icon
 --import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
 
@@ -1548,7 +1549,8 @@ viewResults model =
 
         addToCartTh =
             th []
-                [ i [ class "fas fa-shopping-cart mr-2" ] []
+                [ Icon.shoppingCart
+                , text " "
                 , Cart.addAllToCartButton (Session.getCart model.session) Nothing (model.results |> Maybe.withDefault [] |> List.map .sampleId) |> Html.map CartMsg
                 ]
 
@@ -1694,4 +1696,4 @@ viewMap showMap mapLoaded =
 viewFormatButton : Html Msg
 viewFormatButton =
     button [ type_ "button", class "btn", style "border" "1px solid lightgray", style "color" "gray", attribute "data-toggle" "dropdown" ]
-        [ i [ class "fas fa-cog" ] [] ]
+        [ Icon.cog ]
