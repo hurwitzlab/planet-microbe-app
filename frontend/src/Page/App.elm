@@ -25,7 +25,7 @@ import File exposing (File)
 import FileBrowser
 import Icon
 import Error
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -443,8 +443,6 @@ update msg model =
 
                 cmd =
                     SetInput CYVERSE (withDefault "" model.cartDialogInputId) filesStr
-
-                _ = Debug.log "filesStr" filesStr
             in
             update cmd { model | cartDialogInputId = Nothing }
 
