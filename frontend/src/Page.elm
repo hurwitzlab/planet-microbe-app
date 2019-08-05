@@ -76,13 +76,13 @@ viewHeader session page =
             case session of
                 Session.Guest _ _ ->
                     a [ class "nav-link text-nowrap", Route.href Route.Login ]
-                        [ Icon.signIn
+                        [ span [] [ Icon.signIn ] -- span wrapper prevents weird Elm behavior
                         , text " Sign-in to CyVerse"
                         ]
 
                 Session.LoggedIn _ _ _ ->
                     a [ class "nav-link text-nowrap", classList [ ("active", page == Account) ], Route.href Route.Account ]
-                        [ Icon.user
+                        [ span [] [ Icon.user ] -- span wrapper prevents weird Elm behavior
                         , text " My Account"
                         ]
 
