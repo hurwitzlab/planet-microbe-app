@@ -1,10 +1,10 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewDialog)
 
 --import Api exposing (Cred)
 --import Avatar
 import Browser exposing (Document)
-import Html exposing (Html, a, button, h1, h2, div, span, img, i, li, nav, p, text, ul, small, footer)
-import Html.Attributes exposing (id, class, classList, src, style, title)
+import Html exposing (Html, a, button, h1, h2, h5, div, span, img, i, li, nav, p, text, ul, small, footer)
+import Html.Attributes exposing (id, class, classList, src, style, title, type_, attribute, tabindex)
 import Html.Events exposing (onClick)
 import Icon
 --import Profile
@@ -98,7 +98,7 @@ viewHeader session page =
                         String.fromInt numItemsInCart
             in
             a [ class "nav-link text-nowrap", classList [ ("active", page == Cart) ], Route.href Route.Cart ]
-                [ Icon.shoppingCart
+                [ Icon.shoppingCartLg
                 , text " "
                 , span [ class "gray absolute" ] [ text label ]
                 ]
@@ -253,4 +253,24 @@ viewSpinner =
         , div [] []
         , div [] []
         , div [] []
+        ]
+
+
+-- TODO move into module.  This is our own Boostrap modal since elm-dialog has not yet been ported to Elm 0.19
+viewDialog : String -> List (Html msg) -> List (Html msg) -> msg -> Html msg
+viewDialog title body footer closeMsg =
+    div []
+        [ div [ class "modal fade show", tabindex -1, style "display" "block", attribute "role" "dialog" ]
+            [ div [ class "modal-dialog", attribute "role" "document", style "min-width" "35em" ]
+                [ div [ class "modal-content" ]
+                    [ div [ class "modal-header" ]
+                        [ h5 [ class "modal-title" ] [ text title ]
+                        , button [ type_ "button", class "close", onClick closeMsg ] [ span [] [ text (String.fromChar (Char.fromCode 215)) ] ]
+                        ]
+                    , div [ class "modal-body" ] body
+                    , div [ class "modal-footer" ] footer
+                    ]
+                ]
+            ]
+        , div [ class "modal-backdrop fade show" ] []
         ]

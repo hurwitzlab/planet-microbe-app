@@ -14,7 +14,7 @@ import Config exposing (apiBaseUrl)
 
 
 
--- TYPES
+-- TYPES --
 
 
 type alias Sample  =
@@ -73,7 +73,7 @@ annotationsToHide =
 
 
 
--- SERIALIZATION
+-- SERIALIZATION --
 
 
 sampleDecoder : Decoder Sample
@@ -132,7 +132,7 @@ annotationDecoder =
 
 
 
--- REQUESTS
+-- REQUESTS --
 
 
 fetch : Int -> Http.Request Sample
@@ -158,16 +158,16 @@ fetchAll =
 
 
 fetchSome : List Int -> Http.Request (List Sample)
-fetchSome id_list =
+fetchSome idList =
     let
         url =
             apiBaseUrl ++ "/samples"
 
         body =
             Encode.object
-                [ ( "ids", Encode.string (id_list |> List.map String.fromInt |> String.join ",") ) ]
+                [ ( "ids", Encode.string (idList |> List.map String.fromInt |> String.join ",") ) ]
     in
-    HttpBuilder.get url
+    HttpBuilder.post url
         |> HttpBuilder.withJsonBody body
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))
         |> HttpBuilder.toRequest

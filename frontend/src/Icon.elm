@@ -26,6 +26,11 @@ user =
 
 shoppingCart : Html msg
 shoppingCart =
+    i [ class "fas fa-shopping-cart" ] []
+
+
+shoppingCartLg : Html msg
+shoppingCartLg =
     i [ class "fas fa-shopping-cart fa-lg" ] []
 
 
@@ -77,3 +82,13 @@ file =
 ban : Html msg
 ban =
     i [ class "fas fa-ban" ] []
+
+
+plus : Html msg
+plus =
+    i [ class "far fa-plus-square" ] []
+
+
+minus : Html msg
+minus =
+    i [ class "far fa-minus-square" ] []

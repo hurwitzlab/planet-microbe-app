@@ -115,6 +115,11 @@ selected (Cart cart) id =
     Set.member id cart.selected
 
 
+selectedToList : Cart -> List Int
+selectedToList (Cart cart) =
+    cart.selected |> Set.toList
+
+
 select : Cart -> Int -> Cart
 select (Cart cart) id =
     Cart { cart | selected = Set.insert id cart.selected }
@@ -143,6 +148,16 @@ unselectAll (Cart cart) =
 unselectList : Cart -> List Int -> Cart
 unselectList (Cart cart) ids =
     Cart { cart | selected = Set.diff cart.selected (Set.fromList ids) }
+
+
+isEditable : Cart -> Bool
+isEditable (Cart cart) =
+    cart.cartType == Editable
+
+
+isSelectable : Cart -> Bool
+isSelectable (Cart cart) =
+    cart.cartType == Selectable
 
 
 
@@ -229,15 +244,24 @@ view cart samples =
     let
         row sample =
             tr []
-                [ td [] [ text sample.projectName ]
+                [ if isSelectable cart then
+                    td []
+                        [ input [ type_ "checkbox", checked (selected cart sample.id), onClick (ToggleSelectInCart sample.id) ] [] ]
+                  else
+                    td [] []
+                , td [] [ text sample.projectName ]
                 , td [] [ text sample.accn ]
-                , td []
-                    [ button [ class "btn btn-outline-secondary btn-sm float-right", onClick (RemoveFromCart sample.id) ] [ text "Remove" ] ]
+                , if isEditable cart then
+                    td []
+                        [ button [ class "btn btn-outline-secondary btn-sm float-right", onClick (RemoveFromCart sample.id) ] [ text "Remove" ] ]
+                  else
+                    td [] []
                 ]
     in
     table [ class "table" ]
         [ thead []
-            [ th [] [ text "Project" ]
+            [ th [] []
+            , th [] [ text "Project" ]
             , th [] [ text "Sample" ]
             , th [] []
             ]
@@ -345,7 +369,7 @@ addToCartButton2 cart id =
     let
         btn label clickMsg =
             button [ class "btn btn-sm btn-outline-secondary", onClick clickMsg ]
-                [ Icon.shoppingCart
+                [ Icon.shoppingCartLg
                 , text " "
                 , text label
                 ]

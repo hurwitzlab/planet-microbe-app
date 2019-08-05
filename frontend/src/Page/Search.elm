@@ -21,7 +21,7 @@ import Set
 import GMap
 import Dict exposing (Dict)
 import Route
-import Page exposing (viewBlank, viewSpinner)
+import Page exposing (viewBlank, viewSpinner, viewDialog)
 import Sample exposing (SearchTerm, PURL, annotationsToHide)
 import Cart
 import Icon
@@ -1249,26 +1249,6 @@ viewStringFilterDialog term val =
         CloseStringFilterDialog
 
 
--- TODO move into module.  This is our own Boostrap modal since elm-dialog has not yet been ported to Elm 0.19
-viewDialog : String -> List (Html Msg) -> List (Html Msg) -> Msg -> Html Msg
-viewDialog title body footer closeMsg =
-    div []
-        [ div [ class "modal fade show", tabindex -1, style "display" "block", attribute "role" "dialog" ]
-            [ div [ class "modal-dialog", attribute "role" "document" ]
-                [ div [ class "modal-content" ]
-                    [ div [ class "modal-header" ]
-                        [ h5 [ class "modal-title" ] [ text title ]
-                        , button [ type_ "button", class "close", onClick closeMsg ] [ span [] [ text (String.fromChar (Char.fromCode 215)) ] ]
-                        ]
-                    , div [ class "modal-body" ] body
-                    , div [ class "modal-footer" ] footer
-                    ]
-                ]
-            ]
-        , div [ class "modal-backdrop fade show" ] []
-        ]
-
-
 viewNumberFilterPanel : SearchTerm -> FilterValue -> Html Msg
 viewNumberFilterPanel term val =
     viewTermPanel term
@@ -1549,7 +1529,7 @@ viewResults model =
 
         addToCartTh =
             th []
-                [ Icon.shoppingCart
+                [ Icon.shoppingCartLg
                 , text " "
                 , Cart.addAllToCartButton (Session.getCart model.session) Nothing (model.results |> Maybe.withDefault [] |> List.map .sampleId) |> Html.map CartMsg
                 ]

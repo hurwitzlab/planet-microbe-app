@@ -363,17 +363,18 @@ app.get('/projects/:id(\\d+)/samples', async (req, res) => {
     res.json(result.rows);
 });
 
-app.get('/samples', async (req, res) => {
+app.post('/samples', async (req, res) => {
     let result;
+    let ids = req.body.ids;
+    console.log("ids:", ids);
 
-    if (req.body.ids) {
+    if (ids) {
         result = await query({
             text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name \
                 FROM sample s \
                 JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
                 JOIN project p ON p.project_id=pts.project_id \
-                WHERE s.sample_id IN ($1)",
-            values: [ids.join(",")]
+                WHERE s.sample_id IN (" + ids + ")",
         });
     }
     else {
@@ -426,6 +427,39 @@ app.get('/samples/:id(\\d+)/experiments', async (req, res) => {
             WHERE e.sample_id=$1",
         values: [id]
     });
+
+    res.json(result.rows);
+});
+
+app.post('/samples/files', async (req, res) => {
+    let ids;
+    if (req.body.ids) {
+        ids = req.body.ids.split(',');
+        console.log("ids:", ids);
+    }
+
+    let result;
+    if (ids)
+        result = await query({
+            text: "SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format \
+                FROM experiment e \
+                LEFT JOIN run r ON (r.experiment_id=e.experiment_id) \
+                LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id \
+                LEFT JOIN file f ON f.file_id=rtf.file_id \
+                LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
+                LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id \
+                WHERE e.sample_id IN (" + ids + ")",
+        });
+    else
+        result = await query({
+            text: "SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format \
+                FROM experiment e \
+                LEFT JOIN run r ON (r.experiment_id=e.experiment_id) \
+                JOIN run_to_file rtf ON rtf.run_id=r.run_id \
+                JOIN file f ON f.file_id=rtf.file_id \
+                LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
+                LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id"
+        });
 
     res.json(result.rows);
 });

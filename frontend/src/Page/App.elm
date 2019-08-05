@@ -3,14 +3,14 @@ module Page.App exposing (Model, Msg(..), init, toSession, update, view)
 import Session exposing (Session)
 import App exposing (App, AppRun)
 import Agave
---import Data.Sample as Sample exposing (Sample, SampleFile, SampleGroup)
---import Data.Cart
+import Sample exposing (Sample)--, SampleFile, SampleGroup)
+import Cart
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onCheck, onInput)
 import Http
 import Route
-import Page exposing (viewSpinner)
+import Page exposing (viewSpinner, viewDialog)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Task exposing (Task)
@@ -18,12 +18,14 @@ import Task exposing (Task)
 --import View.Spinner exposing (spinner)
 --import View.FileBrowser as FileBrowser
 import List.Extra
+import String.Extra
 import Maybe exposing (withDefault)
 import Dict exposing (Dict)
+import File exposing (File)
 import FileBrowser
 import Icon
 import Error
---import Debug exposing (toString)
+import Debug exposing (toString)
 
 
 
@@ -37,16 +39,15 @@ type alias Model =
     , agaveApp : Maybe Agave.App
     , inputs : Dict String String
     , parameters : Dict String String
---    , cart : Cart.Model
---    , cartLoaded : Bool
+    , cartLoaded : Bool
 --    , selectedCartId : Maybe Int
---    , samples : List Sample
---    , files : List SampleFile
+    , samples : List Sample
+    , files : List File
 --    , sampleGroups : List SampleGroup
     , showRunDialog : Bool
     , cartDialogInputId : Maybe String
     , dialogError : Maybe String
-    , filterFileType : String
+    , filterFileFormat : String
     , inputId : Maybe String
     , fileBrowser : FileBrowser.Model
     }
@@ -91,16 +92,15 @@ init session id =
       , agaveApp = Nothing
       , inputs = Dict.empty --inputs agaveApp
       , parameters = Dict.empty --params agaveApp
---      , cart = cart
---      , cartLoaded = False
+      , cartLoaded = False
 --      , selectedCartId = Nothing -- Current
---      , samples = []
---      , files = []
+      , samples = []
+      , files = []
 --      , sampleGroups = []
       , showRunDialog = False
       , cartDialogInputId = Nothing
       , dialogError = Nothing
-      , filterFileType = "All Types"
+      , filterFileFormat = "All Formats"
       , inputId = Nothing
       , fileBrowser = FileBrowser.init session (Just fileBrowserConfig)
       }
@@ -137,13 +137,13 @@ type Msg
     | CloseRunDialog
     | OpenFileBrowserDialog String
     | CloseFileBrowserDialog
---    | OpenCart String
---    | LoadCartCompleted (Result Http.Error ((List Sample), (List SampleFile), (List SampleGroup)))
+    | OpenCart String
+    | LoadCartCompleted (Result Http.Error ((List Sample), (List File))) --, (List SampleGroup)))
 --    | SelectCart (Maybe Int)
---    | CloseCartDialog
---    | CancelCartDialog
---    | FilterByFileType String
---    | CartMsg Cart.Msg
+    | CloseCartDialog
+    | CancelCartDialog
+    | FilterByFileFormat String
+    | CartMsg Cart.Msg
     | FileBrowserMsg FileBrowser.Msg
 
 
@@ -356,28 +356,75 @@ update msg model =
         CloseRunDialog ->
             ( { model | showRunDialog = False, dialogError = Nothing }, Cmd.none )
 
---        CloseCartDialog ->
+        OpenFileBrowserDialog inputId ->
+            let
+                (subModel, subCmd) =
+                    FileBrowser.update model.session FileBrowser.RefreshPath model.fileBrowser
+            in
+            ( { model | inputId = Just inputId, fileBrowser = subModel }, Cmd.map FileBrowserMsg subCmd )
+
+        CloseFileBrowserDialog ->
+            ( { model | inputId = Nothing }, Cmd.none )
+
+        OpenCart inputId ->
+            let
+                idList =
+                    model.session |> Session.getCart |> Cart.toList
+
+                cmd =
+                    if model.cartLoaded then
+                        Cmd.none
+                    else if idList == [] then -- current cart is empty
+                        Task.attempt LoadCartCompleted <|
+                            Task.map2 (\samples files -> (samples, files))
+                                (Task.succeed [])
+                                (Task.succeed [])
+--                            Task.map3 (\samples files sampleGroups -> (samples, files, sampleGroups))
+--                                (Task.succeed [])
+--                                (Task.succeed [])
+--                                (Request.SampleGroup.list session.token |> Http.toTask) -- load samples & files for saved carts
+                    else
+                        Task.attempt LoadCartCompleted <|
+                            Task.map2 (\samples files -> (samples, files))
+                                (Sample.fetchSome idList |> Http.toTask) -- load samples for current cart
+                                (File.fetchAllBySamples idList |> Http.toTask) -- load files for current cart
+--                            Task.map3 (\samples files sampleGroups -> (samples, files, sampleGroups))
+--                                (Sample.fetchSome session.token id_list |> Http.toTask) -- load samples for current cart
+--                                (Request.Sample.files session.token id_list |> Http.toTask) -- load files for current cart
+--                                (Request.SampleGroup.list session.token |> Http.toTask) -- load samples & files for saved carts
+            in
+            ( { model | cartDialogInputId = Just inputId }, cmd )
+
+        LoadCartCompleted (Ok (samples, files)) -> --(Ok (samples, files, sampleGroups)) ->
+--            ( { model | samples = samples, files = files, sampleGroups = sampleGroups, cartLoaded = True }, Cmd.none )
+            ( { model | cartLoaded = True, samples = samples, files = files }, Cmd.none )
+
+        LoadCartCompleted (Err error) -> --TODO show error to user
 --            let
---                selected =
---                    model.cart.selected
---
---                sampleIds =
---                    Set.toList selected.contents
---
---                filterOnType file =
---                    let
---                        fileType =
---                            String.toLower file.sample_file_type.file_type
---
---                        filterFileType =
---                            String.toLower model.filterFileType
---                    in
---                    if (List.member file.sample_id sampleIds && (fileType == filterFileType || filterFileType == "all types") ) then
---                        Just file.file
---                    else
---                        Nothing
---
---                filesStr =
+--                _ = Debug.log "LoadCartCompleted" (toString error)
+--            in
+            ( model, Cmd.none )
+
+        CloseCartDialog ->
+            let
+                selectedIds =
+                    model.session |> Session.getCart |> Cart.selectedToList
+
+                filterOnFormat file =
+                    let
+                        fileFormat =
+                            String.toLower file.format
+
+                        filterFormat =
+                            String.toLower model.filterFileFormat
+                    in
+                    if (List.member file.sampleId selectedIds && (fileFormat == filterFormat || filterFormat == "all formats") ) then
+                        Just file.url
+                    else
+                        Nothing
+
+                filesStr =
+                    List.filterMap filterOnFormat model.files |> String.join ";"
 --                    case model.selectedCartId of
 --                        Nothing -> -- Current
 --                            List.filterMap filterOnType model.files |> String.join ";"
@@ -393,57 +440,17 @@ update msg model =
 --                                |> Set.fromList -- remove duplicates
 --                                |> Set.toList
 --                                |> String.join ";"
---
---                msg =
---                    SetInput CYVERSE (withDefault "" model.cartDialogInputId) filesStr
---            in
---            update session msg { model | cartDialogInputId = Nothing }
---
---        CancelCartDialog ->
---            ( { model | cartDialogInputId = Nothing }, Cmd.none )
---
-        OpenFileBrowserDialog inputId ->
-            let
-                (subModel, subCmd) =
-                    FileBrowser.update model.session FileBrowser.RefreshPath model.fileBrowser
-            in
-            ( { model | inputId = Just inputId, fileBrowser = subModel }, Cmd.map FileBrowserMsg subCmd )
 
-        CloseFileBrowserDialog ->
-            ( { model | inputId = Nothing }, Cmd.none )
---
---        OpenCart inputId ->
---            let
---                id_list =
---                    session.cart.contents |> Set.toList
---
---                cmd =
---                    if model.cartLoaded then
---                        Cmd.none
---                    else if id_list == [] then -- current cart is empty
---                        Task.attempt LoadCartCompleted <|
---                            Task.map3 (\samples files sampleGroups -> (samples, files, sampleGroups))
---                                (Task.succeed [])
---                                (Task.succeed [])
---                                (Request.SampleGroup.list session.token |> Http.toTask) -- load samples & files for saved carts
---                    else
---                        Task.attempt LoadCartCompleted <|
---                            Task.map3 (\samples files sampleGroups -> (samples, files, sampleGroups))
---                                (Request.Sample.getSome session.token id_list |> Http.toTask) -- load samples for current cart
---                                (Request.Sample.files session.token id_list |> Http.toTask) -- load files for current cart
---                                (Request.SampleGroup.list session.token |> Http.toTask) -- load samples & files for saved carts
---            in
---            ( { model | cartDialogInputId = Just inputId }, cmd )
---
---        LoadCartCompleted (Ok (samples, files, sampleGroups)) ->
---            ( { model | samples = samples, files = files, sampleGroups = sampleGroups, cartLoaded = True }, Cmd.none )
---
---        LoadCartCompleted (Err error) -> --TODO show error to user
---            let
---                _ = Debug.log "Error" (toString error)
---            in
---            ( model, Cmd.none )
---
+                cmd =
+                    SetInput CYVERSE (withDefault "" model.cartDialogInputId) filesStr
+
+                _ = Debug.log "filesStr" filesStr
+            in
+            update cmd { model | cartDialogInputId = Nothing }
+
+        CancelCartDialog ->
+            ( { model | cartDialogInputId = Nothing }, Cmd.none )
+
 --        SelectCart maybeId ->
 --            let
 --                newCart =
@@ -465,18 +472,21 @@ update msg model =
 --                            Cart.init cart Cart.Selectable
 --            in
 --            ( { model | selectedCartId = maybeId, cart = newCart }, Cmd.none )
---
---        FilterByFileType fileType ->
---            ( { model | filterFileType = fileType }, Cmd.none )
---
---        CartMsg subMsg ->
---            let
+
+        FilterByFileFormat format ->
+            ( { model | filterFileFormat = format }, Cmd.none )
+
+        CartMsg subMsg ->
+            let
 --                _ = Debug.log "App.CartMsg" (toString subMsg)
---
---                ( ( newCart, subCmd ), msgFromPage )  =
---                    Cart.update session subMsg model.cart
---            in
---            ( { model | cart = newCart }, Cmd.map CartMsg subCmd )
+
+                newCart =
+                    Cart.update subMsg (Session.getCart model.session)
+
+                newSession =
+                    Session.setCart model.session newCart
+            in
+            ( { model | session = newSession }, Cmd.none )
 
         FileBrowserMsg subMsg ->
             let
@@ -534,6 +544,10 @@ view model =
         --                 else
         --                    Nothing
         --                )
+                , if model.cartDialogInputId /= Nothing then
+                    viewCartDialog model
+                  else
+                    text ""
                 ]
 
         (_, _) ->
@@ -629,10 +643,10 @@ viewAppInput input =
             [ textarea [ class "form-control mr-2", style "width" "30em", rows 1, name id, value val, onInput (SetInput UI id) ] []
             , browserButton "Data Store" (OpenFileBrowserDialog id)
 --            , syndicateButton
---            , button [ class "btn btn-default btn-sm", style [("max-height","2.8em")], onClick (OpenCart id) ]
---                [ span [ class "gray glyphicon glyphicon-shopping-cart" ] []
---                , text " Cart"
---                ]
+            , button [ class "btn btn-outline-secondary btn-sm ml-2", onClick (OpenCart id) ]
+                [ Icon.shoppingCart
+                , text " Cart"
+                ]
             ]
         ]
     , td [] [ text agaveAppInput.details.description ]
@@ -782,6 +796,50 @@ viewAppParameter input =
 --    }
 
 
+viewCartDialog : Model -> Html Msg
+viewCartDialog model =
+    let
+        cart =
+            Session.getCart model.session
+
+        empty =
+            Cart.size cart == 0
+
+        body =
+            if model.cartLoaded then
+                if not empty then
+                    Cart.view cart model.samples |> Html.map CartMsg
+                else
+                    text "The cart is empty"
+            else
+                div [ class "center" ]
+                    [ div [] [ text "Loading..." ] ]
+
+        closeButton =
+            button [ class "btn btn-outline-secondary float-right", onClick CancelCartDialog ] [ text "Close" ]
+
+        footer =
+            if not model.cartLoaded || empty then
+                closeButton
+            else
+                div [ class "d-inline w-100" ]
+                    [ button [ class "btn btn-outline-secondary float-left mr-2", onClick Cart.SelectAllInCart ]
+                        [ Icon.plus, text " All" ] |> Html.map CartMsg
+                    , button [ class "btn btn-outline-secondary float-left", onClick Cart.UnselectAllInCart ]
+                        [ Icon.minus, text " All" ] |> Html.map CartMsg
+                    , div [ class "float-left ml-5" ]
+                        [ viewFileFormatSelector model ]
+                    , button [ class "btn btn-primary float-right ml-2" , onClick CloseCartDialog ]
+                        [ text "Select" ]
+                    , closeButton
+                    ]
+    in
+    viewDialog "Cart"
+        [ body ]
+        [ footer ]
+        CancelCartDialog
+
+
 --viewCartDropdown : Maybe Int -> List SampleGroup -> Html Msg
 --viewCartDropdown selectedCartId sampleGroups =
 --    let
@@ -833,10 +891,14 @@ viewAppParameter input =
 --    div [ class "scrollable-half" ] [ Cart.viewCart model.cart samples |> Html.map CartMsg ]
 
 
---viewFileTypeSelector : Model -> Html Msg
---viewFileTypeSelector model =
---    let
---        types =
+viewFileFormatSelector : Model -> Html Msg
+viewFileFormatSelector model =
+    let
+        types =
+            model.files
+                |> List.map .format
+                |> List.map String.Extra.toSentenceCase
+                |> List.Extra.unique
 --            case model.selectedCartId of
 --                Nothing -> -- Current
 --                    model.files
@@ -854,33 +916,32 @@ viewAppParameter input =
 --                        |> List.map (.sample_file_type >> .file_type)
 --                        |> Set.fromList
 --                        |> Set.toList
---
---        numTypes =
---            List.length types
---
---        btn label =
---            button [ class "btn btn-default", onClick (FilterByFileType label) ] [ text label ]
---
---        lia label =
---            li [] [ a [ onClick (FilterByFileType label) ] [ text label ] ]
---
---        selectedType =
---            case model.filterFileType of
---                "All Types" -> "File Type "
---
---                _ -> model.filterFileType ++ " "
---    in
---    div [ class "dropup" ]
---        [ button
---            [ class "btn btn-default dropdown-toggle", id "dropdownMenu1",
---                attribute "type" "button", attribute "data-toggle" "dropdown", attribute "aria-haspopup" "true", attribute "aria-expanded" "true"
---            ]
---            [ text selectedType
---            , span [ class "caret" ] []
---            ]
---        , ul [ class "dropdown-menu", style [("overflow-y","scroll"),("max-height","200px")], attribute "aria-labelledby" "dropdownMenu1" ]
---            (lia "All Types" :: List.map (\t -> lia t) types)
---        ]
+
+        btn label =
+            button [ class "btn btn-default", onClick (FilterByFileFormat label) ] [ text label ]
+
+        item label =
+            a [ class "dropdown-item", href "", onClick (FilterByFileFormat label) ] [ text label ]
+
+        selectedType =
+            case model.filterFileFormat of
+                "All Formats" ->
+                    "File Format "
+
+                _ ->
+                    model.filterFileFormat ++ " "
+    in
+    div [ class "dropup" ]
+        [ button
+            [ class "btn btn-outline-secondary dropdown-toggle", id "dropdownMenu1",
+                attribute "type" "button", attribute "data-toggle" "dropdown", attribute "aria-haspopup" "true", attribute "aria-expanded" "true"
+            ]
+            [ text selectedType
+            , span [ class "caret" ] []
+            ]
+        , div [ class "dropdown-menu", style "overflow-y" "scroll", style "max-height" "200px", attribute "aria-labelledby" "dropdownMenu1" ]
+            (item "All Formats" :: List.map item types)
+        ]
 
 
 --fileBrowserDialogConfig : FileBrowser.Model -> String -> Bool -> Dialog.Config Msg
