@@ -67,7 +67,7 @@ init session id =
             PlanB.getApp token name |> Http.toTask |> Task.map .result
 
         loadAppFromProvider app = --TODO add more abstraction/types for provider in dedicated module
-            if app.provider == "plan-b" then
+            if isPlanB app then
                 loadAppFromPlanB
             else
                 loadAppFromAgave
@@ -118,6 +118,11 @@ toSession model =
     model.session
 
 
+isPlanB : App -> Bool
+isPlanB app =
+    app.provider == "plan-b"
+
+
 
 -- UPDATE --
 
@@ -146,9 +151,6 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
-        isPlanB =
-            (model.app |> Maybe.map .provider |> Maybe.withDefault "") == "plan-b"
-
         token =
             Session.token model.session
     in
@@ -298,7 +300,7 @@ update msg model =
                             App.run token model.appId (Agave.encodeJobRequest jobRequest |> Encode.encode 0) |> Http.send AppRunCompleted
 
                         launchApp =
-                            if isPlanB then
+                            if isPlanB app then
                                 launchPlanB
                             else
                                 launchAgave
@@ -314,10 +316,10 @@ update msg model =
                     Agave.shareJob token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
 
                 cmd =
-                    ( (Route.replaceUrl (Session.navKey model.session) (Route.Job response.result.id)
-                        :: (if not isPlanB then [ shareJob ] else []))
-                        |> Cmd.batch
-                    )
+                    Cmd.batch
+                        [ Route.replaceUrl (Session.navKey model.session) (Route.Job response.result.id)
+                        , shareJob
+                        ]
             in
             ( model, cmd )
 

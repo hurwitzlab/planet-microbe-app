@@ -7,6 +7,7 @@ import Agave
 import Http
 import HttpBuilder
 import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode exposing (Value)
 import Config exposing (planbBaseUrl)
 
 
@@ -73,5 +74,22 @@ launchJob token request =
     HttpBuilder.post url
         |> HttpBuilder.withHeaders [ authorizationHeader token ]
         |> HttpBuilder.withJsonBody (Agave.encodeJobRequest request)
+        |> HttpBuilder.withExpect (Http.expectJson (Agave.responseDecoder Agave.decoderJobStatus))
+        |> HttpBuilder.toRequest
+
+
+shareJob : String -> String -> String -> String -> Http.Request (Agave.Response Agave.JobStatus)
+shareJob token id username permission =
+    let
+        url =
+            planbBaseUrl ++ "/jobs/" ++ id ++ "/pems/" ++ username
+
+        body =
+            Encode.object
+                [ ( "permission", Encode.string permission ) ]
+    in
+    HttpBuilder.post url
+        |> HttpBuilder.withHeaders [ authorizationHeader token ]
+        |> HttpBuilder.withJsonBody body
         |> HttpBuilder.withExpect (Http.expectJson (Agave.responseDecoder Agave.decoderJobStatus))
         |> HttpBuilder.toRequest

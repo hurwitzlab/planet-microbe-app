@@ -16,7 +16,7 @@ import Time
 import FileBrowser
 import Icon
 import Error
---import Debug exposing (toString)
+import Debug exposing (toString)
 
 
 
@@ -57,7 +57,7 @@ init session id =
             PlanB.getJob token id |> Http.toTask |> Task.map .result
 
         loadJob = --TODO add more abstraction/types for provider in dedicated module
-            if String.startsWith "plan-b" id then
+            if isPlanB id then
                 loadJobFromPlanB
             else
                 loadJobFromAgave
@@ -104,6 +104,11 @@ toSession model =
     model.session
 
 
+isPlanB : String -> Bool
+isPlanB id =
+    String.startsWith "planb" id
+
+
 
 -- UPDATE --
 
@@ -132,9 +137,6 @@ update msg model =
         username =
             Session.getUser model.session |> Maybe.map .user_name |> Maybe.withDefault ""
 
-        isPlanB =
-            model.jobId |> String.startsWith "planb"
-
         loadJobFromAgave =
             Agave.getJob token model.jobId |> Http.toTask |> Task.map .result
 
@@ -142,7 +144,7 @@ update msg model =
             PlanB.getJob token model.jobId |> Http.toTask |> Task.map .result
 
         loadJob =
-            if isPlanB then
+            if isPlanB model.jobId then
                 loadJobFromPlanB
             else
                 loadJobFromAgave
@@ -171,7 +173,7 @@ update msg model =
                     PlanB.getJobHistory token model.jobId |> Http.toTask |> Task.map .result
 
                 loadHistory =
-                    if isPlanB then
+                    if isPlanB model.jobId then
                         loadHistoryFromPlanB
                     else
                        loadHistoryFromAgave
