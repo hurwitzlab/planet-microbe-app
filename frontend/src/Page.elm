@@ -97,7 +97,7 @@ viewHeader session page =
                     else
                         String.fromInt numItemsInCart
             in
-            a [ class "nav-link text-nowrap", classList [ ("active", page == Cart) ], Route.href Route.Cart ]
+            a [ class "nav-link text-nowrap", classList [ ("active", page == Cart) ], style "min-width" "4em", Route.href Route.Cart ]
                 [ Icon.shoppingCartLg
                 , text " "
                 , span [ class "gray absolute" ] [ text label ]
@@ -143,7 +143,7 @@ viewHeader session page =
                     , ul [ class "navbar-nav ml-auto" ]
                         [ li [ class "nav-item mr-5" ]
                             [ loginButton ]
-                        , li [ class "nav-item mr-5" ]
+                        , li [ class "nav-item ml-2 mr-5" ]
                             [ cartButton]
                         , li [ class "nav-item" ]
                             [ a [ class "nav-link", title "Get Help", Route.href Route.Contact ]
