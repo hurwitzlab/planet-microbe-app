@@ -1,4 +1,4 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewDialog)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewDialog)
 
 --import Api exposing (Cred)
 --import Avatar
@@ -240,19 +240,19 @@ viewBlank =
 
 viewSpinner : Html msg
 viewSpinner =
-    div [ class "ml-loader", style "position" "absolute", style "height" "100vh", style "top" "50%", style "left" "60%" ]
-        [ div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
-        , div [] []
+    div [ class "d-flex justify-content-center m-5" ]
+        [ div [ class "d-flex spinner-border", style "color" "lightgray", style "width" "4rem", style "height" "4rem" ]
+            [ span [ class "sr-only" ] [ text "Loading..." ]
+            ]
+        ]
+
+
+viewSpinnerCentered : Html msg
+viewSpinnerCentered =
+    div [ class "d-flex justify-content-center h-100 w-100", style "position" "fixed", style "top" "0", style "align-items" "center" ]
+        [ div [ class "d-flex spinner-border", style "margin" "0 auto", style "color" "lightgray", style "width" "4rem", style "height" "4rem"  ]
+            [ span [ class "sr-only" ] [ text "Loading..." ]
+            ]
         ]
 
 

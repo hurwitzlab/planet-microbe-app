@@ -6,8 +6,6 @@ import Html.Attributes exposing (..)
 import Page
 import Route exposing (Route)
 import Http
-import Json.Encode as Encode
---import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
 import App exposing (App)
 import Agave exposing (Job)

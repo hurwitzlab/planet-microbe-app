@@ -11,7 +11,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onCheck, onInput)
 import Http
 import Route
-import Page exposing (viewSpinner, viewDialog)
+import Page exposing (viewSpinner, viewSpinnerCentered, viewDialog)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Task exposing (Task)
@@ -556,7 +556,7 @@ view model =
                 ]
 
         (_, _) ->
-            viewSpinner
+            viewSpinnerCentered
 
 
 viewApp : App -> Agave.App -> Dict String String -> Dict String String -> Html Msg
@@ -756,7 +756,7 @@ viewRunDialog model =
         body =
             case model.dialogError of
                 Nothing ->
-                    text "..." --spinner
+                    viewSpinner
 
                 Just error ->
                     div [ class "alert alert-danger" ]
@@ -848,8 +848,7 @@ viewCartDialog model =
                 else
                     text "The cart is empty"
             else
-                div [ class "center" ]
-                    [ div [] [ text "Loading..." ] ]
+                viewSpinner
 
         closeButton =
             button [ class "btn btn-outline-secondary float-right", onClick CancelCartDialog ] [ text "Close" ]
@@ -1016,7 +1015,7 @@ viewFileBrowserDialog fileBrowser inputId isBusy =
 
         body =
             if isBusy then
-                text "Loading..." --spinner
+                viewSpinner
             else
                 div [ style "min-height" "50vh", style "max-height" "50vh", style "overflow-y" "auto" ]
                     [ FileBrowser.view fileBrowser |> Html.map FileBrowserMsg ]

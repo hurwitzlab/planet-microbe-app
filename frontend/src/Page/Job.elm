@@ -598,7 +598,7 @@ viewHistory history loaded loading =
             [ if loaded then
                 text "None"
               else if loading then
-                text "Loading..." --spinner
+                Page.viewSpinner
               else
                 button [ class "btn btn-outline-secondary", onClick GetHistory ] [ text "Show History" ]
             ]
@@ -668,7 +668,7 @@ viewResults model =
                                 False ->
                                     case model.loadingResults of
                                         True ->
-                                            text "Loading..." --spinner
+                                            Page.viewSpinner
 
                                         False ->
                                             button [ class "btn btn-default", onClick GetResults ] [ text "Show Results" ]
@@ -703,7 +703,7 @@ viewResults model =
 --        content =
 --            case model.cancelDialogMessage of
 --                Nothing ->
---                    text "Loading..." --spinner
+--                    spinner
 --
 --                Just message ->
 --                    div [ class "alert alert-info" ]

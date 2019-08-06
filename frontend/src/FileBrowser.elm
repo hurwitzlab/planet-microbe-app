@@ -10,15 +10,12 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onDoubleClick, onInput)
 --import Events exposing (onKeyDown)
---import Table exposing (defaultCustomizations)
---import Dialog
 import Task exposing (Task)
 import Time
 import Http
 import Route
 import Filesize
 import Page exposing (viewSpinner)
---import View.Dialog exposing (confirmationDialogConfig)
 --import View.SearchableDropdown
 import Session exposing (Session)
 import Agave exposing (FileResult, PermissionResult, Permission)
@@ -578,7 +575,7 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
         , if errorMessage /= Nothing then
             div [ class "alert alert-danger" ] [ text (Maybe.withDefault "An error occurred" errorMessage) ]
           else if isBusy then
-            text "Loading..." --viewSpinner
+            viewSpinner
           else
             div [ style "overflow-y" "auto", style "height" "100%" ] --("height","60vh")] ]
                 [ viewFileTable config contents selectedPaths ] --[ Table.view (tableConfig config selectedPaths) tableState contents ]

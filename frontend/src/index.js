@@ -1,6 +1,5 @@
 import '../assets/scss/bootstrap_custom.scss'
 import '../assets/css/landing-page.css';
-import '../assets/css/loader.css';
 //import '../assets/css/elm-datepicker.css';
 import $ from "jquery";
 //import popper from "popper.js";
