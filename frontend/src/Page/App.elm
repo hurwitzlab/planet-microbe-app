@@ -312,16 +312,21 @@ update msg model =
 
         RunJobCompleted (Ok response) ->
             let
-                shareJob =
+                shareAgave =
                     Agave.shareJob token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
 
-                cmd =
-                    Cmd.batch
-                        [ Route.replaceUrl (Session.navKey model.session) (Route.Job response.result.id)
-                        , shareJob
-                        ]
+                sharePlanB =
+                    PlanB.shareJob token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
             in
-            ( model, cmd )
+            ( model
+            , Cmd.batch
+                [ Route.replaceUrl (Session.navKey model.session) (Route.Job response.result.id)
+                , if (model.app |> Maybe.map .provider |> Maybe.withDefault "") == "plan-b" then
+                    sharePlanB
+                  else
+                    shareAgave
+                ]
+            )
 
         RunJobCompleted (Err error) ->
             let
@@ -542,7 +547,9 @@ view model =
         --                 else
         --                    Nothing
         --                )
-                , if model.cartDialogInputId /= Nothing then
+                , if model.showRunDialog then
+                    viewRunDialog model
+                  else if model.cartDialogInputId /= Nothing then
                     viewCartDialog model
                   else
                     text ""
@@ -741,6 +748,36 @@ viewAppParameter input =
 --    , body = Just content
 --    , footer = footer
 --    }
+
+
+viewRunDialog : Model -> Html Msg
+viewRunDialog model =
+    let
+        body =
+            case model.dialogError of
+                Nothing ->
+                    text "..." --spinner
+
+                Just error ->
+                    div [ class "alert alert-danger" ]
+                        [ p [] [ text "An error occurred:" ]
+                        , p [] [ text error ]
+                        ]
+
+        footer =
+            if model.dialogError == Nothing then
+                div [] [ text " " ]
+            else
+                button
+                    [ class "btn btn-default"
+                    , onClick CloseRunDialog
+                    ]
+                    [ text "OK" ]
+    in
+    viewDialog "Submitting Job"
+        [ body ]
+        [ footer ]
+        CloseRunDialog
 
 
 --cartDialogConfig : Model -> Dialog.Config Msg
