@@ -13,7 +13,6 @@ import Experiment exposing (Experiment)
 import LatLng
 import GMap
 import Http
---import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
 import Time
 import String.Extra
@@ -21,7 +20,6 @@ import List.Extra
 import Json.Encode as Encode
 import Cart
 import Icon
-import Set
 --import Debug exposing (toString)
 
 
@@ -37,7 +35,6 @@ type alias Model =
     , metadata : Maybe Metadata
     , mapLoaded : Bool
     , tooltip : Maybe (ToolTip (List Annotation))
-    , cart : Cart.Cart
     }
 
 
@@ -57,7 +54,6 @@ init session id =
       , metadata = Nothing
       , mapLoaded = False
       , tooltip = Nothing
-      , cart = Cart.empty
       }
       , Cmd.batch
         [ GMap.removeMap "" -- workaround for blank map on navigating back to this page
@@ -219,10 +215,7 @@ update msg model =
                     Session.setCart model.session newCart
             in
             ( { model | session = newSession }
-            , Cmd.batch
-                [ --Cmd.map CartMsg subCmd
-                Cart.store newCart
-                ]
+            , Cart.store newCart
             )
 
 

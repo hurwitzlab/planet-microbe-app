@@ -3,9 +3,10 @@ import '../assets/css/landing-page.css';
 import '../assets/css/loader.css';
 //import '../assets/css/elm-datepicker.css';
 import $ from "jquery";
-import popper from "popper.js";
+//import popper from "popper.js";
 import bootstrap from "bootstrap";
-import "@fortawesome/fontawesome-free/js/all.min.js"
+//import "@fortawesome/fontawesome-free/js/all.min.js" // DO NOT USE!  Include CSS as below
+import "@fortawesome/fontawesome-free/css/all.min.css"
 import { Elm } from './Main.elm';
 
 

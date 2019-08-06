@@ -369,7 +369,7 @@ addToCartButton2 cart id =
     let
         btn label clickMsg =
             button [ class "btn btn-sm btn-outline-secondary", onClick clickMsg ]
-                [ Icon.shoppingCartLg
+                [ Icon.shoppingCart
                 , text " "
                 , text label
                 ]

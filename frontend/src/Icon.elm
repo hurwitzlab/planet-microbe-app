@@ -5,7 +5,11 @@ module Icon exposing (..)
 This module was created to prevent the error below which occurs when Html.Attribute.class is used in an SVG element
 instead of Svg.Attribute.class
 
-    "Cannot assign to read only property 'className' of object '#<SVGSVGElement>"
+    Cannot assign to read only property 'className' of object '#<SVGSVGElement>
+
+IMPORTANT: do not import the Font Awesome javascript, it will cause runtime errors like:
+
+    Uncaught TypeError: Cannot read property 'replaceData' of undefined
 
 -}
 
