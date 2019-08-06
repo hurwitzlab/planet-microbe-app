@@ -3,6 +3,7 @@ module Page.App exposing (Model, Msg(..), init, toSession, update, view)
 import Session exposing (Session)
 import App exposing (App, AppRun)
 import Agave
+import PlanB
 import Sample exposing (Sample)--, SampleFile, SampleGroup)
 import Cart
 import Html exposing (..)
@@ -14,9 +15,6 @@ import Page exposing (viewSpinner, viewDialog)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Task exposing (Task)
---import View.Cart as Cart
---import View.Spinner exposing (spinner)
---import View.FileBrowser as FileBrowser
 import List.Extra
 import String.Extra
 import Maybe exposing (withDefault)
@@ -56,25 +54,23 @@ type alias Model =
 init : Session -> Int -> ( Model, Cmd Msg )
 init session id =
     let
-        -- Load page - Perform tasks to load the resources of a page
         loadApp =
             App.fetch id |> Http.toTask
 
+        token =
+            Session.token session
+
         loadAppFromAgave name =
---            Agave.getApp session.token name |> Http.toTask |> Task.map .result
-            Agave.getApp (Session.token session) name |> Http.toTask |> Task.map .result
+            Agave.getApp token name |> Http.toTask |> Task.map .result
 
---        loadAppFromPlanB name =
---            Request.PlanB.getApp session.token name |> Http.toTask |> Task.map .result
+        loadAppFromPlanB name =
+            PlanB.getApp token name |> Http.toTask |> Task.map .result
 
-        loadAppFromProvider app =
-            case app.provider of
---                "plan-b" -> loadAppFromPlanB
-
-                _ -> loadAppFromAgave
-
---        cart =
---            Cart.init session.cart Cart.Selectable
+        loadAppFromProvider app = --TODO add more abstraction/types for provider in dedicated module
+            if app.provider == "plan-b" then
+                loadAppFromPlanB
+            else
+                loadAppFromAgave
 
         fileBrowserConfig =
             { showMenuBar = True
@@ -152,6 +148,9 @@ update msg model =
     let
         isPlanB =
             (model.app |> Maybe.map .provider |> Maybe.withDefault "") == "plan-b"
+
+        token =
+            Session.token model.session
     in
     case msg of
         GetAppCompleted (Ok (app, agaveApp)) ->
@@ -232,7 +231,8 @@ update msg model =
 
         SetParameter id value ->
             let
-                newParams = Dict.insert id value model.parameters
+                newParams =
+                    Dict.insert id value model.parameters
             in
             ( { model | parameters = newParams }, Cmd.none )
 
@@ -289,18 +289,18 @@ update msg model =
                             Agave.JobRequest jobName app.name True jobInputs jobParameters []
 
                         launchAgave =
-                            Agave.launchJob (Session.token model.session) jobRequest |> Http.send RunJobCompleted
+                            Agave.launchJob token jobRequest |> Http.send RunJobCompleted
 
-        --                launchPlanB =
-        --                    Request.PlanB.launchJob session.token jobRequest |> Http.send RunJobCompleted
+                        launchPlanB =
+                            PlanB.launchJob token jobRequest |> Http.send RunJobCompleted
 
                         sendAppRun =
-                            App.run (Session.token model.session) model.appId (Agave.encodeJobRequest jobRequest |> Encode.encode 0) |> Http.send AppRunCompleted
+                            App.run token model.appId (Agave.encodeJobRequest jobRequest |> Encode.encode 0) |> Http.send AppRunCompleted
 
                         launchApp =
-        --                    if isPlanB then
-        --                        launchPlanB
-        --                    else
+                            if isPlanB then
+                                launchPlanB
+                            else
                                 launchAgave
                     in
                     ( { model | showRunDialog = True }, Cmd.batch [ launchApp, sendAppRun ] )
@@ -311,7 +311,7 @@ update msg model =
         RunJobCompleted (Ok response) ->
             let
                 shareJob =
-                    Agave.shareJob (Session.token model.session) response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
+                    Agave.shareJob token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
 
                 cmd =
                     ( (Route.replaceUrl (Session.navKey model.session) (Route.Job response.result.id)
@@ -347,10 +347,10 @@ update msg model =
         ShareJobCompleted _ ->
             ( model, Cmd.none )
 
-        AppRunCompleted (Ok response) ->
+        AppRunCompleted (Ok _) ->
             ( model, Cmd.none )
 
-        AppRunCompleted (Err error) ->
+        AppRunCompleted (Err _) -> --TODO
             ( model, Cmd.none )
 
         CloseRunDialog ->
@@ -476,8 +476,6 @@ update msg model =
 
         CartMsg subMsg ->
             let
---                _ = Debug.log "App.CartMsg" (toString subMsg)
-
                 newCart =
                     Cart.update subMsg (Session.getCart model.session)
 

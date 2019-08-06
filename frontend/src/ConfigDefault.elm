@@ -52,3 +52,13 @@ agaveOAuthClientId =
 agaveRedirectUrl : String
 agaveRedirectUrl =
     ""
+
+
+
+---- Plan B ----
+
+
+-- Base URL
+planbBaseUrl : String
+planbBaseUrl =
+    "https://www.imicrobe.us/plan-b"
