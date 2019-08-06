@@ -1529,9 +1529,7 @@ viewResults model =
 
         addToCartTh =
             th []
-                [ Icon.shoppingCartLg
-                , text " "
-                , Cart.addAllToCartButton (Session.getCart model.session) Nothing (model.results |> Maybe.withDefault [] |> List.map .sampleId) |> Html.map CartMsg
+                [ Cart.addAllToCartButton (Session.getCart model.session) Nothing (model.results |> Maybe.withDefault [] |> List.map .sampleId) |> Html.map CartMsg
                 ]
 
         columns =

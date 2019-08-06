@@ -384,7 +384,9 @@ addAllToCartButton (Cart cart) optionalLabels ids =
 
         btn label clickMsg =
             button [ class "btn btn-xs btn-outline-secondary align-middle", onClick clickMsg ]
-                [ text label
+                [ Icon.shoppingCart
+                , text " "
+                , text label
                 ]
     in
     if intersection == [] then
