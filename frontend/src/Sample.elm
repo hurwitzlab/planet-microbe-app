@@ -152,7 +152,7 @@ fetchAll =
         url =
             apiBaseUrl ++ "/samples"
     in
-    HttpBuilder.get url
+    HttpBuilder.post url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list sampleDecoder))
         |> HttpBuilder.toRequest
 
