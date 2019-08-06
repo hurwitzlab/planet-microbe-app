@@ -285,7 +285,7 @@ update msg model =
                             Dict.toList model.parameters |> List.map (\(k, v) -> Agave.JobParameter k (encodeParam k v))
 
                         jobName =
-                            "iMicrobe " ++ app.name --FIXME should be a user-inputted value?
+                            "PlanetMicrobe " ++ app.name --FIXME should be a user-inputted value?
 
                         jobRequest =
                             Agave.JobRequest jobName app.name True jobInputs jobParameters []
