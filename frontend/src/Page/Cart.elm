@@ -477,7 +477,7 @@ viewCart cart samples =
     if Cart.size cart == 0 then
         text "The cart is empty"
     else
-        Cart.view cart samples |> Html.map CartMsg
+        Cart.view cart samples Cart.Editable |> Html.map CartMsg
 
 
 --saveCartDialogConfig : Model -> Dialog.Config Msg

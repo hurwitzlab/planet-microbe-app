@@ -807,7 +807,7 @@ viewCartDialog model =
             if model.cartLoaded then
                 if not empty then
                     div [ style "overflow-y" "auto", style "max-height" "60vh" ]
-                        [ Cart.view cart model.samples |> Html.map CartMsg ]
+                        [ Cart.view cart model.samples Cart.Selectable |> Html.map CartMsg ]
                 else
                     text "The cart is empty"
             else

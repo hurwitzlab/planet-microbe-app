@@ -22,8 +22,7 @@ type Cart =
 
 
 type alias Model =
-    { cartType : CartType
-    , contents : Set Int -- Set of IDs for all samples in cart
+    { contents : Set Int -- Set of IDs for all samples in cart
     , selected : Set Int -- Set of IDs for selected samples in cart
     }
 
@@ -40,7 +39,6 @@ type CartType
 decoder : Decoder Cart
 decoder =
     Decode.succeed Model
-        |> optional "cartType" (Decode.succeed Selectable) Selectable
         |> required "contents" (Decode.list Decode.int |> Decode.map Set.fromList)
         |> optional "selected" (Decode.list Decode.int |> Decode.map Set.fromList) Set.empty
         |> Decode.map Cart
@@ -72,7 +70,7 @@ port onCartChange : (String -> msg) -> Sub msg
 
 empty : Cart
 empty =
-    Cart (Model Selectable Set.empty Set.empty)
+    Cart (Model Set.empty Set.empty)
 
 
 size : Cart -> Int
@@ -148,16 +146,6 @@ unselectAll (Cart cart) =
 unselectList : Cart -> List Int -> Cart
 unselectList (Cart cart) ids =
     Cart { cart | selected = Set.diff cart.selected (Set.fromList ids) }
-
-
-isEditable : Cart -> Bool
-isEditable (Cart cart) =
-    cart.cartType == Editable
-
-
-isSelectable : Cart -> Bool
-isSelectable (Cart cart) =
-    cart.cartType == Selectable
 
 
 
@@ -238,20 +226,20 @@ update msg cart =
 --    ]
 
 
-view : Cart -> List { a | id : Int, accn : String, projectId : Int, projectName : String } -> Html Msg
-view cart samples =
+view : Cart -> List { a | id : Int, accn : String, projectId : Int, projectName : String } -> CartType -> Html Msg
+view cart samples cartType =
 --    Table.view (config model) model.tableState (samplesInCart model.cart samples)
     let
         row sample =
             tr []
-                [ if isSelectable cart then
+                [ if cartType == Selectable then
                     td []
                         [ input [ type_ "checkbox", checked (selected cart sample.id), onClick (ToggleSelectInCart sample.id) ] [] ]
                   else
                     td [] []
                 , td [] [ text sample.projectName ]
                 , td [] [ text sample.accn ]
-                , if isEditable cart then
+                , if cartType == Editable then
                     td []
                         [ button [ class "btn btn-outline-secondary btn-sm float-right", onClick (RemoveFromCart sample.id) ] [ text "Remove" ] ]
                   else
