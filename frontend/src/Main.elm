@@ -63,6 +63,9 @@ subscriptions model =
         Redirect _ ->
             Sub.map GotCredentials (Credentials.onCredentialsChange (Decode.decodeString Credentials.decoder >> Result.withDefault Credentials.default))
 
+        Job job ->
+            Sub.map JobMsg (Job.subscriptions job)
+
         Search search ->
             Sub.map SearchMsg (Search.subscriptions search)
 

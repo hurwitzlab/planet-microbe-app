@@ -1,4 +1,4 @@
-module Page.Job exposing (Model, Msg(..), init, toSession, update, view)
+module Page.Job exposing (Model, Msg(..), init, toSession, subscriptions, update, view)
 
 import Session exposing (Session)
 import Agave exposing (Job)
@@ -16,7 +16,7 @@ import Time
 import FileBrowser
 import Icon
 import Error
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -102,6 +102,13 @@ init session id =
 toSession : Model -> Session
 toSession model =
     model.session
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.batch
+        [ Time.every (10*1000) PollJob -- milliseconds
+        ]
 
 
 isPlanB : String -> Bool
