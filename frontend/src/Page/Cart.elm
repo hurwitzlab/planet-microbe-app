@@ -397,10 +397,10 @@ view model =
                         ]
                     , span [ class "float-right" ]
                         [ viewCartControls isEmpty isLoggedIn --model.selectedCartId model.sampleGroups
-                        , button [ type_ "button", class "btn btn-primary", classList [ ("disabled", isEmpty) ] ]
-                            [ Icon.file
-                            , text " Show Files"
-                            ]
+--                        , button [ type_ "button", class "btn btn-primary", classList [ ("disabled", isEmpty) ] ]
+--                            [ Icon.file
+--                            , text " Show Files"
+--                            ]
                         ]
                     ]
                 , viewCart cart samples
