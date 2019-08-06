@@ -621,7 +621,7 @@ viewAppInput input =
                 agaveAppInput.details.label
 
         browserButton lbl msg =
-            button [ class "btn btn-outline-secondary btn-sm", style "height" "2.75em", onClick msg ]
+            button [ class "btn btn-outline-secondary btn-sm text-nowrap", style "height" "2.75em", onClick msg ]
                 [ Icon.cloud
                 , text " "
                 , text lbl
@@ -641,7 +641,7 @@ viewAppInput input =
             [ textarea [ class "form-control mr-2", style "width" "30em", rows 1, name id, value val, onInput (SetInput UI id) ] []
             , browserButton "Data Store" (OpenFileBrowserDialog id)
 --            , syndicateButton
-            , button [ class "btn btn-outline-secondary btn-sm ml-2", style "height" "2.75em", onClick (OpenCart id) ]
+            , button [ class "btn btn-outline-secondary btn-sm text-nowrap ml-2", style "height" "2.75em", onClick (OpenCart id) ]
                 [ Icon.shoppingCart
                 , text " Cart"
                 ]
