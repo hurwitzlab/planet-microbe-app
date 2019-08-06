@@ -2,6 +2,7 @@ module Page.Job exposing (Model, Msg(..), init, toSession, update, view)
 
 import Session exposing (Session)
 import Agave exposing (Job)
+import PlanB
 import App exposing (App)
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -12,7 +13,6 @@ import Page
 import Task exposing (Task)
 import Dict exposing (Dict)
 import Time
---import View.Spinner exposing (spinner)
 import FileBrowser
 import Icon
 import Error
@@ -47,18 +47,19 @@ type alias Model =
 init : Session -> String -> ( Model, Cmd Msg )
 init session id =
     let
---        _ = Debug.log "Job.init session:" (toString session)
+        token =
+            Session.token session
 
         loadJobFromAgave =
-            Agave.getJob (Session.token session) id |> Http.toTask |> Task.map .result
+            Agave.getJob token id |> Http.toTask |> Task.map .result
 
---        loadJobFromPlanB =
---            PlanB.getJob session.token id |> Http.toTask |> Task.map .result
+        loadJobFromPlanB =
+            PlanB.getJob token id |> Http.toTask |> Task.map .result
 
-        loadJob =
---            if String.startsWith "planb" id then
---                loadJobFromPlanB
---            else
+        loadJob = --TODO add more abstraction/types for provider in dedicated module
+            if String.startsWith "plan-b" id then
+                loadJobFromPlanB
+            else
                 loadJobFromAgave
 
         loadApp app_name =
@@ -125,19 +126,25 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
+        token =
+            Session.token model.session
+
         username =
             Session.getUser model.session |> Maybe.map .user_name |> Maybe.withDefault ""
 
-        loadJobFromAgave =
-            Agave.getJob (Session.token model.session) model.jobId |> Http.toTask |> Task.map .result
+        isPlanB =
+            model.jobId |> String.startsWith "plan-b"
 
---        loadJobFromPlanB =
---            PlanB.getJob model.session.token model.jobId |> Http.toTask |> Task.map .result
+        loadJobFromAgave =
+            Agave.getJob token model.jobId |> Http.toTask |> Task.map .result
+
+        loadJobFromPlanB =
+            PlanB.getJob token model.jobId |> Http.toTask |> Task.map .result
 
         loadJob =
---            if String.startsWith "planb" model.job_id then
---                loadJobFromPlanB
---            else
+            if isPlanB then
+                loadJobFromPlanB
+            else
                 loadJobFromAgave
     in
     case msg of
@@ -158,15 +165,15 @@ update msg model =
         GetHistory ->
             let
                 loadHistoryFromAgave =
-                    Agave.getJobHistory (Session.token model.session) model.jobId |> Http.toTask |> Task.map .result
+                    Agave.getJobHistory token model.jobId |> Http.toTask |> Task.map .result
 
---                loadHistoryFromPlanB =
---                    PlanB.getJobHistory model.session.token model.jobId |> Http.toTask |> Task.map .result
+                loadHistoryFromPlanB =
+                    PlanB.getJobHistory token model.jobId |> Http.toTask |> Task.map .result
 
                 loadHistory =
---                    if String.startsWith "planb" model.jobId then
---                        loadHistoryFromPlanB
---                    else
+                    if isPlanB then
+                        loadHistoryFromPlanB
+                    else
                        loadHistoryFromAgave
 
                 handleHistory history =
@@ -211,19 +218,19 @@ update msg model =
                     model.job |> Maybe.map .owner |> Maybe.withDefault ""
 
                 loadOutputs path =
-                    Agave.getJobOutputs owner (Session.token model.session) model.jobId (Just path)
+                    Agave.getJobOutputs owner token model.jobId (Just path)
                         |> Http.toTask
                         |> Task.map .result
                         |> Task.map (List.filter (\r -> r.name /= "." && String.endsWith ".tab" r.name) >> List.map .path) -- filter out current path "." #FIXME hardcoded for .tab files (for ohana-blast) 
 
                 -- Expects relative path
                 loadOutput path =
-                    Agave.getJobOutput owner (Session.token model.session) model.jobId path
+                    Agave.getJobOutput owner token model.jobId path
                         |> Http.toTask |> Task.map (\data -> List.singleton (path, data))
 
                 -- Expects full path
                 loadFile path =
-                    Agave.getFile (Session.token model.session) path
+                    Agave.getFile token path
                         |> Http.toTask |> Task.map (\data -> List.singleton (path, data))
 
                 -- Gets a single file or every file in a directory if path ends in "/"
@@ -343,11 +350,13 @@ update msg model =
         CancelJob ->
             let
                 stopJob =
-                    Agave.stopJob (Session.token model.session) model.jobId
+                    Agave.stopJob token model.jobId
                         |> Http.toTask
                         |> Task.andThen (\_ -> loadJob)
             in
-            ( { model | showCancelDialog = True, cancelDialogMessage = Nothing }, Task.attempt CancelJobCompleted stopJob )
+            ( { model | showCancelDialog = True, cancelDialogMessage = Nothing }
+            , Task.attempt CancelJobCompleted stopJob
+            )
 
         CancelJobCompleted (Ok job) ->
             let
