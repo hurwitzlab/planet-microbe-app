@@ -261,7 +261,7 @@ update msg model =
                         newSession =
                             Session.setCart model.session Cart.empty
                     in
-                    ( { model | session = newSession, samples = Nothing }
+                    ( { model | session = newSession, samples = Just [] }
                     , Cart.store Cart.empty
                     ) -- => SetCart newCart
 
