@@ -1,5 +1,12 @@
 module Main exposing (main) -- this line is required for Parcel elm-hot HMR file change detection
 
+-- From elm-spa-example:
+-- NOTE: Based on discussions around how asset management features
+-- like code splitting and lazy loading have been shaping up, it's possible
+-- that most of this file may become unnecessary in a future release of Elm.
+-- Avoid putting things in this module unless there is no alternative!
+-- See https://discourse.elm-lang.org/t/elm-spa-in-0-19/1800/2 for more.
+
 import Browser
 import Browser.Navigation
 import Url exposing (Url)
@@ -331,7 +338,7 @@ changeRouteTo maybeRoute model =
                                     }
                             in
                             ( model
-                            , auth |> OAuth.AuthorizationCode.makeAuthUrl |> Url.toString |> Browser.Navigation.load
+                            , auth |> OAuth.AuthorizationCode.makeAuthUrl |> Url.toString |> Browser.Navigation.load -- redirect to CyVerse login page
                             )
 
                         Route.Logout ->
@@ -529,7 +536,7 @@ update msg model =
                     ( Redirect newSession,
                       Cmd.batch
                           [ Credentials.store newCred
-                          , User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo --Agave.getProfile accessToken |> Http.toTask |> Task.attempt GotUserInfo
+                          , User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo
                           ]
                     )
 
@@ -555,11 +562,8 @@ update msg model =
                         newSession =
                             Session.setCredentials session newCred
                     in
-                    ( Redirect newSession
-                    , Cmd.batch
-                        [ Credentials.store newCred
-                        --, Route.replaceUrl (Session.navKey newSession) Route.Home
-                        ]
+                    ( Home newSession
+                    , Credentials.store newCred
                     )
 
         ( GotCredentials newCredentials, _ ) -> --Redirect _ ) -> -- Cookie was updated in another window/tab
@@ -569,7 +573,7 @@ update msg model =
                 newSession =
                     Session.setCredentials session newCredentials
             in
-            ( Redirect newSession
+            ( Redirect newSession --FIXME
             , Cmd.none
             )
 
