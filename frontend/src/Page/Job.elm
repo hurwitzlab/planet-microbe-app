@@ -133,7 +133,7 @@ update msg model =
             Session.getUser model.session |> Maybe.map .user_name |> Maybe.withDefault ""
 
         isPlanB =
-            model.jobId |> String.startsWith "plan-b"
+            model.jobId |> String.startsWith "planb"
 
         loadJobFromAgave =
             Agave.getJob token model.jobId |> Http.toTask |> Task.map .result
