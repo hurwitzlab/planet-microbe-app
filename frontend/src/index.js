@@ -9,25 +9,42 @@ import "@fortawesome/fontawesome-free/css/all.min.css"
 import { Elm } from './Main.elm';
 
 
+
+/*
+ * Generate random code for OAuth2 state (from https://github.com/truqu/elm-oauth2/blob/master/examples/authorization-code/index.html)
+ */
+
+const randomCode = () => {
+    const buffer = new Uint8Array(256);
+    crypto.getRandomValues(buffer);
+    return Array
+      .from(buffer)
+      .map(x => String.fromCharCode((x % 26) + 65))
+      .join("");
+};
+
+
 /*
  * Initialize Elm app
  */
 
-var COOKIE_NAME = 'planetmicrobe-0.0.1';
-var CRED_COOKIE_NAME = COOKIE_NAME + '.cred';
-var CART_COOKIE_NAME = COOKIE_NAME + '.cart';
+const COOKIE_NAME = 'planetmicrobe-0.0.1';
+const CRED_COOKIE_NAME = COOKIE_NAME + '.cred';
+const STATE_COOKIE_NAME = COOKIE_NAME + '.state';
+const CART_COOKIE_NAME = COOKIE_NAME + '.cart';
 
 var app = Elm.Main.init({
   node: document.getElementById('main'),
   flags: {
     cred: JSON.parse(localStorage.getItem(CRED_COOKIE_NAME)) || null,
     cart: JSON.parse(localStorage.getItem(CART_COOKIE_NAME)) || null,
+    state: JSON.parse(localStorage.getItem(STATE_COOKIE_NAME)) || { url: "", randomCode: randomCode() }
   }
 });
 
 
 /*
- * Define ports for storing/watching credentials and cart
+ * Define ports for storing/watching cookies
  */
 
 app.ports.storeCredentials.subscribe(function(session) {
@@ -41,6 +58,22 @@ window.addEventListener("storage",
         if (event.storageArea === localStorage && event.key === CRED_COOKIE_NAME) {
             console.log("storage listener:", event.newValue);
             app.ports.onCredentialsChange.send(event.newValue);
+        }
+    },
+    false
+);
+
+app.ports.storeState.subscribe(function(session) {
+    console.log("storeState: ", session);
+    localStorage.setItem(STATE_COOKIE_NAME, JSON.stringify(session));
+});
+
+// This event is only triggered when cookie is modified in another tab/window
+window.addEventListener("storage",
+    function(event) {
+        if (event.storageArea === localStorage && event.key === STATE_COOKIE_NAME) {
+            console.log("storage listener:", event.newValue);
+            app.ports.onSessionChange.send(event.newValue);
         }
     },
     false

@@ -186,7 +186,7 @@ update msg model =
 --            let
 --                _ = Debug.log "GetAppCompleted" (toString error)
 --            in
-            ( model, Cmd.none )
+            ( model, Error.redirectLoadError error (Session.navKey model.session) )
 
         SetInput source id value ->
             let

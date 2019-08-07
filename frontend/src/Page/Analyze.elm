@@ -35,7 +35,7 @@ init session =
     let
         (jobs, getJobs) =
             case session of
-                LoggedIn _ _ cred ->
+                LoggedIn _ _ _ cred ->
                     ( Loading, [ Agave.getJobs cred.token |> Http.toTask |> Task.map .result |> Task.attempt GetJobsCompleted ] )
 
                 _ ->

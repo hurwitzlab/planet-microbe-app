@@ -1,7 +1,7 @@
 module Main exposing (main) -- this line is required for Parcel elm-hot HMR file change detection
 
 -- From elm-spa-example:
--- NOTE: Based on discussions around how asset management features
+-- Based on discussions around how asset management features
 -- like code splitting and lazy loading have been shaping up, it's possible
 -- that most of this file may become unnecessary in a future release of Elm.
 -- Avoid putting things in this module unless there is no alternative!
@@ -38,6 +38,7 @@ import Page.Cart as Cart
 import GAnalytics
 import Session exposing (Session)
 import Credentials exposing (Credentials)
+import State exposing (State)
 import Cart as CartData
 import User exposing (User)
 import Route exposing (Route)
@@ -105,6 +106,7 @@ type Model -- FIXME inherited this from elm-spa-example but I don't like it beca
 type alias Flags =
     { cart : Maybe CartData.Cart
     , cred : Maybe Credentials
+    , state : Maybe State
     }
 
 
@@ -113,32 +115,36 @@ flagsDecoder =
     Decode.succeed Flags
         |> required "cart" (Decode.nullable CartData.decoder)
         |> required "cred" (Decode.nullable Credentials.decoder)
+        |> required "state" (Decode.nullable State.decoder)
 
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url navKey =
     let
+--        _ = Debug.log "init session" (toString session)
+
         session =
             case flags |> Decode.decodeValue flagsDecoder of
                 Ok f ->
                     let
                         cart =
                             f.cart |> Maybe.withDefault CartData.empty
+
+                        state =
+                            f.state |> Maybe.withDefault State.default
                     in
                     case f.cred of
                         Just cred ->
-                            Session.LoggedIn navKey cart cred
+                            Session.LoggedIn navKey state cart cred
 
                         Nothing ->
-                            Session.Guest navKey cart
+                            Session.Guest navKey state cart
 
                 Err error ->
 --                    let
 --                        _ = Debug.log "init error" (toString error)
 --                    in
-                    Session.Guest navKey CartData.empty
-
---        _ = Debug.log "init session" (toString session)
+                    Session.Guest navKey State.default CartData.empty
 
         (model, cmd) =
             changeRouteTo (Route.fromUrl url)
@@ -146,19 +152,26 @@ init flags url navKey =
     in
     case OAuth.AuthorizationCode.parseCode url of
         OAuth.AuthorizationCode.Success { code, state } ->
+-- FIXME
 --            let
---                _ = Debug.log "OAuth.AuthorizationCode.Success" ("code=" ++ code)
+--                _ = Debug.log "OAuth.AuthorizationCode.Success" ("code=" ++ code ++ ", " ++ "state=" ++ (Maybe.withDefault "" state))
+--
+--                _ = Debug.log "session state" (Session.getState session |> State.toString)
+--
+--                _ = Debug.log "state" (state |> Maybe.withDefault "")
 --            in
---            if Maybe.map randomBytesFromState state /= Just model.state then
---                ( { model | error = Just "'state' doesn't match, the request has likely been forged by an adversary!" }
+--            if Maybe.withDefault "" state /= (Session.getState session |> State.toString) then
+--                let
+--                    _ = Debug.log "Error!!!" "auth random code mismatch"
+--                in
+--                ( model
 --                , Cmd.none
 --                )
---
 --            else
-                ( model
+                ( Redirect session
                 , Cmd.batch
                     [ cmd
-                    , getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken --config model.redirectUri code
+                    , getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken
                     ]
                 )
 
@@ -200,25 +213,6 @@ getAccessToken provider code =
 --        , tracker = Nothing
         , withCredentials = False
         }
-
-
---randomBytesFromState : String -> String
---randomBytesFromState str =
---    str
---        |> stringDropLeftUntil (\c -> c == ".")
---
---
---stringDropLeftUntil : (String -> Bool) -> String -> String
---stringDropLeftUntil predicate str =
---    let
---        ( h, q ) =
---            ( String.left 1 str, String.dropLeft 1 str )
---    in
---    if q == "" || predicate h then
---        q
---
---    else
---        stringDropLeftUntil predicate q
 
 
 
@@ -317,15 +311,6 @@ changeRouteTo maybeRoute model =
 
                         Route.Login ->
                             let
-                                defaultHttpsUrl =
-                                    { protocol = Url.Https
-                                    , host = ""
-                                    , path = ""
-                                    , port_ = Nothing
-                                    , query = Nothing
-                                    , fragment = Nothing
-                                    }
-
                                 authorizationUrl =
                                     Config.agaveBaseUrl ++ "/authorize" |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
 
@@ -336,7 +321,7 @@ changeRouteTo maybeRoute model =
                                     { clientId = Config.agaveOAuthClientId
                                     , redirectUri = redirectUrl
                                     , scope = [ "PRODUCTION" ]
-                                    , state = Nothing
+                                    , state = Just (Session.getState session |> State.toString)
                                     , url = authorizationUrl
                                     }
                             in
@@ -348,7 +333,8 @@ changeRouteTo maybeRoute model =
                             ( model
                             , Cmd.batch
                                 [ Credentials.storeCredentials Nothing
-                                , Browser.Navigation.load Config.agaveRedirectUrl
+                                , State.storeState Nothing
+                                , Browser.Navigation.load Config.agaveRedirectUrl -- race condition with first two commands
                                 ]
                             )
 
@@ -435,9 +421,31 @@ update msg model =
                             ( model, Cmd.none )
 
                         Just _ ->
-                            ( model
-                            , Browser.Navigation.load (Url.toString url) --Browser.Navigation.pushUrl (Session.navKey (toSession model)) (Url.toString url)
-                            )
+                            let
+                                state =
+                                    Session.getState session
+
+                                newState =
+                                    { state | url = Url.toString url }
+
+                                newSession =
+                                    Session.setState session newState
+
+                                route =
+                                    Route.fromUrl url
+
+                                defaultCmd =
+                                    Browser.Navigation.pushUrl (Session.navKey session) (Url.toString url)
+                            in
+                            if route == Just Route.Login then
+                                ( model, defaultCmd )
+                            else
+                                ( Redirect newSession --model
+                                , Cmd.batch
+                                    [ defaultCmd
+                                    , State.store newState
+                                    ]
+                                )
 
                 Browser.External href ->
                     ( model
@@ -544,9 +552,6 @@ update msg model =
                     )
 
         ( GotUserInfo res, _ ) ->
---            let
---                _ = Debug.log "GotUserInfo" (toString res)
---            in
             case res of
                 Err _ ->
 --                    ( Login { subModel | error = Just "Unable to retrieve user profile: HTTP request failed." }
@@ -564,15 +569,22 @@ update msg model =
 
                         newSession =
                             Session.setCredentials session newCred
+
+                        route =
+                            Session.getState session |> .url |> Url.fromString |> Maybe.withDefault defaultHttpsUrl |> Route.fromUrl
+
+                        ( newModel, newCmd ) =
+                            changeRouteTo route model
                     in
-                    ( Home newSession
-                    , Credentials.store newCred
+                    ( newModel --Home newSession
+                    , Cmd.batch
+                        [ newCmd
+                        , Credentials.store newCred
+                        ]
                     )
 
         ( GotCredentials newCredentials, _ ) -> --Redirect _ ) -> -- Cookie was updated in another window/tab
             let
---                _ = Debug.log "GotCredentials" (toString newCredentials)
-
                 newSession =
                     Session.setCredentials session newCredentials
             in
@@ -590,6 +602,16 @@ updateWith toModel toMsg model ( subModel, subCmd ) =
     ( toModel subModel
     , Cmd.map toMsg subCmd
     )
+
+
+defaultHttpsUrl =
+    { protocol = Url.Https
+    , host = ""
+    , path = ""
+    , port_ = Nothing
+    , query = Nothing
+    , fragment = Nothing
+    }
 
 
 

@@ -2,6 +2,9 @@ module Error exposing (..)
 
 import Http exposing (Error(..))
 import Json.Decode as Json
+import Browser.Navigation
+import Route
+
 
 
 parse : String -> Maybe String
@@ -27,3 +30,17 @@ toString err =
 
         BadUrl url ->
             "Malformed url: " ++ url
+
+
+redirectLoadError : Error -> Browser.Navigation.Key -> Cmd msg
+redirectLoadError error key =
+    case error of
+        Http.BadStatus response ->
+            case response.status.code of
+                401 ->
+                    Route.replaceUrl key Route.Login -- redirect to Login page
+
+                _ ->
+                    Cmd.none
+
+        _ -> Cmd.none
