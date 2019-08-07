@@ -567,19 +567,22 @@ update msg model =
                         newCred =
                             { cred | user = Just user }
 
-                        newSession =
-                            Session.setCredentials session newCred
-
                         route =
-                            Session.getState session |> .url |> Url.fromString |> Maybe.withDefault defaultHttpsUrl |> Route.fromUrl
+                            Session.getState session |> .url --|> Url.fromString |> Maybe.withDefault defaultHttpsUrl |> Route.fromUrl
 
-                        ( newModel, newCmd ) =
-                            changeRouteTo route model
+--                        ( newModel, newCmd ) =
+--                            changeRouteTo route model
                     in
-                    ( newModel --Home newSession
-                    , Cmd.batch
-                        [ newCmd
-                        , Credentials.store newCred
+--                    ( newModel --Home newSession
+--                    , Cmd.batch
+--                        [ newCmd
+--                        , Credentials.store newCred
+--                        ]
+--                    )
+                    ( model,
+                      Cmd.batch
+                        [ Credentials.store newCred
+                        , Browser.Navigation.load route
                         ]
                     )
 
