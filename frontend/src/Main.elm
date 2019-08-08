@@ -121,8 +121,6 @@ flagsDecoder =
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url navKey =
     let
---        _ = Debug.log "init session" (toString session)
-
         session =
             case flags |> Decode.decodeValue flagsDecoder of
                 Ok f ->
@@ -164,13 +162,6 @@ init flags url navKey =
 --                , Cmd.none
 --                )
 --            else
---                let
---                    _ = Debug.log "stateUrl" (toString statetUrl)
---
---                    _ = Debug.log "route" (Route.routeToString (Route.fromUrl statetUrl |> Maybe.withDefault Route.Home))
---
---                    _ = Debug.log "model" (toString model)
---                in
                 let
                     statetUrl =
                         Session.getState session |> .url |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
@@ -182,15 +173,12 @@ init flags url navKey =
                 ( model
                 , Cmd.batch
                     [ cmd
-                    , Route.replaceUrl navKey (Route.fromUrl statetUrl |> Maybe.withDefault Route.Home)
+                    , Browser.Navigation.replaceUrl navKey (Url.toString statetUrl) -- Route.replaceUrl navKey (Route.fromUrl statetUrl |> Maybe.withDefault Route.Home)
                     , getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken
                     ]
                 )
 
         OAuth.AuthorizationCode.Empty ->
---            let
---                _ = Debug.log "OAuth.AuthorizationCode.Empty" ""
---            in
             changeRouteTo (Route.fromUrl url)
                 (Redirect session)
 
@@ -403,7 +391,6 @@ changeRouteTo maybeRoute model =
                                 [ State.storeState Nothing
                                 , Credentials.storeCredentials Nothing
                                 , newCmd2
---                                , Browser.Navigation.load Config.agaveRedirectUrl -- race condition with first two commands
                                 ]
                             )
 
@@ -497,19 +484,16 @@ update msg model =
                                 newState =
                                     { state | url = Url.toString url }
 
-                                newSession =
-                                    Session.setState session newState
-
                                 route =
                                     Route.fromUrl url
 
                                 defaultCmd =
                                     Browser.Navigation.pushUrl (Session.navKey session) (Url.toString url)
                             in
-                            if route == Just Route.Login then
+                            if route == Just Route.Login || route == Just Route.Logout then
                                 ( model, defaultCmd )
                             else
-                                ( model --updateSession model newSession --Redirect newSession
+                                ( model
                                 , Cmd.batch
                                     [ defaultCmd
                                     , State.store newState
@@ -602,8 +586,6 @@ update msg model =
 
                 Ok { accessToken, refreshToken, expiresIn } ->
                     let
---                        _ = Debug.log "token" accessToken
-
                         default =
                             Credentials.default
 
