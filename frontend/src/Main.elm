@@ -80,6 +80,10 @@ subscriptions model =
             Sub.none
 
 
+redirectUrl =
+    Config.agaveRedirectUrl |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+
+
 
 -- MODEL
 
@@ -151,21 +155,15 @@ init flags url navKey =
 --                changeRouteTo (Just Route.Home) (Home session)
 --            else
                 let
-                    redirectUrl =
-                        Config.agaveRedirectUrl |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
-
                     stateUrl =
                         { redirectUrl | fragment = Just (state |> Maybe.withDefault "" |> String.append "/") }
 
-                    (model, cmd) =
-                        changeRouteTo (Route.fromUrl stateUrl)
-                            (Redirect session)
+                    newSession =
+                        Session.setState session (State (Url.toString stateUrl))
                 in
-                ( model
+                ( Redirect newSession --model
                 , Cmd.batch
-                    [ cmd
-                    , Browser.Navigation.replaceUrl navKey (Url.toString stateUrl) --Route.replaceUrl navKey (Route.fromUrl stateUrl |> Maybe.withDefault Route.Home)
-                    , getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken
+                    [ getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken
                     ]
                 )
 
@@ -282,59 +280,6 @@ toSession page =
             Cart.toSession cart
 
 
--- Kludge that I added for OAuth
-updateSession : Model -> Session -> Model
-updateSession page session =
-    case page of
-        Redirect _ ->
-            Redirect session
-
-        NotFound _ ->
-            NotFound session
-
-        Home _ ->
-            Home session
-
-        Browse browse ->
-            Browse { browse | session = session }
-
-        Search search ->
-            Search { search | session = session }
-
-        Analyze analyze ->
-            Analyze { analyze | session = session }
-
-        App app ->
-            App { app | session = session }
-
-        Job job ->
-            Job { job | session = session }
-
-        Project project ->
-            Project { project | session = session }
-
-        Sample sample ->
-            Sample { sample | session = session }
-
-        Campaign campaign ->
-            Campaign { campaign | session = session }
-
-        SamplingEvent samplingEvent ->
-            SamplingEvent { samplingEvent | session = session }
-
-        Experiment experiment ->
-            Experiment { experiment | session = session }
-
-        Contact contact ->
-            Contact { contact | session = session }
-
-        Account account ->
-            Account { account | session = session }
-
-        Cart cart ->
-            Cart { cart | session = session }
-
-
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
 changeRouteTo maybeRoute model =
     let
@@ -365,9 +310,6 @@ changeRouteTo maybeRoute model =
                             let
                                 authorizationUrl =
                                     Config.agaveBaseUrl ++ "/authorize" |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
-
-                                redirectUrl =
-                                    Config.agaveRedirectUrl |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
 
                                 auth =
                                     { clientId = Config.agaveOAuthClientId
@@ -559,7 +501,7 @@ update msg model =
 --                            , Cmd.none
 --                            )
 
-                Err _ ->
+                Err _ -> --FIXME
 --                    ( Login { subModel | error = Just "Unable to retrieve token: HTTP request failed. CORS is likely disabled on the authorization server." }
 --                    , Cmd.none
 --                    )
@@ -567,16 +509,16 @@ update msg model =
 
                 Ok { accessToken, refreshToken, expiresIn } ->
                     let
-                        default =
+                        defaultCred =
                             Credentials.default
 
                         newCred =
-                            { default | token = accessToken, refreshToken = refreshToken, expiresIn = Just expiresIn, user = Nothing }
+                            { defaultCred | token = accessToken, refreshToken = refreshToken, expiresIn = Just expiresIn, user = Nothing }
 
                         newSession =
                             Session.setCredentials session newCred
                     in
-                    ( updateSession model newSession
+                    ( Redirect newSession
                     , Cmd.batch
                           [ Credentials.store newCred
                           , User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo
@@ -585,7 +527,7 @@ update msg model =
 
         ( GotUserInfo res, _ ) ->
             case res of
-                Err _ ->
+                Err _ -> --FIXME
 --                    ( Login { subModel | error = Just "Unable to retrieve user profile: HTTP request failed." }
 --                    , Cmd.none
 --                    )
@@ -601,9 +543,20 @@ update msg model =
 
                         newSession =
                             Session.setCredentials session newCred
+
+                        stateUrl =
+                            Session.getState session |> .url |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+
+                        (newModel, newCmd) =
+                            changeRouteTo (Route.fromUrl stateUrl)
+                                (Redirect newSession)
                     in
-                    ( updateSession model newSession
-                    , Credentials.store newCred
+                    ( newModel
+                    , Cmd.batch
+                        [ Credentials.store newCred
+                        , Browser.Navigation.replaceUrl (Session.navKey session) (Url.toString stateUrl)
+                        , newCmd
+                        ]
                     )
 
         ( GotCredentials newCredentials, _ ) -> --Redirect _ ) -> -- Cookie was updated in another window/tab
