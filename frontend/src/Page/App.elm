@@ -524,9 +524,9 @@ view model =
                     else
                         div []
                             [ viewApp app agaveApp model.inputs model.parameters
-                            , div [ class "text-center" ]
+                            , div [ class "text-center mt-3 mb-5" ]
                                 [ hr [] []
-                                , button [ class "btn btn-primary btn-lg", onClick RunJob ] [ text "Run" ]
+                                , button [ class "btn btn-primary btn-lg mt-5 w-25", onClick RunJob ] [ text "Run" ]
                                 ]
                             ]
             in
@@ -645,9 +645,9 @@ viewAppInput input =
     in
     tr []
     [ th [ class "w-25" ] [ text label ]
-    , td []
+    , td [ style "min-width" "40vw" ]
         [ div [ style "display" "flex" ]
-            [ textarea [ class "form-control mr-2", style "width" "30em", rows 1, name id, value val, onInput (SetInput UI id) ] []
+            [ textarea [ class "form-control mr-2", rows 1, name id, value val, onInput (SetInput UI id) ] []
             , browserButton "Data Store" (OpenFileBrowserDialog id)
 --            , syndicateButton
             , button [ class "btn btn-outline-secondary btn-sm text-nowrap ml-2", style "height" "2.75em", onClick (OpenCart id) ]
@@ -712,7 +712,7 @@ viewAppParameter input =
     in
     tr hidden
     [ th [ class "w-25" ] [ text param.details.label ]
-    , td [ class "text-nowrap" ] [ interface ]
+    , td [ class "w-25 text-nowrap" ] [ interface ]
     , td [] [ text param.details.description ]
     ]
 
