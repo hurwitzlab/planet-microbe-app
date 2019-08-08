@@ -3,6 +3,7 @@ module Page.Analyze exposing (Model, Msg, init, toSession, update, view)
 import Session exposing (Session(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
+import Html.Events exposing (onClick)
 import Page
 import Route exposing (Route)
 import Http
@@ -20,6 +21,7 @@ type alias Model =
     { session : Session
     , apps : Maybe (List App)
     , jobs : Jobs
+    , tab : String
     }
 
 
@@ -44,6 +46,7 @@ init session =
     ( { session = session
       , apps = Nothing
       , jobs = jobs
+      , tab = "Apps"
       }
       , Cmd.batch ( (App.fetchAll |> Http.toTask |> Task.attempt GetAppsCompleted) :: getJobs )
     )
@@ -61,6 +64,7 @@ toSession model =
 type Msg
     = GetAppsCompleted (Result Http.Error (List App))
     | GetJobsCompleted (Result Http.Error (List Job))
+    | SetTab String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -83,6 +87,9 @@ update msg model =
 --                _ = Debug.log "GetJobsCompleted" (toString error)
 --            in
             ( { model | jobs = LoadError } , Cmd.none )
+
+        SetTab label ->
+            ( { model | tab = label }, Cmd.none )
 
 
 
@@ -107,7 +114,7 @@ view model =
             case model.jobs of
                 Unavailable ->
                     ( 0
-                    , div [ class "pt-2" ]
+                    , div [ class "mt-2 ml-3" ]
                         [ a [ Route.href Route.Login ] [ text "Sign-in" ]
                         , text " to see your jobs"
                         ]
@@ -123,29 +130,30 @@ view model =
                     )
 
                 LoadError ->
-                    ( 0, div [ class "pt-2" ] [ text "An error occured" ] )
+                    ( 0, div [ class "mt-2 ml-3" ] [ text "An error occured" ] )
+
+        navItem label count =
+            li [ class "nav-item" ]
+                [ a [ class "nav-link", classList [ ("active", model.tab == label) ], href "", onClick (SetTab label) ]
+                    [ text label
+                    , text " "
+                    , if count > 0 then
+                        span [ class "badge badge-light" ]
+                            [ text (String.fromInt count) ]
+                      else
+                        text ""
+                    ]
+                ]
     in
     div [ class "container" ]
-        [ div [ class "border-bottom pt-5" ]
-            [ Page.viewTitle2 "Apps" False
-            , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
-                [ if numApps == 0 then
-                    text ""
-                  else
-                    text (String.fromInt numApps)
-                ]
+        [ ul [ class "nav nav-pills mt-5 mb-4" ]
+            [ navItem "Apps" numApps
+            , navItem "Jobs" numJobs
             ]
-        , appsRow
-        , div [ class "border-bottom pt-4" ]
-            [ Page.viewTitle2 "Jobs" False
-            , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
-                [ if numJobs == 0 then
-                    text ""
-                  else
-                    text (String.fromInt numJobs)
-                ]
-            ]
-        , jobsRow
+        , if model.tab == "Apps" then
+            appsRow
+          else
+            jobsRow
         ]
 
 
@@ -168,7 +176,7 @@ viewApps apps =
                 ]
             ]
         , tbody []
-            (apps |> List.sortBy .name |> List.map row)
+            (apps |> List.sortBy (.name >> String.toLower) |> List.map row)
         ]
 
 
