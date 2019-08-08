@@ -133,7 +133,7 @@ view model =
 
         navItem label count =
             li [ class "nav-item" ]
-                [ a [ class "nav-link", classList [ ("active", model.tab == label) ], href "", onClick (SetTab label) ]
+                [ a [ class "nav-link", classList [ ("border rounded", model.tab == label) ], href "", onClick (SetTab label) ]
                     [ text label
                     , text " "
                     , if count > 0 then
@@ -145,7 +145,7 @@ view model =
                 ]
     in
     div [ class "container" ]
-        [ ul [ class "nav nav-pills mt-5 mb-4" ]
+        [ ul [ class "h5 nav mt-5 mb-4" ]
             [ navItem "Apps" numApps
             , navItem "Jobs" numJobs
             ]
