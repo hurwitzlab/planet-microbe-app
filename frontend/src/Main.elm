@@ -145,13 +145,6 @@ init flags url navKey =
 --                        _ = Debug.log "init error" (toString error)
 --                    in
                     Session.Guest navKey State.default CartData.empty
-
-        statetUrl =
-            Session.getState session |> .url |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
-
-        (model, cmd) =
-            changeRouteTo (Route.fromUrl statetUrl)
-                (Redirect session)
     in
     case OAuth.AuthorizationCode.parseCode url of
         OAuth.AuthorizationCode.Success { code, state } ->
@@ -178,6 +171,14 @@ init flags url navKey =
 --
 --                    _ = Debug.log "model" (toString model)
 --                in
+                let
+                    statetUrl =
+                        Session.getState session |> .url |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+
+                    (model, cmd) =
+                        changeRouteTo (Route.fromUrl statetUrl)
+                            (Redirect session)
+                in
                 ( model
                 , Cmd.batch
                     [ cmd
@@ -190,16 +191,15 @@ init flags url navKey =
 --            let
 --                _ = Debug.log "OAuth.AuthorizationCode.Empty" ""
 --            in
-            ( model, cmd )
+            changeRouteTo (Route.fromUrl url)
+                (Redirect session)
 
         OAuth.AuthorizationCode.Error err -> -- TODO
 --            let
 --                _ = Debug.log "OAuth.AuthorizationCode.Error" ""
 --            in
-            ( model, cmd )
---            ( { model | error = Just (OAuth.errorCodeToString err.error) }
---            , Cmd.none
---            )
+            changeRouteTo (Route.fromUrl url)
+                (Redirect session)
 
 
 getAccessToken : String -> String -> Http.Request Agave.TokenResponse
