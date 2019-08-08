@@ -164,7 +164,12 @@ init flags url navKey =
 --            else
                 let
                     statetUrl =
-                        Session.getState session |> .url |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+                        case Session.getState session |> .url of
+                            "" ->
+                                Config.agaveRedirectUrl |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+
+                            u ->
+                                u |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
 
                     (model, cmd) =
                         changeRouteTo (Route.fromUrl statetUrl)
