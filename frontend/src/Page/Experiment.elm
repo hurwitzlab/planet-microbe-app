@@ -213,7 +213,7 @@ viewRuns maybeRuns =
                         ]
                     ]
                 , tbody []
-                    (files |> List.sortWith sortByUrl |> List.map viewFile)
+                    (files |> List.sortBy .url |> List.map viewFile)
                 ]
 
         viewFile f =
@@ -222,12 +222,6 @@ viewRuns maybeRuns =
                 , td [] [ text (String.Extra.toSentenceCase f.format) ]
                 , td [] [ a [ href (discoveryEnvironmentUrl ++ f.url), target "_blank" ] [ text f.url ] ]
                 ]
-
-        sortByAccn a b =
-            compare a.accn b.accn
-
-        sortByUrl a b =
-            compare a.url b.url
     in
     case maybeRuns |> Maybe.withDefault [] of
         [] ->
@@ -244,5 +238,5 @@ viewRuns maybeRuns =
                         ]
                     ]
                 , tbody []
-                    (runs |> List.sortWith sortByAccn |> List.map mkRow)
+                    (runs |> List.sortBy .accn |> List.map mkRow)
                 ]

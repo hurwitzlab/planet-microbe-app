@@ -196,9 +196,6 @@ viewSamplingEvents maybeSamplingEvents =
                     [ a [ Route.href (Route.SamplingEvent samplingEvent.id) ] [ text samplingEvent.name ] ]
                 , td [] [ text (String.Extra.toSentenceCase samplingEvent.type_) ]
                 ]
-
-        sortByName a b =
-            compare a.name b.name
     in
     case maybeSamplingEvents |> Maybe.withDefault [] of
         [] ->
@@ -213,7 +210,7 @@ viewSamplingEvents maybeSamplingEvents =
                         ]
                     ]
                 , tbody []
-                    (samplingEvents |> List.sortWith sortByName |> List.map mkRow)
+                    (samplingEvents |> List.sortBy .name |> List.map mkRow)
                 ]
 
 
@@ -225,9 +222,6 @@ viewSamples maybeSamples =
                 [ td [ style "white-space" "nowrap" ]
                     [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
                 ]
-
-        sortByAccn a b =
-            compare a.accn b.accn
     in
     case maybeSamples |> Maybe.withDefault [] of
         [] ->
@@ -241,5 +235,5 @@ viewSamples maybeSamples =
                         ]
                     ]
                 , tbody []
-                    (samples |> List.sortWith sortByAccn |> List.map mkRow)
+                    (samples |> List.sortBy .accn |> List.map mkRow)
                 ]

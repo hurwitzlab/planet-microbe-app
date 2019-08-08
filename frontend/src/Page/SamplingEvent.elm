@@ -211,9 +211,6 @@ viewSamples maybeSamples =
                 [ td [ style "white-space" "nowrap" ]
                     [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
                 ]
-
-        sortByAccn a b =
-            compare a.accn b.accn
     in
     case maybeSamples |> Maybe.withDefault [] of
         [] ->
@@ -227,5 +224,5 @@ viewSamples maybeSamples =
                         ]
                     ]
                 , tbody []
-                    (samples |> List.sortWith sortByAccn |> List.map mkRow)
+                    (samples |> List.sortBy .accn |> List.map mkRow)
                 ]

@@ -353,9 +353,6 @@ viewExperiments maybeExperiments =
                     [ a [ Route.href (Route.Experiment exp.id) ] [ text exp.accn ] ]
                 , td [] [ text (String.Extra.toSentenceCase exp.name) ]
                 ]
-
-        sortByName a b =
-            compare a.name b.name
     in
     case maybeExperiments |> Maybe.withDefault [] of
         [] ->
@@ -370,7 +367,7 @@ viewExperiments maybeExperiments =
                         ]
                     ]
                 , tbody []
-                    (experiments |> List.sortWith sortByName |> List.map mkRow)
+                    (experiments |> List.sortBy .name |> List.map mkRow)
                 ]
 
 

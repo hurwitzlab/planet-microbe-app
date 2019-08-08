@@ -168,7 +168,7 @@ viewApps apps =
                 ]
             ]
         , tbody []
-            (apps |> List.map row)
+            (apps |> List.sortBy .name |> List.map row)
         ]
 
 

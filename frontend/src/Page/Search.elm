@@ -1133,14 +1133,8 @@ viewProjectPanel counts selectedVals =
                 , div [ class "badge badge-secondary float-right" ] [ count.sampleCount |> toFloat |> format myLocale |> text ]
                 ]
 
-        sortByCount a b =
-            case compare a.sampleCount b.sampleCount of
-                LT -> GT
-                EQ -> EQ
-                GT -> LT
-
         truncatedOptions =
-            counts |> List.sortWith sortByCount --|> List.take 4 maxNumPanelOptions
+            counts |> List.sortBy .sampleCount --|> List.take 4 maxNumPanelOptions
 
         numOptions =
             List.length counts

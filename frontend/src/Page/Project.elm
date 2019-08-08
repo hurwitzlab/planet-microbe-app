@@ -171,7 +171,7 @@ viewProject project =
         fileTable files =
             table [ class "table table-borderless table-sm small" ]
                 [ tbody []
-                    (files |> List.sortWith sortByUrl |> List.map fileRow)
+                    (files |> List.sortBy .url |> List.map fileRow)
                 ]
 
         fileRow f =
@@ -179,9 +179,6 @@ viewProject project =
                 [ td [] [ text (String.Extra.toSentenceCase f.type_) ]
                 , td [] [ a [ href (discoveryEnvironmentUrl ++ f.url), target "_blank" ] [ text f.url ] ]
                 ]
-
-        sortByUrl a b =
-            compare a.url b.url
     in
     table [ class "table table-borderless table-sm" ]
         [ tbody []
@@ -214,9 +211,6 @@ viewCampaigns maybeCampaigns =
                     [ a [ Route.href (Route.Campaign campaign.id) ] [ text campaign.name ] ]
                 , td [] [ text (String.Extra.toSentenceCase campaign.type_) ]
                 ]
-
-        sortByName a b =
-            compare a.name b.name
     in
     case maybeCampaigns |> Maybe.withDefault [] of
         [] ->
@@ -231,7 +225,7 @@ viewCampaigns maybeCampaigns =
                         ]
                     ]
                 , tbody []
-                    (campaigns |> List.sortWith sortByName |> List.map mkRow)
+                    (campaigns |> List.sortBy .name |> List.map mkRow)
                 ]
 
 
@@ -244,9 +238,6 @@ viewSamplingEvents maybeSamplingEvents =
                     [ a [ Route.href (Route.SamplingEvent samplingEvent.id) ] [ text samplingEvent.name ] ]
                 , td [] [ text (String.Extra.toSentenceCase samplingEvent.type_) ]
                 ]
-
-        sortByName a b =
-            compare a.name b.name
     in
     case maybeSamplingEvents |> Maybe.withDefault [] of
         [] ->
@@ -261,7 +252,7 @@ viewSamplingEvents maybeSamplingEvents =
                         ]
                     ]
                 , tbody []
-                    (samples |> List.sortWith sortByName |> List.map mkRow)
+                    (samples |> List.sortBy .name |> List.map mkRow)
                 ]
 
 
@@ -273,9 +264,6 @@ viewSamples maybeSamples =
                 [ td [ style "white-space" "nowrap" ]
                     [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
                 ]
-
-        sortByAccn a b =
-            compare a.accn b.accn
     in
     case maybeSamples |> Maybe.withDefault [] of
         [] ->
@@ -289,5 +277,5 @@ viewSamples maybeSamples =
                         ]
                     ]
                 , tbody []
-                    (samples |> List.sortWith sortByAccn |> List.map mkRow)
+                    (samples |> List.sortBy .accn |> List.map mkRow)
                 ]

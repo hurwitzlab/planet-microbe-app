@@ -128,9 +128,6 @@ viewProjects maybeProjects =
                 , td [] [ text (String.Extra.toSentenceCase project.type_) ]
                 , td [] [ text (String.fromInt project.sampleCount) ]
                 ]
-
-        sortByName a b =
-            compare a.name b.name
     in
     case maybeProjects of
         Nothing ->
@@ -150,7 +147,7 @@ viewProjects maybeProjects =
                             ]
                         ]
                     , tbody []
-                        (projects |> List.sortWith sortByName |> List.map mkRow)
+                        (projects |> List.sortBy .name |> List.map mkRow)
                     ]
 
 
@@ -164,9 +161,6 @@ viewSamples maybeSamples =
                 , td [ style "white-space" "nowrap" ]
                     [ a [ Route.href (Route.Project sample.projectId) ] [ text sample.projectName ] ]
                 ]
-
-        sortByAccn a b =
-            compare a.accn b.accn
     in
     case maybeSamples of
         Nothing ->
@@ -184,5 +178,5 @@ viewSamples maybeSamples =
                             ]
                         ]
                     , tbody []
-                        (samples |> List.sortWith sortByAccn |> List.map mkRow)
+                        (samples |> List.sortBy .accn |> List.map mkRow)
                     ]
