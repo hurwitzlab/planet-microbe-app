@@ -146,8 +146,11 @@ init flags url navKey =
 --                    in
                     Session.Guest navKey State.default CartData.empty
 
+        statetUrl =
+            Session.getState session |> .url |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+
         (model, cmd) =
-            changeRouteTo (Route.fromUrl url)
+            changeRouteTo (Route.fromUrl statetUrl)
                 (Redirect session)
     in
     case OAuth.AuthorizationCode.parseCode url of
@@ -168,9 +171,17 @@ init flags url navKey =
 --                , Cmd.none
 --                )
 --            else
-                ( Redirect session
+--                let
+--                    _ = Debug.log "stateUrl" (toString statetUrl)
+--
+--                    _ = Debug.log "route" (Route.routeToString (Route.fromUrl statetUrl |> Maybe.withDefault Route.Home))
+--
+--                    _ = Debug.log "model" (toString model)
+--                in
+                ( model
                 , Cmd.batch
                     [ cmd
+                    , Route.replaceUrl navKey (Route.fromUrl statetUrl |> Maybe.withDefault Route.Home)
                     , getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken
                     ]
                 )
@@ -292,6 +303,59 @@ toSession page =
             Cart.toSession cart
 
 
+-- Kludge that I added for OAuth
+updateSession : Model -> Session -> Model
+updateSession page session =
+    case page of
+        Redirect _ ->
+            Redirect session
+
+        NotFound _ ->
+            NotFound session
+
+        Home _ ->
+            Home session
+
+        Browse browse ->
+            Browse { browse | session = session }
+
+        Search search ->
+            Search { search | session = session }
+
+        Analyze analyze ->
+            Analyze { analyze | session = session }
+
+        App app ->
+            App { app | session = session }
+
+        Job job ->
+            Job { job | session = session }
+
+        Project project ->
+            Project { project | session = session }
+
+        Sample sample ->
+            Sample { sample | session = session }
+
+        Campaign campaign ->
+            Campaign { campaign | session = session }
+
+        SamplingEvent samplingEvent ->
+            SamplingEvent { samplingEvent | session = session }
+
+        Experiment experiment ->
+            Experiment { experiment | session = session }
+
+        Contact contact ->
+            Contact { contact | session = session }
+
+        Account account ->
+            Account { account | session = session }
+
+        Cart cart ->
+            Cart { cart | session = session }
+
+
 changeRouteTo : Maybe Route -> Model -> ( Model, Cmd Msg )
 changeRouteTo maybeRoute model =
     let
@@ -330,11 +394,16 @@ changeRouteTo maybeRoute model =
                             )
 
                         Route.Logout ->
-                            ( model
+                            let
+                                ( newModel2, newCmd2 ) =
+                                    changeRouteTo (Just Route.Home) (Home (Session.logout session))
+                            in
+                            ( newModel2
                             , Cmd.batch
-                                [ Credentials.storeCredentials Nothing
-                                , State.storeState Nothing
-                                , Browser.Navigation.load Config.agaveRedirectUrl -- race condition with first two commands
+                                [ State.storeState Nothing
+                                , Credentials.storeCredentials Nothing
+                                , newCmd2
+--                                , Browser.Navigation.load Config.agaveRedirectUrl -- race condition with first two commands
                                 ]
                             )
 
@@ -440,7 +509,7 @@ update msg model =
                             if route == Just Route.Login then
                                 ( model, defaultCmd )
                             else
-                                ( Redirect newSession --model
+                                ( model --updateSession model newSession --Redirect newSession
                                 , Cmd.batch
                                     [ defaultCmd
                                     , State.store newState
@@ -544,8 +613,8 @@ update msg model =
                         newSession =
                             Session.setCredentials session newCred
                     in
-                    ( Redirect newSession,
-                      Cmd.batch
+                    ( updateSession model newSession --Redirect newSession
+                    , Cmd.batch
                           [ Credentials.store newCred
                           , User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo
                           ]
@@ -567,23 +636,11 @@ update msg model =
                         newCred =
                             { cred | user = Just user }
 
-                        route =
-                            Session.getState session |> .url --|> Url.fromString |> Maybe.withDefault defaultHttpsUrl |> Route.fromUrl
-
---                        ( newModel, newCmd ) =
---                            changeRouteTo route model
+                        newSession =
+                            Session.setCredentials session newCred
                     in
---                    ( newModel --Home newSession
---                    , Cmd.batch
---                        [ newCmd
---                        , Credentials.store newCred
---                        ]
---                    )
-                    ( model,
-                      Cmd.batch
-                        [ Credentials.store newCred
-                        , Browser.Navigation.load route
-                        ]
+                    ( updateSession model newSession
+                    , Credentials.store newCred
                     )
 
         ( GotCredentials newCredentials, _ ) -> --Redirect _ ) -> -- Cookie was updated in another window/tab
