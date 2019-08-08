@@ -43,7 +43,7 @@ import Cart as CartData
 import User exposing (User)
 import Route exposing (Route)
 import Config
---import Debug exposing (toString)
+import Debug exposing (toString)
 
 
 
@@ -106,7 +106,7 @@ type Model -- FIXME inherited this from elm-spa-example but I don't like it beca
 type alias Flags =
     { cart : Maybe CartData.Cart
     , cred : Maybe Credentials
-    , state : Maybe State
+--    , randomCode : String
     }
 
 
@@ -115,7 +115,7 @@ flagsDecoder =
     Decode.succeed Flags
         |> required "cart" (Decode.nullable CartData.decoder)
         |> required "cred" (Decode.nullable Credentials.decoder)
-        |> required "state" (Decode.nullable State.decoder)
+--        |> required "randomCode" Decode.string
 
 
 init : Value -> Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -127,58 +127,44 @@ init flags url navKey =
                     let
                         cart =
                             f.cart |> Maybe.withDefault CartData.empty
-
-                        state =
-                            f.state |> Maybe.withDefault State.default
                     in
                     case f.cred of
                         Just cred ->
-                            Session.LoggedIn navKey state cart cred
+                            Session.LoggedIn navKey State.default cart cred
 
                         Nothing ->
-                            Session.Guest navKey state cart
+                            Session.Guest navKey State.default cart
 
                 Err error ->
---                    let
---                        _ = Debug.log "init error" (toString error)
---                    in
                     Session.Guest navKey State.default CartData.empty
     in
     case OAuth.AuthorizationCode.parseCode url of
         OAuth.AuthorizationCode.Success { code, state } ->
 -- FIXME
 --            let
---                _ = Debug.log "OAuth.AuthorizationCode.Success" ("code=" ++ code ++ ", " ++ "state=" ++ (Maybe.withDefault "" state))
---
---                _ = Debug.log "session state" (Session.getState session |> State.toString)
---
---                _ = Debug.log "state" (state |> Maybe.withDefault "")
+--                _ = Debug.log "OAuth.AuthorizationCode.Success" ("code=" ++ code ++ ", " ++ "state=" ++ (toString state))
 --            in
---            if Maybe.withDefault "" state /= (Session.getState session |> State.toString) then
+--            if Maybe.withDefault "" state /= (Session.getState session |> State.toString) ++ "." ++ randomCode then
 --                let
---                    _ = Debug.log "Error!!!" "auth random code mismatch"
+--                    _ = Debug.log "Error: auth random code mismatch" (toString randomCode)
 --                in
---                ( model
---                , Cmd.none
---                )
+--                changeRouteTo (Just Route.Home) (Home session)
 --            else
                 let
-                    statetUrl =
-                        case Session.getState session |> .url of
-                            "" ->
-                                Config.agaveRedirectUrl |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+                    redirectUrl =
+                        Config.agaveRedirectUrl |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
 
-                            u ->
-                                u |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+                    stateUrl =
+                        { redirectUrl | fragment = Just (state |> Maybe.withDefault "" |> String.append "/") }
 
                     (model, cmd) =
-                        changeRouteTo (Route.fromUrl statetUrl)
+                        changeRouteTo (Route.fromUrl stateUrl)
                             (Redirect session)
                 in
                 ( model
                 , Cmd.batch
                     [ cmd
-                    , Browser.Navigation.replaceUrl navKey (Url.toString statetUrl) -- Route.replaceUrl navKey (Route.fromUrl statetUrl |> Maybe.withDefault Route.Home)
+                    , Browser.Navigation.replaceUrl navKey (Url.toString stateUrl) --Route.replaceUrl navKey (Route.fromUrl stateUrl |> Maybe.withDefault Route.Home)
                     , getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken
                     ]
                 )
@@ -361,10 +347,19 @@ changeRouteTo maybeRoute model =
 
         Just route ->
             let
+                state =
+                    Session.getState session
+
+                newState =
+                    { state | url = Route.routeToString route |> String.dropLeft 2 }
+
+                newSession =
+                    Session.setState session newState
+
                 ( newModel, newCmd ) =
                     case route of
                         Route.Home ->
-                            ( Home session, Cmd.none )
+                            ( Home newSession, Cmd.none )
 
                         Route.Login ->
                             let
@@ -393,62 +388,62 @@ changeRouteTo maybeRoute model =
                             in
                             ( newModel2
                             , Cmd.batch
-                                [ State.storeState Nothing
-                                , Credentials.storeCredentials Nothing
+                                [ --State.storeState Nothing
+                                  Credentials.storeCredentials Nothing
                                 , newCmd2
                                 ]
                             )
 
                         Route.Browse ->
-                            Browse.init session
+                            Browse.init newSession
                                 |> updateWith Browse BrowseMsg model
 
                         Route.Search ->
-                            Search.init session
+                            Search.init newSession
                                 |> updateWith Search SearchMsg model
 
                         Route.Analyze ->
-                            Analyze.init session
+                            Analyze.init newSession
                                 |> updateWith Analyze AnalyzeMsg model
 
                         Route.App id ->
-                            App.init session id
+                            App.init newSession id
                                 |> updateWith App AppMsg model
 
                         Route.Job id ->
-                            Job.init session id
+                            Job.init newSession id
                                 |> updateWith Job JobMsg model
 
                         Route.Project id ->
-                            Project.init session id
+                            Project.init newSession id
                                 |> updateWith Project ProjectMsg model
 
                         Route.Sample id ->
-                            Sample.init session id
+                            Sample.init newSession id
                                 |> updateWith Sample SampleMsg model
 
                         Route.Campaign id ->
-                            Campaign.init session id
+                            Campaign.init newSession id
                                 |> updateWith Campaign CampaignMsg model
 
                         Route.SamplingEvent id ->
-                            SamplingEvent.init session id
+                            SamplingEvent.init newSession id
                                 |> updateWith SamplingEvent SamplingEventMsg model
 
                         Route.Experiment id ->
-                            Experiment.init session id
+                            Experiment.init newSession id
                                 |> updateWith Experiment ExperimentMsg model
 
                         Route.Contact ->
-                            Contact.init session
+                            Contact.init newSession
                                 |> updateWith Contact ContactMsg model
 
                         Route.Account ->
-                            Account.init session
+                            Account.init newSession
                                 |> updateWith Account AccountMsg model
 
                         Route.Cart ->
-                            Cart.init session
+                            Cart.init newSession
                                 |> updateWith Cart CartMsg model
             in
             ( newModel
@@ -482,28 +477,9 @@ update msg model =
                             ( model, Cmd.none )
 
                         Just _ ->
-                            let
-                                state =
-                                    Session.getState session
-
-                                newState =
-                                    { state | url = Url.toString url }
-
-                                route =
-                                    Route.fromUrl url
-
-                                defaultCmd =
-                                    Browser.Navigation.pushUrl (Session.navKey session) (Url.toString url)
-                            in
-                            if route == Just Route.Login || route == Just Route.Logout then
-                                ( model, defaultCmd )
-                            else
-                                ( model
-                                , Cmd.batch
-                                    [ defaultCmd
-                                    , State.store newState
-                                    ]
-                                )
+                            ( model
+                            , Browser.Navigation.pushUrl (Session.navKey session) (Url.toString url)
+                            )
 
                 Browser.External href ->
                     ( model
@@ -600,7 +576,7 @@ update msg model =
                         newSession =
                             Session.setCredentials session newCred
                     in
-                    ( updateSession model newSession --Redirect newSession
+                    ( updateSession model newSession
                     , Cmd.batch
                           [ Credentials.store newCred
                           , User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo
