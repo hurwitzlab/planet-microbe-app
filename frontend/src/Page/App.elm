@@ -605,8 +605,10 @@ viewApp app agaveApp inputs parameters =
 --            , td [] [ text (List.map .value app.app_tags |> List.sort |> String.join ", ") ]
 --            ]
         ]
+    , br [] []
     , Page.viewTitle2 "Inputs" False
     , viewInputs
+    , br [] []
     , Page.viewTitle2 "Parameters" False
     , viewParameters
     ]

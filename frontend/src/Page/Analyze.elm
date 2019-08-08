@@ -125,8 +125,7 @@ view model =
 
                 Loaded jobs  ->
                     ( List.length jobs
-                    , div [ style "overflow-y" "auto", style "max-height" "80vh" ]
-                        [ viewJobs jobs ]
+                    , viewJobs jobs
                     )
 
                 LoadError ->
