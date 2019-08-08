@@ -684,7 +684,7 @@ app.post('/contact', (req, res) => {
 
 app.get('/apps', async (req, res) => {
     let result = await query({
-        text: "SELECT app_id,name,provider,is_active,is_maintenance FROM app"
+        text: "SELECT app_id,name,provider,is_active,is_maintenance FROM app WHERE is_active=TRUE"
     });
     res.json(result.rows);
 //    .catch(err => {
