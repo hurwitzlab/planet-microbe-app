@@ -3,7 +3,7 @@ module Page.Analyze exposing (Model, Msg, init, toSession, update, view)
 import Session exposing (Session(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onInput)
 import Page
 import Route exposing (Route)
 import Http
@@ -22,6 +22,7 @@ type alias Model =
     , apps : Maybe (List App)
     , jobs : Jobs
     , tab : String
+    , query : String
     }
 
 
@@ -47,6 +48,7 @@ init session =
       , apps = Nothing
       , jobs = jobs
       , tab = "Apps"
+      , query = ""
       }
       , Cmd.batch ( (App.fetchAll |> Http.toTask |> Task.attempt GetAppsCompleted) :: getJobs )
     )
@@ -65,6 +67,7 @@ type Msg
     = GetAppsCompleted (Result Http.Error (List App))
     | GetJobsCompleted (Result Http.Error (List Job))
     | SetTab String
+    | SetQuery String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -91,6 +94,9 @@ update msg model =
         SetTab label ->
             ( { model | tab = label }, Cmd.none )
 
+        SetQuery query ->
+            ( { model | query = query }, Cmd.none )
+
 
 
 -- VIEW --
@@ -99,37 +105,33 @@ update msg model =
 view : Model -> Html Msg
 view model =
     let
-        numApps =
-            model.apps |> Maybe.withDefault [] |> List.length
-
-        appsRow =
+        ( numApps, appsRow ) =
             case model.apps of
                 Just apps ->
-                    viewApps apps
+                    ( List.length apps
+                    , apps |> filterByName model.query |> viewApps
+                    )
 
                 Nothing ->
-                    Page.viewSpinner
+                    (0, Page.viewSpinner )
 
         ( numJobs, jobsRow ) =
             case model.jobs of
-                Unavailable ->
+                Loading ->
+                    ( 0, Page.viewSpinner )
+
+                Loaded jobs  ->
+                    ( List.length jobs
+                    , jobs |> filterByName model.query |> viewJobs
+                    )
+
+                _ ->
                     ( 0
                     , div [ class "mt-2 ml-3" ]
                         [ a [ Route.href Route.Login ] [ text "Sign-in" ]
                         , text " to see your jobs"
                         ]
                     )
-
-                Loading ->
-                    ( 0, Page.viewSpinner )
-
-                Loaded jobs  ->
-                    ( List.length jobs
-                    , viewJobs jobs
-                    )
-
-                LoadError ->
-                    ( 0, div [ class "mt-2 ml-3" ] [ text "An error occured" ] )
 
         navItem label count =
             li [ class "nav-item" ]
@@ -145,9 +147,10 @@ view model =
                 ]
     in
     div [ class "container" ]
-        [ ul [ class "h5 nav mt-5 mb-4" ]
+        [ ul [ class "nav nav-justified mt-5 mb-4 h5" ]
             [ navItem "Apps" numApps
             , navItem "Jobs" numJobs
+            , span [ class "w-75" ] [ input [ class "float-right", placeholder "Search", onInput SetQuery ] [] ]
             ]
         , if model.tab == "Apps" then
             appsRow
@@ -204,3 +207,18 @@ viewJobs jobs =
         , tbody []
             (jobs |> List.map row)
         ]
+
+
+filterByName : String -> List { a | name : String } -> List { a | name : String }
+filterByName query list =
+    let
+        lowerQuery =
+            String.toLower query
+
+        filter item =
+            String.contains lowerQuery (String.toLower item.name)
+    in
+    if query /= "" then
+        List.filter filter list
+    else
+        list
