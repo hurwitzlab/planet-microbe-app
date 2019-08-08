@@ -524,9 +524,13 @@ getJobs token =
     let
         url =
             agaveBaseUrl ++ "/jobs/v2/"
+
+        queryParams =
+            [( "limit", String.fromInt 9999 )]
     in
     HttpBuilder.get url
         |> HttpBuilder.withHeaders [ authorizationHeader token ]
+        |> HttpBuilder.withQueryParams queryParams
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder (Decode.list decoderJob)))
         |> HttpBuilder.toRequest
 
