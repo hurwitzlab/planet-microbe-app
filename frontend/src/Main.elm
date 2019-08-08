@@ -43,7 +43,7 @@ import Cart as CartData
 import User exposing (User)
 import Route exposing (Route)
 import Config
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -388,8 +388,8 @@ changeRouteTo maybeRoute model =
                             in
                             ( newModel2
                             , Cmd.batch
-                                [ --State.storeState Nothing
-                                  Credentials.storeCredentials Nothing
+                                [ Credentials.storeCredentials Nothing
+                                , Route.replaceUrl (Session.navKey session) (Route.Home)
                                 , newCmd2
                                 ]
                             )
