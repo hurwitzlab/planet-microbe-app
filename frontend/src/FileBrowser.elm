@@ -659,7 +659,7 @@ viewFileTable config files selectedPaths =
                 , th [] [ text "Size" ]
                 ]
             ]
-        , tbody []
+        , tbody [ style "user-select" "none" ]
             (List.map fileRow files)
         ]
 
