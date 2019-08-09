@@ -679,7 +679,7 @@ viewAppParameter input =
 
         checkbox =
             label []
-                [ Html.input [ type_ "checkbox", onCheck (Encode.bool >> Encode.encode 0 >> (SetParameter id)) ] []
+                [ Html.input [ type_ "checkbox", checked (val == "true"), onCheck (Encode.bool >> Encode.encode 0 >> (SetParameter id)) ] []
                 ]
 
         interface =
