@@ -501,7 +501,7 @@ viewStatus status =
                     String.replace "_" " " status -- replace _ with space
             in
             div [ class "progress float-left d-inline-block", style "width" "20em", style "height" "2.5em" ]
-                [ div [ class "progress-bar progress-bar-striped active", style "width" ((String.fromInt pct) ++ "%"), style "height" "2.5em",
+                [ div [ class "progress-bar progress-bar-striped progress-bar-animated", style "width" ((String.fromInt pct) ++ "%"), style "height" "2.5em",
                         attribute "role" "progressbar", attribute "aria-valuenow" (String.fromInt pct), attribute "aria-valuemin" "0", attribute "aria-valuemax" "100" ]
                     [ text label ]
                 ]
