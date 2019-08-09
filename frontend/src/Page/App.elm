@@ -23,7 +23,7 @@ import File exposing (File)
 import FileBrowser
 import Icon
 import Error
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -941,8 +941,6 @@ viewFileFormatSelector model =
                 |> List.map .format
                 |> List.map String.Extra.toSentenceCase
                 |> List.Extra.unique
-
-        _ = Debug.log "types" (toString types)
 --            case model.selectedCartId of
 --                Nothing -> -- Current
 --                    model.files
@@ -965,12 +963,10 @@ viewFileFormatSelector model =
             a [ class "dropdown-item", href "", onClick (FilterByFileFormat label) ] [ text label ]
 
         selectedType =
-            case model.filterFileFormat of
-                "All Formats" ->
-                    "File Format"
-
-                _ ->
-                    model.filterFileFormat
+            if model.filterFileFormat == "All Formats" then
+                "File Format"
+            else
+                model.filterFileFormat
     in
     div [ class "dropup" ]
         [ button
