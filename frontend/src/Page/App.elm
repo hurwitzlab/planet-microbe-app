@@ -158,20 +158,27 @@ update msg model =
         GetAppCompleted (Ok (app, agaveApp)) ->
             let
                 mapInputs l =
-                    l |> List.map (\input -> (input.id, (default input.value.default))) |> Dict.fromList
+                    l |> List.map (\input -> (input.id, default input.value.default)) |> Dict.fromList
 
                 mapParams l =
                     l |> List.map (\param -> (param.id, default param.value.default)) |> Dict.fromList
 
                 default val =
                     case val of
-                        Agave.StringValue s -> s
+                        Agave.StringValue s ->
+                            s
 
-                        Agave.ArrayValue arr -> String.join ";" arr
+                        Agave.ArrayValue arr ->
+                            String.join ";" arr
 
-                        Agave.BoolValue bool -> ""
+                        Agave.BoolValue bool ->
+                            if bool then
+                                "true"
+                            else
+                                "false"
 
-                        Agave.NumberValue num -> String.fromFloat num
+                        Agave.NumberValue num ->
+                            String.fromFloat num
             in
             ( { model
                 | app = Just app
@@ -282,7 +289,8 @@ update msg model =
                                     Agave.StringValue val
 
                         jobParameters =
-                            Dict.toList model.parameters |> List.map (\(k, v) -> Agave.JobParameter k (encodeParam k v))
+                            Dict.toList model.parameters
+                                |> List.map (\(k, v) -> Agave.JobParameter k (encodeParam k v))
 
                         jobName =
                             "PlanetMicrobe " ++ app.name --FIXME should be a user-inputted value?
@@ -290,41 +298,37 @@ update msg model =
                         jobRequest =
                             Agave.JobRequest jobName app.name True jobInputs jobParameters []
 
-                        launchAgave =
-                            Agave.launchJob token jobRequest |> Http.send RunJobCompleted
-
-                        launchPlanB =
-                            PlanB.launchJob token jobRequest |> Http.send RunJobCompleted
-
                         sendAppRun =
                             App.run token model.appId (Agave.encodeJobRequest jobRequest |> Encode.encode 0) |> Http.send AppRunCompleted
 
                         launchApp =
                             if isPlanB app then
-                                launchPlanB
+                                PlanB.launchJob
                             else
-                                launchAgave
+                                Agave.launchJob
                     in
-                    ( { model | showRunDialog = True }, Cmd.batch [ launchApp, sendAppRun ] )
+                    ( { model | showRunDialog = True }
+                    , Cmd.batch
+                        [ launchApp token jobRequest |> Http.send RunJobCompleted
+                        , sendAppRun
+                        ]
+                    )
 
                 (_, _) ->
                     ( model, Cmd.none )
 
         RunJobCompleted (Ok response) ->
             let
-                shareAgave =
-                    Agave.shareJob token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
-
-                sharePlanB =
-                    PlanB.shareJob token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
+                shareJob =
+                    if (model.app |> Maybe.map .provider |> Maybe.withDefault "") == "plan-b" then
+                        PlanB.shareJob
+                    else
+                        Agave.shareJob
             in
             ( model
             , Cmd.batch
                 [ Route.replaceUrl (Session.navKey model.session) (Route.Job response.result.id)
-                , if (model.app |> Maybe.map .provider |> Maybe.withDefault "") == "plan-b" then
-                    sharePlanB
-                  else
-                    shareAgave
+                , shareJob token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
                 ]
             )
 
@@ -529,30 +533,21 @@ view model =
                                 , button [ class "btn btn-primary btn-lg mt-5 w-25", onClick RunJob ] [ text "Run" ]
                                 ]
                             ]
+
+                dialog =
+                    if model.inputId /= Nothing then
+                        viewFileBrowserDialog model.fileBrowser (model.inputId |> Maybe.withDefault "") False
+                    else if model.showRunDialog then
+                        viewRunDialog model
+                    else if model.cartDialogInputId /= Nothing then
+                        viewCartDialog model
+                    else
+                        text ""
             in
             div [ class "container" ]
                 [ Page.viewTitle "App" app.name
                 , body
-                , if model.inputId /= Nothing then
-                    viewFileBrowserDialog model.fileBrowser (model.inputId |> Maybe.withDefault "") False
-                  else
-                    text ""
-        --            , Dialog.view
-        --                (if model.showRunDialog then
-        --                    Just (runDialogConfig model)
-        --                 else if model.cartDialogInputId /= Nothing then
-        --                    Just (cartDialogConfig model)
---                         else if model.inputId /= Nothing then
---                            Just (fileBrowserDialogConfig model.fileBrowser (model.inputId |> Maybe.withDefault "") False)
-        --                 else
-        --                    Nothing
-        --                )
-                , if model.showRunDialog then
-                    viewRunDialog model
-                  else if model.cartDialogInputId /= Nothing then
-                    viewCartDialog model
-                  else
-                    text ""
+                , dialog
                 ]
 
         (_, _) ->
@@ -569,7 +564,8 @@ viewApp app agaveApp inputs parameters =
 
                 _  ->
                     table [ class "table" ]
-                        [ tbody [] (List.Extra.zip agaveApp.inputs (Dict.values inputs) |> List.map viewAppInput)
+                        [ tbody []
+                            (List.map (zipWithValue inputs .id) agaveApp.inputs |> List.map viewAppInput)
                         ]
 
         viewParameters =
@@ -579,8 +575,17 @@ viewApp app agaveApp inputs parameters =
 
                 _  ->
                     table [ class "table" ]
-                        [ tbody [] (List.Extra.zip agaveApp.parameters (Dict.values parameters) |> List.map viewAppParameter)
+                        [ tbody []
+                            (List.map (zipWithValue parameters .id) agaveApp.parameters |> List.map viewAppParameter)
                         ]
+
+        zipWithValue values id item =
+            case Dict.get (id item) values of
+                Nothing ->
+                    ( item, "" )
+
+                Just val ->
+                    ( item, val )
     in
     div []
     [ table [ class "table table-borderless table-sm" ]
