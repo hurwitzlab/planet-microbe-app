@@ -189,9 +189,9 @@ viewJobs jobs =
             tr []
                 [ td [] [ a [ Route.href (Route.Job job.id)] [ text job.name ] ]
                 , td [] [ text job.app_id ]
-                , td [] [ text job.created ]
-                , td [] [ text job.ended ]
-                , td [] [ text job.status ]
+                , td [ class "text-nowrap" ] [ text job.created ]
+                , td [ class "text-nowrap" ] [ text job.ended ]
+                , td [ class "text-nowrap" ] [ text job.status ]
                 ]
     in
     table [ class "table" ]
