@@ -436,13 +436,11 @@ view model =
                 , viewOutputs model
 --                , Page.viewTitle2 "Results" False
 --                , viewResults model
-                ]
-    --        , Dialog.view
-    --            (if model.showCancelDialog then
-    --                Just (cancelDialogConfig model)
-    --            else
-    --                Nothing
-    --            )
+                , if model.showCancelDialog then
+                    viewCancelDialog model
+                  else
+                    text ""
+              ]
 
         ( _, _ ) ->
             text ""
@@ -722,3 +720,28 @@ viewResults model =
 --    , body = Just content
 --    , footer = Just footer
 --    }
+
+
+viewCancelDialog : Model -> Html Msg
+viewCancelDialog model =
+    let
+        body =
+            case model.cancelDialogMessage of
+                Nothing ->
+                    Page.viewSpinner
+
+                Just message ->
+                    div [ class "alert alert-info m-3" ]
+                        [ p [] [ text message ]
+                        ]
+
+        footer =
+            if model.cancelDialogMessage == Nothing then
+                div [] [ text " " ]
+            else
+                button [ class "btn btn-outline-secondary", onClick CloseCancelDialog ] [ text "OK" ]
+    in
+    Page.viewDialog "Submitting Job"
+        [ body ]
+        [ footer ]
+        CloseCancelDialog
