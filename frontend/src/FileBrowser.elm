@@ -184,12 +184,10 @@ updateInternal session msg model =
         SetFilter value ->
             let
                 newPath =
-                    case value of
-                        "Shared" ->
-                            model.sharedPath
-
-                        _ -> -- Home
-                            model.homePath
+                    if value == "Shared" then
+                        model.sharedPath
+                    else -- "Home"
+                        model.homePath
             in
             updateInternal session (LoadPath newPath) { model | path = newPath, pathFilter = value }
 
@@ -513,27 +511,25 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
             }) =
     let
         menuBar =
-            div [ class "form-inline" ]
-                [ div [ class "form-group" ]
-                    [ div [ class "input-group" ]
-                        [ div [ class "input-group-btn" ]
-                            [ filterButton "Home"
-                            , filterButton "Shared"
-                            ]
-                        , samp []
-                            [ input [ class "form-control",  type_ "text", size 30, value path, onInput SetPath ] [] ] -- onKeyDown KeyDown ] [] ]
-                        , span [ class "input-group-btn" ]
-                            [ button [ class "btn btn-outline-secondary", type_ "button", onClick (LoadPath path) ] [ text "Go " ]
-                            ]
+            div []
+                [ div [ class "input-group" ]
+                    [ div [ class "input-group-prepend" ]
+                        [ filterButton "Home"
+                        , filterButton "Shared"
                         ]
-                    , button [ style "visibility" "hidden" ] -- FIXME make a better spacer than this
-                        [ text " " ]
-                    , if (config.showNewFolderButton) then
-                        button [ class "btn btn-default btn-sm margin-right", type_ "button", onClick OpenNewFolderDialog ]
-                            [ span [ class "glyphicon glyphicon-folder-close" ] [], text " New Folder" ]
-                      else
-                        text ""
-                    , if (config.showUploadFileButton) then
+                    , input [ class "form-control",  type_ "text", size 30, value path, placeholder "Enter path", onInput SetPath ] [] -- onKeyDown KeyDown ] []
+                    , div [ class "input-group-append" ]
+                        [ button [ class "btn btn-outline-secondary", type_ "button", onClick (LoadPath path) ] [ text "Go " ]
+                        ]
+                    ]
+                , button [ style "visibility" "hidden" ] -- FIXME make a better spacer than this
+                    [ text " " ]
+                , if (config.showNewFolderButton) then
+                    button [ class "btn btn-default btn-sm margin-right", type_ "button", onClick OpenNewFolderDialog ]
+                        [ span [ class "glyphicon glyphicon-folder-close" ] [], text " New Folder" ]
+                  else
+                    text ""
+                , if (config.showUploadFileButton) then
 --                        div [ class "btn-group" ]
 --                            [ button [ class "btn btn-default btn-sm dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ]
 --                                [ span [ class "glyphicon glyphicon-cloud-upload" ] []
@@ -547,13 +543,12 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
 --                                , li [] [ a [] [ text "From EBI" ] ]
 --                                ]
 --                            ]
-                            button [ class "btn btn-default btn-sm", type_ "button", onClick UploadFile ]
-                                [ span [ class "glyphicon glyphicon-cloud-upload" ] []
-                                , text " Upload File"
-                                ]
-                        else
-                          text ""
-                    ]
+                        button [ class "btn btn-default btn-sm", type_ "button", onClick UploadFile ]
+                            [ span [ class "glyphicon glyphicon-cloud-upload" ] []
+                            , text " Upload File"
+                            ]
+                    else
+                      text ""
                 ]
 
         filterButton label =
