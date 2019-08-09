@@ -776,7 +776,7 @@ viewRunDialog model =
                 div [] [ text " " ]
             else
                 button
-                    [ class "btn btn-default"
+                    [ class "btn btn-outline-secondary"
                     , onClick CloseRunDialog
                     ]
                     [ text "OK" ]
