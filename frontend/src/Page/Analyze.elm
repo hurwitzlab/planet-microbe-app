@@ -109,7 +109,7 @@ view model =
             case model.apps of
                 Just apps ->
                     ( List.length apps
-                    , apps |> filterByName model.query |> viewApps
+                    , apps |> filterApp model.query |> viewApps
                     )
 
                 Nothing ->
@@ -122,7 +122,7 @@ view model =
 
                 Loaded jobs  ->
                     ( List.length jobs
-                    , jobs |> filterByName model.query |> viewJobs
+                    , jobs |> filterJob model.query |> viewJobs
                     )
 
                 _ ->
@@ -188,7 +188,7 @@ viewJobs jobs =
         row job =
             tr []
                 [ td [] [ a [ Route.href (Route.Job job.id)] [ text job.name ] ]
-                , td [] [ text "" ]
+                , td [] [ text job.app_id ]
                 , td [] [ text job.created ]
                 , td [] [ text job.ended ]
                 , td [] [ text job.status ]
@@ -209,14 +209,31 @@ viewJobs jobs =
         ]
 
 
-filterByName : String -> List { a | name : String } -> List { a | name : String }
-filterByName query list =
+filterApp : String -> List { a | name : String } -> List { a | name : String }
+filterApp query list =
     let
         lowerQuery =
             String.toLower query
 
         filter item =
             String.contains lowerQuery (String.toLower item.name)
+    in
+    if query /= "" then
+        List.filter filter list
+    else
+        list
+
+
+filterJob : String -> List { a | name : String, app_id : String, status : String } -> List { a | name : String, app_id : String, status : String }
+filterJob query list =
+    let
+        lowerQuery =
+            String.toLower query
+
+        filter item =
+            String.contains lowerQuery (String.toLower item.name) ||
+            String.contains lowerQuery (String.toLower item.app_id) ||
+            String.contains lowerQuery (String.toLower item.status)
     in
     if query /= "" then
         List.filter filter list
