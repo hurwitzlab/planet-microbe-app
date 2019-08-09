@@ -80,10 +80,6 @@ subscriptions model =
             Sub.none
 
 
-redirectUrl =
-    Config.agaveRedirectUrl |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
-
-
 
 -- MODEL
 
@@ -203,6 +199,20 @@ getAccessToken provider code =
         }
 
 
+redirectUrl =
+    Config.agaveRedirectUrl |> Url.fromString |> Maybe.withDefault defaultHttpsUrl
+
+
+defaultHttpsUrl =
+    { protocol = Url.Https
+    , host = ""
+    , path = ""
+    , port_ = Nothing
+    , query = Nothing
+    , fragment = Nothing
+    }
+
+
 
 -- UPDATE
 
@@ -223,8 +233,8 @@ type Msg
     | CartMsg Cart.Msg
     | ChangedUrl Url
     | ClickedLink Browser.UrlRequest
-    | GotAccessToken (Result Http.Error Agave.TokenResponse) --OAuth.AuthorizationCode.AuthenticationSuccess)
-    | GotUserInfo (Result Http.Error User)--(Agave.Response Agave.Profile))
+    | GotAccessToken (Result Http.Error Agave.TokenResponse)
+    | GotUserInfo (Result Http.Error User)
     | GotCredentials Credentials
 
 
@@ -296,16 +306,13 @@ changeRouteTo maybeRoute model =
                     Session.getState session
 
                 newState =
-                    { state | url = Route.routeToString route |> String.dropLeft 2 }
+                    { state | url = Route.routeToString route |> String.dropLeft 2 } -- remove leading "#/"
 
                 newSession =
                     Session.setState session newState
 
                 ( newModel, newCmd ) =
                     case route of
-                        Route.Home ->
-                            ( Home newSession, Cmd.none )
-
                         Route.Login ->
                             let
                                 authorizationUrl =
@@ -335,6 +342,9 @@ changeRouteTo maybeRoute model =
                                 , newCmd2
                                 ]
                             )
+
+                        Route.Home ->
+                            ( Home newSession, Cmd.none )
 
                         Route.Browse ->
                             Browse.init newSession
@@ -578,16 +588,6 @@ updateWith toModel toMsg model ( subModel, subCmd ) =
     ( toModel subModel
     , Cmd.map toMsg subCmd
     )
-
-
-defaultHttpsUrl =
-    { protocol = Url.Https
-    , host = ""
-    , path = ""
-    , port_ = Nothing
-    , query = Nothing
-    , fragment = Nothing
-    }
 
 
 
