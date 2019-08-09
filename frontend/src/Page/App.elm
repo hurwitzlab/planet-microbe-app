@@ -23,7 +23,7 @@ import File exposing (File)
 import FileBrowser
 import Icon
 import Error
---import Debug exposing (toString)
+import Debug exposing (toString)
 
 
 
@@ -941,6 +941,8 @@ viewFileFormatSelector model =
                 |> List.map .format
                 |> List.map String.Extra.toSentenceCase
                 |> List.Extra.unique
+
+        _ = Debug.log "types" (toString types)
 --            case model.selectedCartId of
 --                Nothing -> -- Current
 --                    model.files
@@ -959,30 +961,28 @@ viewFileFormatSelector model =
 --                        |> Set.fromList
 --                        |> Set.toList
 
-        btn label =
-            button [ class "btn btn-default", onClick (FilterByFileFormat label) ] [ text label ]
-
         item label =
             a [ class "dropdown-item", href "", onClick (FilterByFileFormat label) ] [ text label ]
 
         selectedType =
             case model.filterFileFormat of
                 "All Formats" ->
-                    "File Format "
+                    "File Format"
 
                 _ ->
-                    model.filterFileFormat ++ " "
+                    model.filterFileFormat
     in
     div [ class "dropup" ]
         [ button
-            [ class "btn btn-outline-secondary dropdown-toggle", id "dropdownMenu1",
-                attribute "type" "button", attribute "data-toggle" "dropdown", attribute "aria-haspopup" "true", attribute "aria-expanded" "true"
+            [ class "btn btn-outline-secondary dropdown-toggle", id "dropdownMenuButton",
+                type_ "button", attribute "data-toggle" "dropdown", attribute "aria-haspopup" "true", attribute "aria-expanded" "false"
             ]
             [ text selectedType
+            , text " "
             , span [ class "caret" ] []
             ]
-        , div [ class "dropdown-menu", style "overflow-y" "scroll", style "max-height" "200px", attribute "aria-labelledby" "dropdownMenu1" ]
-            (item "All Formats" :: List.map item types)
+        , div [ class "dropdown-menu", style "overflow-y" "scroll", style "max-height" "200px", attribute "aria-labelledby" "dropdownMenuButton" ]
+            ("All Formats" :: types |> List.map item)
         ]
 
 
