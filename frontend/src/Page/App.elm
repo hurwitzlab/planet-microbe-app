@@ -328,7 +328,7 @@ update msg model =
             ( model
             , Cmd.batch
                 [ Route.replaceUrl (Session.navKey model.session) (Route.Job response.result.id)
-                , shareJob token response.result.id "imicrobe" "READ" |> Http.send ShareJobCompleted
+                , shareJob token response.result.id "planetmicrobe" "READ" |> Http.send ShareJobCompleted
                 ]
             )
 
