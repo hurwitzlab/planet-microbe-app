@@ -169,7 +169,7 @@ update msg model =
 --            let
 --                _ = Debug.log "GetJobCompleted" (toString error)
 --            in
-            ( model, Cmd.none )
+            ( model, Error.redirectLoadError error (Session.navKey model.session) )
 
         GetHistory ->
             let
