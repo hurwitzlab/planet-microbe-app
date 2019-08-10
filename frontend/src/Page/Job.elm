@@ -508,17 +508,18 @@ viewStatus status =
     in
     case String.toUpper status of
         "CREATED" -> progressBar 10
-        "ACCEPTED" -> progressBar 10
         "PENDING" -> progressBar 20
         "PROCESSING_INPUTS" -> progressBar 30
         "STAGING_INPUTS" -> progressBar 40
         "STAGED" -> progressBar 45
-        "STAGING_JOB" -> progressBar 50
-        "SUBMITTING" -> progressBar 55
+        "SUBMITTING" -> progressBar 50
+        "STAGING_JOB" -> progressBar 55
         "QUEUED" -> progressBar 60
+        "BLOCKED" -> progressBar 60
         "RUNNING" -> progressBar 70
         "CLEANING_UP" -> progressBar 80
         "ARCHIVING" -> progressBar 90
+        "ARCHIVING_FINISHED" -> progressBar 95
         _ -> text status
 
 
