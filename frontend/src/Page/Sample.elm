@@ -182,15 +182,21 @@ update msg model =
                     case term of
                         Just t ->
                             let
+-- removed 8/12/19 - Kai requested to only show definition
+--                                annos =
+--                                    t.annotations
+--                                        |> List.filter (\a -> not (List.member a.id annotationsToHide))
+--                                        |> List.append
+--                                            (if t.definition /= "" then
+--                                                [ (Annotation "" "definition" t.definition) ]
+--                                            else
+--                                                []
+--                                            )
                                 annos =
-                                    t.annotations
-                                        |> List.filter (\a -> not (List.member a.id annotationsToHide))
-                                        |> List.append
-                                            (if t.definition /= "" then
-                                                [ (Annotation "" "definition" t.definition) ]
-                                            else
-                                                []
-                                            )
+                                    if t.definition /= "" then
+                                        [ (Annotation "" "definition" t.definition) ]
+                                    else
+                                        []
                             in
                             ( { model | tooltip = Just (ToolTip x y annos) }, Cmd.none )
 
