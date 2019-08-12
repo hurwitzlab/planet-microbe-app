@@ -237,8 +237,8 @@ view cart samples cartType =
                         [ input [ type_ "checkbox", checked (selected cart sample.id), onClick (ToggleSelectInCart sample.id) ] [] ]
                   else
                     td [] []
-                , td [] [ text sample.projectName ]
-                , td [] [ text sample.accn ]
+                , td [] [ a [ Route.href (Route.Project sample.projectId) ] [ text sample.projectName ] ]
+                , td [] [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
                 , if cartType == Editable then
                     td []
                         [ button [ class "btn btn-outline-secondary btn-sm float-right", onClick (RemoveFromCart sample.id) ] [ text "Remove" ] ]
