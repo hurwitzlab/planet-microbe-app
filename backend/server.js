@@ -758,7 +758,7 @@ app.post('/token', async (req, res) => {
 app.post('/users/login', async (req, res) => { // TODO add try/catch error handling
     requireAuth(req);
 
-    var username = "mbomhoff";//req.auth.user.user_name;
+    var username = req.auth.user.user_name;
 
     // Add user if not already present
     let user = await query({
