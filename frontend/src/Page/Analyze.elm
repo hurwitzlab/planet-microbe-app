@@ -33,8 +33,8 @@ type Jobs
     | LoadError
 
 
-init : Session -> ( Model, Cmd Msg )
-init session =
+init : Session -> Maybe String -> ( Model, Cmd Msg )
+init session tab =
     let
         (jobs, getJobs) =
             case session of
@@ -47,7 +47,7 @@ init session =
     ( { session = session
       , apps = Nothing
       , jobs = jobs
-      , tab = "Apps"
+      , tab = tab |> Maybe.withDefault "Apps"
       , query = ""
       }
       , Cmd.batch ( (App.fetchAll |> Http.toTask |> Task.attempt GetAppsCompleted) :: getJobs )
@@ -152,10 +152,10 @@ view model =
             , navItem "Jobs" numJobs
             , span [ class "w-75" ] [ input [ class "float-right", placeholder "Search", onInput SetQuery ] [] ]
             ]
-        , if model.tab == "Apps" then
-            appsRow
-          else
+        , if model.tab == "Jobs" then
             jobsRow
+          else
+            appsRow
         ]
 
 

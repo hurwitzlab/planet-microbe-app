@@ -4,7 +4,8 @@ import Browser.Navigation as Nav
 import Html exposing (Attribute)
 import Html.Attributes as Attr
 import Url exposing (Url)
-import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, int, string)
+import Url.Parser as Parser exposing ((</>), (<?>), Parser, oneOf, s, int, string)
+import Url.Parser.Query as Query
 
 
 
@@ -17,7 +18,7 @@ type Route
     | Logout
     | Browse
     | Search
-    | Analyze
+    | Analyze (Maybe String)
     | App Int
     | Job String
     | Project Int
@@ -38,7 +39,7 @@ parser =
         , Parser.map Logout (s "logout")
         , Parser.map Browse (s "browse")
         , Parser.map Search (s "search")
-        , Parser.map Analyze (s "analyze")
+        , Parser.map Analyze (s "analyze" <?> Query.string "tab") --FIXME "tab" query param not working
         , Parser.map App (s "apps" </> int)
         , Parser.map Job (s "jobs" </> string)
         , Parser.map Project (s "projects" </> int)
@@ -99,8 +100,8 @@ routeToString page =
                 Search ->
                     [ "search" ]
 
-                Analyze ->
-                    [ "analyze" ]
+                Analyze tab ->
+                    [ "analyze", tab |> Maybe.withDefault "" ]
 
                 App id ->
                     [ "apps", String.fromInt id ]

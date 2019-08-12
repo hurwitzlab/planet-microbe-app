@@ -134,7 +134,7 @@ viewHeader session page =
                                 ]
                             ]
                         , li [ class "nav-item", style "width" "9em" ]
-                            [ a [ class "nav-link", classList [ ("active", page == Analyze) ], Route.href Route.Analyze  ]
+                            [ a [ class "nav-link", classList [ ("active", page == Analyze) ], Route.href (Route.Analyze Nothing)  ]
                                 [ Icon.barChart
                                 , text " Analyze"
                                 ]

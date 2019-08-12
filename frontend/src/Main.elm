@@ -354,8 +354,8 @@ changeRouteTo maybeRoute model =
                             Search.init newSession
                                 |> updateWith Search SearchMsg model
 
-                        Route.Analyze ->
-                            Analyze.init newSession
+                        Route.Analyze tab ->
+                            Analyze.init newSession tab
                                 |> updateWith Analyze AnalyzeMsg model
 
                         Route.App id ->
