@@ -708,11 +708,16 @@ app.get('/apps/:name([\\w\\.\\-\\_]+)', async (req, res) => {
     let name = req.params.name;
     let result = await query({
         text: "SELECT app_id,name,provider,is_active,is_maintenance FROM app \
-            WHERE name=$1",
-        values: [name]
+            ORDER BY name DESC",
     });
 
-    res.json(result.rows[0]);
+    for (let app of result.rows) {
+        let nameWithoutVersion = app.name.replace(/-(\d+\.)?\d+\.\d+(u\d+)?$/, '');
+        if (app.name.toLowerCase() == name || nameWithoutVersion.toLowerCase() == name)
+            res.json(app);
+    }
+
+    res.status(404).json([]);
 });
 
 app.post('/apps/runs', async (req, res) => {

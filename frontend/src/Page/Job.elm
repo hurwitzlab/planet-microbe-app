@@ -462,7 +462,7 @@ viewJob job app =
             ]
         , tr []
             [ th [] [ text "App" ]
-            , td [] [ a [ Route.href (Route.App app.id) ] [ text app.name ] ]
+            , td [] [ a [ Route.href (Route.App (String.fromInt app.id)) ] [ text app.name ] ]
             ]
         , tr []
             [ th [] [ text "Owner" ]

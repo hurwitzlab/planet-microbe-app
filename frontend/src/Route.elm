@@ -19,7 +19,7 @@ type Route
     | Browse
     | Search
     | Analyze (Maybe String)
-    | App Int
+    | App String
     | Job String
     | Project Int
     | Sample Int
@@ -40,7 +40,7 @@ parser =
         , Parser.map Browse (s "browse")
         , Parser.map Search (s "search")
         , Parser.map Analyze (s "analyze" <?> Query.string "tab") --FIXME "tab" query param not working
-        , Parser.map App (s "apps" </> int)
+        , Parser.map App (s "apps" </> string)
         , Parser.map Job (s "jobs" </> string)
         , Parser.map Project (s "projects" </> int)
         , Parser.map Sample (s "samples" </> int)
@@ -103,8 +103,8 @@ routeToString page =
                 Analyze tab ->
                     [ "analyze", tab |> Maybe.withDefault "" ]
 
-                App id ->
-                    [ "apps", String.fromInt id ]
+                App term ->
+                    [ "apps", term ]
 
                 Job id ->
                     [ "jobs", id ]

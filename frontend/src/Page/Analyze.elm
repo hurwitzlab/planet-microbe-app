@@ -164,7 +164,7 @@ viewApps apps =
     let
         row app =
             tr []
-                [ td [] [ a [ Route.href (Route.App app.id)] [ text app.name ] ]
+                [ td [] [ a [ Route.href (Route.App (String.fromInt app.id))] [ text app.name ] ]
                 , td [] [ text "" ]
                 , td [] [ text "" ]
                 ]

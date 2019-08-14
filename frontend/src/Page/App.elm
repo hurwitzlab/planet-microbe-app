@@ -32,7 +32,6 @@ import Error
 
 type alias Model =
     { session : Session
-    , appId : Int
     , app : Maybe App
     , agaveApp : Maybe Agave.App
     , inputs : Dict String String
@@ -52,11 +51,17 @@ type alias Model =
     }
 
 
-init : Session -> Int -> ( Model, Cmd Msg )
-init session id =
+init : Session -> String -> ( Model, Cmd Msg )
+init session term =
     let
         loadApp =
-            App.fetch id |> Http.toTask
+            (case String.toInt term of
+                Just val ->
+                    App.fetch val
+
+                Nothing ->
+                    App.fetchByName term
+            ) |> Http.toTask
 
         token =
             Session.token session
@@ -84,7 +89,6 @@ init session id =
             }
     in
     ( { session = session
-      , appId = id
       , app = Nothing
       , agaveApp = Nothing
       , inputs = Dict.empty
@@ -324,7 +328,7 @@ update msg model =
                             Dict.toList model.settings
 
                         sendAppRun =
-                            App.run token model.appId (Agave.encodeJobRequest jobRequest jobSettings |> Encode.encode 0) |> Http.send AppRunCompleted
+                            App.run token app.id (Agave.encodeJobRequest jobRequest jobSettings |> Encode.encode 0) |> Http.send AppRunCompleted
 
                         launchApp =
                             if isPlanB app then
