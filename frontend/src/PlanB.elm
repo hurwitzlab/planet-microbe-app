@@ -73,7 +73,7 @@ launchJob token request =
     in
     HttpBuilder.post url
         |> HttpBuilder.withHeaders [ authorizationHeader token ]
-        |> HttpBuilder.withJsonBody (Agave.encodeJobRequest request)
+        |> HttpBuilder.withJsonBody (Agave.encodeJobRequest request [])
         |> HttpBuilder.withExpect (Http.expectJson (Agave.responseDecoder Agave.decoderJobStatus))
         |> HttpBuilder.toRequest
 

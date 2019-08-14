@@ -37,6 +37,7 @@ type alias Model =
     , agaveApp : Maybe Agave.App
     , inputs : Dict String String
     , parameters : Dict String String
+    , settings : Dict String String
     , cartLoaded : Bool
 --    , selectedCartId : Maybe Int
     , samples : List Sample
@@ -86,8 +87,9 @@ init session id =
       , appId = id
       , app = Nothing
       , agaveApp = Nothing
-      , inputs = Dict.empty --inputs agaveApp
-      , parameters = Dict.empty --params agaveApp
+      , inputs = Dict.empty
+      , parameters = Dict.empty
+      , settings = Dict.empty
       , cartLoaded = False
 --      , selectedCartId = Nothing -- Current
       , samples = []
@@ -123,6 +125,14 @@ isPlanB app =
     app.provider == "plan-b"
 
 
+defaultBatchQueue =
+    "normal"
+
+
+defaultMaxRunTime =
+    "12:00:00"
+
+
 
 -- UPDATE --
 
@@ -131,6 +141,7 @@ type Msg
     = GetAppCompleted (Result Http.Error (App, Agave.App))
     | SetInput InputSource String String
     | SetParameter String String
+    | SetSetting String String
     | RunJob
     | RunJobCompleted (Result Http.Error (Agave.Response Agave.JobStatus))
     | ShareJobCompleted (Result Http.Error (Agave.Response Agave.JobStatus))
@@ -157,11 +168,14 @@ update msg model =
     case msg of
         GetAppCompleted (Ok (app, agaveApp)) ->
             let
-                mapInputs l =
+                defaultInputs l =
                     l |> List.map (\input -> (input.id, default input.value.default)) |> Dict.fromList
 
-                mapParams l =
+                defaultParams l =
                     l |> List.map (\param -> (param.id, default param.value.default)) |> Dict.fromList
+
+                defaultSettings =
+                    [ ("batchQueue", agaveApp.defaultQueue), ("maxRunTime", agaveApp.defaultMaxRunTime) ] |> Dict.fromList
 
                 default val =
                     case val of
@@ -183,8 +197,9 @@ update msg model =
             ( { model
                 | app = Just app
                 , agaveApp = Just agaveApp
-                , inputs = mapInputs agaveApp.inputs
-                , parameters = mapParams agaveApp.parameters
+                , inputs = defaultInputs agaveApp.inputs
+                , parameters = defaultParams agaveApp.parameters
+                , settings = defaultSettings
               }
             , Cmd.none
             )
@@ -245,6 +260,13 @@ update msg model =
             in
             ( { model | parameters = newParams }, Cmd.none )
 
+        SetSetting id value ->
+            let
+                newSettings =
+                    Dict.insert id value model.settings
+            in
+            ( { model | settings = newSettings }, Cmd.none )
+
         RunJob -> --TODO messy, clean this up
             case (model.app, model.agaveApp) of
                 (Just app, Just agaveApp) ->
@@ -298,18 +320,21 @@ update msg model =
                         jobRequest =
                             Agave.JobRequest jobName app.name True jobInputs jobParameters []
 
+                        jobSettings =
+                            Dict.toList model.settings
+
                         sendAppRun =
-                            App.run token model.appId (Agave.encodeJobRequest jobRequest |> Encode.encode 0) |> Http.send AppRunCompleted
+                            App.run token model.appId (Agave.encodeJobRequest jobRequest jobSettings |> Encode.encode 0) |> Http.send AppRunCompleted
 
                         launchApp =
                             if isPlanB app then
-                                PlanB.launchJob
+                                PlanB.launchJob token jobRequest
                             else
-                                Agave.launchJob
+                                Agave.launchJob token jobRequest jobSettings
                     in
                     ( { model | showRunDialog = True }
                     , Cmd.batch
-                        [ launchApp token jobRequest |> Http.send RunJobCompleted
+                        [ launchApp |> Http.send RunJobCompleted
                         , sendAppRun
                         ]
                     )
@@ -527,7 +552,7 @@ view model =
                             [ text "This app is currently unavailable due to maintenance." ]
                     else
                         div []
-                            [ viewApp app agaveApp model.inputs model.parameters
+                            [ viewApp app agaveApp model.inputs model.parameters model.settings
                             , div [ class "text-center mt-3 mb-5" ]
                                 [ hr [] []
                                 , button [ class "btn btn-primary btn-lg mt-5 w-25", onClick RunJob ] [ text "Run" ]
@@ -554,8 +579,8 @@ view model =
             viewSpinnerCentered
 
 
-viewApp : App -> Agave.App -> Dict String String -> Dict String String -> Html Msg
-viewApp app agaveApp inputs parameters =
+viewApp : App -> Agave.App -> Dict String String -> Dict String String -> Dict String String -> Html Msg
+viewApp app agaveApp inputs parameters settings =
     let
         viewInputs =
             case agaveApp.inputs of
@@ -595,7 +620,7 @@ viewApp app agaveApp inputs parameters =
             ]
         , tr []
             [ th [] [ text "Description" ]
-            , td [] [ text agaveApp.shortDescription ]
+            , td [] [ text (if agaveApp.longDescription /= "" then agaveApp.longDescription else agaveApp.shortDescription) ]
             ]
         , tr []
             [ th [] [ text "Help" ]
@@ -616,6 +641,9 @@ viewApp app agaveApp inputs parameters =
     , br [] []
     , Page.viewTitle2 "Parameters" False
     , viewParameters
+    , br [] []
+    , Page.viewTitle2 "Settings" False
+    , viewSettings settings
     ]
 
 
@@ -720,6 +748,37 @@ viewAppParameter input =
     , td [ class "w-25 text-nowrap" ] [ interface ]
     , td [] [ text param.details.description ]
     ]
+
+
+viewSettings : Dict String String -> Html Msg
+viewSettings settings =
+    let
+        batchQueue =
+            settings |> Dict.get "batchQueue" |> Maybe.withDefault defaultBatchQueue
+
+        maxRunTime =
+            settings |> Dict.get "maxRunTime" |> Maybe.withDefault defaultMaxRunTime
+    in
+    table [ class "table" ]
+        [ tbody []
+            [ tr []
+                [ th [ class "w-25" ] [ text "Queue" ]
+                , td [ class "text-nowrap" ]
+                    [ select [ onInput (SetSetting "batchQueue") ]
+                        [ option [ value "normal", selected (batchQueue == "normal") ] [ text "normal" ]
+                        , option [ value "skx-normal", selected (batchQueue == "skx-normal") ] [ text "high memory" ]
+                        ]
+                    ]
+                , td [] [ text "The queue for the job (note that the high memory queue is often much slower)" ]
+                ]
+            , tr []
+                [ th [ class "w-25" ] [ text "Time limit" ]
+                , td [ class "text-nowrap" ]
+                    [ Html.input [ class "form-control", type_ "text", size 10, value maxRunTime, onInput (SetSetting "maxRunTime") ] [] ]
+                , td [] [ text "The maximum run time allowed in HH:MM:SS" ]
+                ]
+            ]
+        ]
 
 
 --runDialogConfig : Model -> Dialog.Config Msg

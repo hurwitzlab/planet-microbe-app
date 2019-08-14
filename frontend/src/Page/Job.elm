@@ -418,6 +418,9 @@ view model =
                 , Page.viewTitle2 "Parameters" False
                 , viewParameters job.parameters
                 , br [] []
+                , Page.viewTitle2 "Settings" False
+                , viewSettings job
+                , br [] []
                 , Page.viewTitle2 "History" False
                 , viewHistory model.history model.loadedHistory model.loadingHistory
                 , br [] []
@@ -587,6 +590,22 @@ viewParameter (id, value) =
     tr []
         [ th [] [ text id ]
         , td [] [ text valueStr ]
+        ]
+
+
+viewSettings : Agave.Job -> Html Msg
+viewSettings job =
+    table [ class "table" ]
+        [ tbody []
+            [ tr []
+                [ th [ class "w-25" ] [ text "Queue" ]
+                , td [] [ text job.remoteQueue ]
+                ]
+            , tr []
+                [ th [ class "w-25" ] [ text "Time limit" ]
+                , td [] [ text (String.fromInt job.maxHours) ]
+                ]
+            ]
         ]
 
 

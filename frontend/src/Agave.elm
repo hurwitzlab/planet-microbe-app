@@ -47,9 +47,12 @@ type alias App =
     { name : String
     , helpURI : String
     , shortDescription : String
+    , longDescription : String
     , version : String
     , tags : List String
     , isPublic : Bool
+    , defaultMaxRunTime : String
+    , defaultQueue : String
     , inputs : List AppInput
     , parameters : List AppParameter
     }
@@ -145,6 +148,8 @@ type alias Job =
     , created : String -- time string in CT time zone
     , ended : String -- time string in CT time zone
     , status : String
+    , maxHours : Int
+    , remoteQueue : String
     , inputs : Dict String JobInputValue
     , parameters : Dict String ValueType
     }
@@ -254,9 +259,12 @@ decoderApp =
         |> required "name" Decode.string
         |> required "helpURI" Decode.string
         |> required "shortDescription" Decode.string
+        |> optional "longDescription" Decode.string ""
         |> required "version" Decode.string
         |> optional "tags" (Decode.list Decode.string) []
         |> optional "isPublic" Decode.bool False
+        |> optional "defaultMaxRunTime" Decode.string ""
+        |> optional "defaultQueue" Decode.string ""
         |> required "inputs" (Decode.list decoderAppInput)
         |> required "parameters" (Decode.list decoderAppParameter)
 
@@ -347,6 +355,8 @@ decoderJob =
         |> optional "created" Decode.string ""
         |> optional "ended" Decode.string ""
         |> optional "status" Decode.string ""
+        |> optional "maxHours" Decode.int 0
+        |> optional "remoteQueue" Decode.string ""
         |> optional "inputs" (Decode.dict decoderJobInput) Dict.empty
         |> optional "parameters" (Decode.dict decoderValueType) Dict.empty
 
@@ -421,10 +431,10 @@ encodeProfile profile =
         ]
 
 
-encodeJobRequest : JobRequest -> Encode.Value
-encodeJobRequest request =
+encodeJobRequest : JobRequest -> List (String, String) -> Encode.Value
+encodeJobRequest request settings =
     Encode.object
-        [ ( "name", Encode.string request.name )
+        ([ ( "name", Encode.string request.name )
         , ( "appId", Encode.string request.app_id )
         , ( "archive", Encode.bool request.archive )
 --        , ( "inputs", Encode.list encodeJobInput request.inputs )
@@ -433,6 +443,8 @@ encodeJobRequest request =
 --        , ( "parameters", Encode.object (List.map (\p-> (p.id, (Encode.string p.value))) request.parameters) )
         , ( "notifications", Encode.list encodeNotification request.notifications )
         ]
+        ++ (settings |> List.map (Tuple.mapSecond Encode.string))
+        )
 
 
 encodeJobInput : JobInput -> Encode.Value
@@ -641,15 +653,15 @@ getJobOutput username token id path =
     getFile token jobPath
 
 
-launchJob : String -> JobRequest -> Http.Request (Response JobStatus)
-launchJob token request =
+launchJob : String -> JobRequest -> List (String, String) -> Http.Request (Response JobStatus)
+launchJob token request settings =
     let
         url =
             agaveBaseUrl ++ "/jobs/v2"
     in
     HttpBuilder.post url
         |> HttpBuilder.withHeaders [ authorizationHeader token ]
-        |> HttpBuilder.withJsonBody (encodeJobRequest request)
+        |> HttpBuilder.withJsonBody (encodeJobRequest request settings)
         |> HttpBuilder.withExpect (Http.expectJson (responseDecoder decoderJobStatus))
         |> HttpBuilder.toRequest
 
