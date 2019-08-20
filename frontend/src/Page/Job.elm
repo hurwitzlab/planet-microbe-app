@@ -402,14 +402,18 @@ view model =
     case ( model.job, model.app ) of
         ( Just job, Just app ) ->
             let
-                status =
-                    job.status |> String.replace "_" " "  -- replace _ with space
-
                 deUrl =
                     "https://de.cyverse.org/de/?type=data&folder=/iplant/home/" ++ model.username ++ "/archive/jobs/job-" ++ model.jobId --FIXME move base url to config
             in
             div [ class "container" ]
-                [ Page.viewTitle "Job" job.name
+                [ div [ class "pb-2 mt-5 mb-2 border-bottom", style "width" "100%" ]
+                    [ h1 [ class "font-weight-bold d-inline" ]
+                        [ span [ style "color" "dimgray" ] [ text "Job" ]
+                        , small [ class "ml-3", style "color" "gray" ] [ text job.name ]
+                        ]
+                    , span [ class "float-right text-secondary", style "font-size" "2em" ]
+                        [ text "Status: ", viewStatus job.status ]
+                    ]
                 , viewJob job app
                 , br [] []
                 , Page.viewTitle2 "Inputs" False
@@ -418,9 +422,14 @@ view model =
                 , Page.viewTitle2 "Parameters" False
                 , viewParameters job.parameters
                 , br [] []
-                , Page.viewTitle2 "Settings" False
-                , viewSettings job
-                , br [] []
+                , if not (isPlanB job.id) then
+                    div []
+                        [ Page.viewTitle2 "Settings" False
+                        , viewSettings job
+                        , br [] []
+                        ]
+                  else
+                    text ""
                 , Page.viewTitle2 "History" False
                 , viewHistory model.history model.loadedHistory model.loadingHistory
                 , br [] []
@@ -453,7 +462,7 @@ viewJob : Job -> App -> Html Msg
 viewJob job app =
     table [ class "table table-borderless table-sm" ]
         [ tr []
-            [ th [] [ text "ID" ]
+            [ th [ class "w-25" ] [ text "ID" ]
             , td [] [ text job.id ]
             ]
         , tr []
@@ -479,7 +488,7 @@ viewJob job app =
         , tr []
             [ th [ class "top" ] [ text "Status" ]
             , td []
-                [ viewStatus job.status
+                [ viewProgress job.status
                 , if isRunning job then
                     button [ class "btn btn-outline-secondary btn-sm ml-2 align-top", onClick CancelJob ] [ text "Cancel" ]
                  else
@@ -495,8 +504,8 @@ isRunning job =
     job.status /= "FINISHED" && job.status /= "FAILED" && job.status /= "STOPPED"
 
 
-viewStatus : String -> Html msg
-viewStatus status =
+viewProgress : String -> Html msg
+viewProgress status =
     let
         progressBar pct =
             let
@@ -523,7 +532,22 @@ viewStatus status =
         "CLEANING_UP" -> progressBar 80
         "ARCHIVING" -> progressBar 90
         "ARCHIVING_FINISHED" -> progressBar 95
-        _ -> text status
+        _ -> viewStatus status
+
+
+viewStatus : String -> Html msg
+viewStatus status =
+    let
+        label =
+            String.replace "_" " " status -- replace _ with space
+
+        color =
+            case String.toUpper label of
+                "FINISHED" -> "text-primary"
+                "FAILED" -> "text-danger"
+                _ -> "text-secondary"
+    in
+    span [ class color ] [ text label ]
 
 
 viewInputs : Dict String Agave.JobInputValue -> Html msg

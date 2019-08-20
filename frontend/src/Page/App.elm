@@ -646,8 +646,13 @@ viewApp app agaveApp inputs parameters settings =
     , Page.viewTitle2 "Parameters" False
     , viewParameters
     , br [] []
-    , Page.viewTitle2 "Settings" False
-    , viewSettings settings
+    , if not (isPlanB app) then
+        div []
+            [ Page.viewTitle2 "Settings" False
+            , viewSettings settings
+            ]
+      else
+        text ""
     ]
 
 
