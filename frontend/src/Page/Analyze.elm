@@ -10,6 +10,7 @@ import Http
 import Task exposing (Task)
 import App exposing (App)
 import Agave exposing (Job)
+import PlanB
 --import Debug exposing (toString)
 
 
@@ -39,10 +40,15 @@ init session tab =
         (jobs, getJobs) =
             case session of
                 LoggedIn _ _ _ cred ->
-                    ( Loading, [ Agave.getJobs cred.token |> Http.toTask |> Task.map .result |> Task.attempt GetJobsCompleted ] )
+                    ( Loading
+                    , Task.map2 (\agaveJobs planbJobs -> (agaveJobs, planbJobs))
+                        (Agave.getJobs cred.token |> Http.toTask |> Task.map .result)
+                        (PlanB.getJobs cred.token |> Http.toTask |> Task.map .result)
+                            |> Task.attempt GetJobsCompleted
+                    )
 
                 _ ->
-                    ( Unavailable, [] )
+                    ( Unavailable, Cmd.none )
     in
     ( { session = session
       , apps = Nothing
@@ -50,7 +56,10 @@ init session tab =
       , tab = tab |> Maybe.withDefault "Apps"
       , query = ""
       }
-      , Cmd.batch ( (App.fetchAll |> Http.toTask |> Task.attempt GetAppsCompleted) :: getJobs )
+      , Cmd.batch
+          [ App.fetchAll |> Http.toTask |> Task.attempt GetAppsCompleted
+          , getJobs
+          ]
     )
 
 
@@ -65,7 +74,7 @@ toSession model =
 
 type Msg
     = GetAppsCompleted (Result Http.Error (List App))
-    | GetJobsCompleted (Result Http.Error (List Job))
+    | GetJobsCompleted (Result Http.Error (List Job, List Job))
     | SetTab String
     | SetQuery String
 
@@ -82,8 +91,8 @@ update msg model =
 --            in
             ( model, Cmd.none )
 
-        GetJobsCompleted (Ok jobs) ->
-            ( { model | jobs = Loaded jobs }, Cmd.none )
+        GetJobsCompleted (Ok (agaveJobs, planbJobs)) ->
+            ( { model | jobs = Loaded (agaveJobs ++ planbJobs) }, Cmd.none )
 
         GetJobsCompleted (Err error) -> --TODO
 --            let
@@ -193,6 +202,12 @@ viewJobs jobs =
                 , td [ class "text-nowrap" ] [ text job.ended ]
                 , td [ class "text-nowrap" ] [ text job.status ]
                 ]
+
+        sortByTimeDesc a b =
+            case compare a.created b.created of
+              LT -> GT
+              EQ -> EQ
+              GT -> LT
     in
     table [ class "table" ]
         [ thead []
@@ -205,7 +220,7 @@ viewJobs jobs =
                 ]
             ]
         , tbody []
-            (jobs |> List.map row)
+            (jobs |> List.sortWith sortByTimeDesc |> List.map row)
         ]
 
 
