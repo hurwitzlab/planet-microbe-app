@@ -143,14 +143,8 @@ view =
                             language”. Planet Microbe connects with diverse scientists in the National Microbiome Data
                             Collaborative to share knowledge about how data might be used, by defining stories or use
                             cases. With guidance from the community, we develop data resources and tools that are
-                            compatible with ideas and needs from the community.
-                            """
-                        , a [ href "https://members.aaas.org/trelliscommunitiesbyaaas/communities/community-home?CommunityKey=c9a11f04-f616-4c64-a216-a9e7fe4221e5", target "_blank" ]
-                            [ text "Come join us!" ]
-                        , text
-                            """
-                            We actively recruit ideas from the community through our feedback link, at conferences,
-                            and through our use-case protocols at
+                            compatible with ideas and needs from the community. We actively recruit ideas from the
+                            community through our feedback link, at conferences, and through our use-case protocols at
                             """
                         , a [ href "https://www.protocols.io/groups/hurwitz-lab", target "_blank" ]
                             [ text "Protocols.io" ]
@@ -167,7 +161,7 @@ view =
         , div [ style "background-image" "url('assets/images/ocean-floor.jpg')", style "background-size" "cover", style "min-height" "18em" ] --TODO move into css
             [ div [ class "container" ]
                 [ div [ class "row", style "padding-top" "6em" ]
-                    [ div [ class "col col-lg-4" ]
+                    [ div [ class "col col-lg-5" ]
                         [ h2 [ class "font-weight-bold", style "text-shadow" "2px 2px 3px rgba(0,0,0,0.6)", style "font-size" "2.5em", style "color" "#F0F0F0" ]
                             [ text "Connect to" ]
                         , h2 [ class "font-weight-bold", style "text-shadow" "2px 2px 3px rgba(0,0,0,0.6)", style "font-size" "2.5em", style "color" "#F0F0F0" ]
@@ -175,14 +169,12 @@ view =
                         ]
                     , div [ class "col", style "padding-top" "1em" ]
                         [ nav [ class "nav", style "text-shadow" "2px 2px 3px rgba(0,0,0,0.6)", style "font-size" "1.6em" ]
-                            [ a [ class "nav-link", style "color" "#F0F0F0", href "https://members.aaas.org/trelliscommunitiesbyaaas/communities/community-home?CommunityKey=c9a11f04-f616-4c64-a216-a9e7fe4221e5", target "_blank" ]
-                                [ text "Trellis Blog" ]
-                            , a [ class "nav-link", style "color" "#F0F0F0", href "http://www.hurwitzlab.org/", target "_blank" ]
-                                [ text "Lab Website" ]
-                            , a [ class "nav-link", style "color" "#F0F0F0", href "https://twitter.com/PlanetMicrobe", target "_blank" ]
+                            [ a [ class "nav-link", style "color" "#F0F0F0", href "https://twitter.com/PlanetMicrobe", target "_blank" ]
                                 [ text "Twitter" ]
                             , a [ class "nav-link", style "color" "#F0F0F0", href "https://github.com/search?q=org%3Ahurwitzlab+planet-microbe&unscoped_q=planet-microbe", target "_blank" ]
                                 [ text "GitHub" ]
+                            , a [ class "nav-link", style "color" "#F0F0F0", href "http://www.hurwitzlab.org/", target "_blank" ]
+                                [ text "Lab Website" ]
                             , a [ class "nav-link", style "color" "#F0F0F0", href "https://www.protocols.io/groups/hurwitz-lab", target "_blank" ]
                                 [ text "Protocols.io" ]
                             ]
