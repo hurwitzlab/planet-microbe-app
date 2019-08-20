@@ -200,7 +200,7 @@ viewJobs jobs =
                 , td [] [ text job.app_id ]
                 , td [ class "text-nowrap" ] [ text job.created ]
                 , td [ class "text-nowrap" ] [ text job.ended ]
-                , td [ class "text-nowrap" ] [ text job.status ]
+                , td [ class "text-nowrap" ] [ Page.viewJobStatus job.status ]
                 ]
 
         sortByTimeDesc a b =

@@ -9,7 +9,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Http
 import Route
-import Page
+import Page exposing (viewJobStatus)
 import Task exposing (Task)
 import Dict exposing (Dict)
 import Time
@@ -412,7 +412,7 @@ view model =
                         , small [ class "ml-3", style "color" "gray" ] [ text job.name ]
                         ]
                     , span [ class "float-right text-secondary", style "font-size" "2em" ]
-                        [ text "Status: ", viewStatus job.status ]
+                        [ text "Status: ", viewJobStatus job.status ]
                     ]
                 , viewJob job app
                 , br [] []
@@ -532,22 +532,7 @@ viewProgress status =
         "CLEANING_UP" -> progressBar 80
         "ARCHIVING" -> progressBar 90
         "ARCHIVING_FINISHED" -> progressBar 95
-        _ -> viewStatus status
-
-
-viewStatus : String -> Html msg
-viewStatus status =
-    let
-        label =
-            String.replace "_" " " status -- replace _ with space
-
-        color =
-            case String.toUpper label of
-                "FINISHED" -> "text-primary"
-                "FAILED" -> "text-danger"
-                _ -> "text-secondary"
-    in
-    span [ class color ] [ text label ]
+        _ -> viewJobStatus status
 
 
 viewInputs : Dict String Agave.JobInputValue -> Html msg

@@ -1,4 +1,4 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewDialog)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewDialog, viewJobStatus)
 
 --import Api exposing (Cred)
 --import Avatar
@@ -274,3 +274,18 @@ viewDialog title body footer closeMsg =
             ]
         , div [ class "modal-backdrop fade show" ] []
         ]
+
+
+viewJobStatus : String -> Html msg
+viewJobStatus status =
+    let
+        label =
+            String.replace "_" " " status -- replace _ with space
+
+        color =
+            case String.toUpper label of
+                "FINISHED" -> "text-primary"
+                "FAILED" -> "text-danger"
+                _ -> "text-secondary"
+    in
+    span [ class color ] [ text label ]
