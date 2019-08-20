@@ -713,44 +713,31 @@ app.get('/apps/:name([\\w\\.\\-\\_]+)', async (req, res) => {
 
     for (let app of result.rows) {
         let nameWithoutVersion = app.name.replace(/-(\d+\.)?\d+\.\d+(u\d+)?$/, '');
-        if (app.name.toLowerCase() == name || nameWithoutVersion.toLowerCase() == name)
+        if (app.name.toLowerCase() == name || nameWithoutVersion.toLowerCase() == name) {
             res.json(app);
+            return;
+        }
     }
 
     res.status(404).json([]);
 });
 
 app.post('/apps/runs', async (req, res) => {
-    var app_id = req.body.app_id;
-    var params = req.body.params;
+    let app_id = req.body.app_id;
+    let params = req.body.params;
 
-    //errorOnNull(app_id, params);
+    //errorOnNull(app_id, params); // TODO
 
     requireAuth(req);
 
-    let run = await query({
+    let user_id = req.auth.user.user_id;
+
+    let result = await query({
         text: "INSERT INTO app_run (app_id,user_id,params) VALUES ($1,$2,$3) RETURNING *",
         values: [app_id,user_id,params]
     });
 
-    toJsonOrError(res, next,
-        models.app_run.create({
-            app_id: app_id,
-            user_id: req.auth.user.user_id,
-            params: params
-        })
-        .then( () =>
-            models.app.findOne({ where: { app_id: app_id } })
-        )
-        .then( app =>
-            logAdd(req, {
-                title: "Ran app " + app.app_name,
-                type: "runApp",
-                app_id: app_id,
-                app_name: app.app_name
-            })
-        )
-    );
+    res.json(result.rows[0]);
 });
 
 app.post('/token', async (req, res) => {
@@ -887,7 +874,7 @@ async function getAgaveProfile(token) {
         method: "GET",
         uri: "https://agave.iplantc.org/profiles/v2/me", // FIXME hardcoded
         headers: {
-            Authorization: token,
+            Authorization: "Bearer " + token,
             Accept: "application/json"
         },
         json: true
