@@ -76,11 +76,10 @@ view =
                             """
                             to enable impactful multi-disciplinary analyses. All data are standardized, with
                             high-quality data and metadata linked to ontologies to enable advanced searches and
-                            interoperability between heterogeneous datasets. Check out our metadata and 4D-search
-                            capabilities for our new
+                            interoperability between heterogeneous datasets. Check out our
                             """
                         , a [ href "https://www.planetmicrobe.org/project/#/search" ]
-                            [ text "alpha release" ]
+                            [ text "metadata and 4D-search capabilities" ]
                         , text "."
                         ]
                     ]
@@ -168,7 +167,7 @@ view =
                             [ text "Planet Microbe:" ]
                         ]
                     , div [ class "col", style "padding-top" "1em" ]
-                        [ nav [ class "nav", style "text-shadow" "2px 2px 3px rgba(0,0,0,0.6)", style "font-size" "1.6em" ]
+                        [ nav [ class "nav", style "text-shadow" "2px 2px 3px rgba(0,0,0,0.6)", style "font-size" "1.8em" ]
                             [ a [ class "nav-link", style "color" "#F0F0F0", href "https://twitter.com/PlanetMicrobe", target "_blank" ]
                                 [ text "Twitter" ]
                             , a [ class "nav-link", style "color" "#F0F0F0", href "https://github.com/search?q=org%3Ahurwitzlab+planet-microbe&unscoped_q=planet-microbe", target "_blank" ]
