@@ -464,6 +464,34 @@ app.post('/samples/files', async (req, res) => {
     res.json(result.rows);
 });
 
+app.get('/samples/files/formats', async (req, res) => {
+    let result = await query({
+        text: "SELECT ff.file_format_id,ff.name,ff.description,ff.extensions,count(f.file_id) as file_count \
+            FROM experiment e \
+            LEFT JOIN run r ON (r.experiment_id=e.experiment_id) \
+            JOIN run_to_file rtf ON rtf.run_id=r.run_id \
+            JOIN file f ON f.file_id=rtf.file_id \
+            LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id \
+            GROUP BY ff.file_format_id"
+    });
+
+    res.json(result.rows.map(row => { row.file_count *= 1; return row })); // convert to int
+});
+
+app.get('/samples/files/types', async (req, res) => {
+    let result = await query({
+        text: "SELECT ft.file_type_id,ft.name,ft.description,count(f.file_id) as file_count \
+            FROM experiment e \
+            LEFT JOIN run r ON (r.experiment_id=e.experiment_id) \
+            JOIN run_to_file rtf ON rtf.run_id=r.run_id \
+            JOIN file f ON f.file_id=rtf.file_id \
+            LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
+            GROUP BY ft.file_type_id"
+    });
+
+    res.json(result.rows.map(row => { row.file_count *= 1; return row })); // convert to int
+});
+
 app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
     let id = req.params.id;
     let result = await query({
@@ -909,7 +937,7 @@ async function generateTermIndex(db, ontologyDescriptors) {
     let index = {};
     ontologyDescriptors.forEach( desc => {
         console.log("Indexing ontology", desc.name);
-        load_ontology(desc.type, desc.path, index);
+        loadOntology(desc.type, desc.path, index);
     });
 
     schemas.rows.forEach( schema => {
@@ -951,7 +979,7 @@ async function generateTermIndex(db, ontologyDescriptors) {
     return index;
 }
 
-function load_ontology(type, path, index) {
+function loadOntology(type, path, index) {
     if (path.endsWith(".json")) {
         ontology = JSON.parse(fs.readFileSync(path));
 
@@ -1018,11 +1046,12 @@ function load_ontology(type, path, index) {
     return index;
 }
 
+// TODO refactor/simplify
 async function search(db, params) {
     console.log("params:", params);
 
-    let limit = 20, offset, sort, map;
-    let gisClause, projectClause;
+    let limit = 20, offset, sort, result = "sample", map;
+    let gisClause, projectClause, fileFormatClause, fileTypeClause;
     let clauses = {};
     let selections = [];
 
@@ -1036,6 +1065,8 @@ async function search(db, params) {
             offset = val * 1; // convert to int
         else if (param == 'sort')
             sort = val * 1; // convert to int
+        else if (param == 'result')
+            result = val;
         else if (param == 'map')
             map = val == 1;
         else if (param == 'location') {
@@ -1052,7 +1083,17 @@ async function search(db, params) {
         else if (param == 'project') {
             let vals = val.split("|");
             console.log("project match", vals);
-            projectClause = "LOWER(project.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
+            projectClause = "LOWER(p.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
+        }
+        else if (param == 'fileFormat') {
+            let vals = val.split("|");
+            console.log("fileFormat match", vals);
+            fileFormatClause = "LOWER(ff.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
+        }
+        else if (param == 'fileType') {
+            let vals = val.split("|");
+            console.log("fileType match", vals);
+            fileTypeClause = "LOWER(ft.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
         }
         else {
             let term = getTerm(param);
@@ -1209,22 +1250,45 @@ async function search(db, params) {
     if (projectClause)
         clauseStr = projectClause + (clauseStr ? " AND (" + clauseStr + ")": "");
 
+    if (fileFormatClause)
+        clauseStr = fileFormatClause + (clauseStr ? " AND (" + clauseStr + ")": "");
+
+    if (fileTypeClause)
+        clauseStr = fileTypeClause + (clauseStr ? " AND (" + clauseStr + ")": "");
+
     if (clauseStr)
         clauseStr = "WHERE " + clauseStr;
 
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
     let sortStr = (typeof sort !== 'undefined' && Math.abs(sort) <= selections.length+1 ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
 
-    let countQueryStr = "SELECT count(*) FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " + clauseStr;
+    let tableStr =
+        "FROM sample s \
+        JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
+        JOIN project p ON p.project_id=pts.project_id \
+        LEFT JOIN experiment e ON e.sample_id=s.sample_id \
+        LEFT JOIN run r ON r.experiment_id=e.experiment_id \
+        LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id \
+        LEFT JOIN file f ON f.file_id=rtf.file_id \
+        LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
+        LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id ";
+
+    let groupByStr = " GROUP BY s.sample_id,p.project_id "
+
+    let countQueryStr =
+        "SELECT COUNT(foo) FROM (SELECT s.sample_id " +
+        tableStr +
+        clauseStr + groupByStr + ") AS foo";
 
     if (!limit)
         limit = 50;
     let limitStr = (limit ? " LIMIT " + limit : "");
     let offsetStr = (offset ? " OFFSET " + offset : "");
 
-    let queryStr = "SELECT " + ["schema_id", "sample.sample_id", "project.project_id", "project.name"].concat(selections).join(",") +
-        " FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
-        clauseStr + sortStr + offsetStr + limitStr;
+    let queryStr =
+        "SELECT " + ["schema_id", "s.sample_id", "p.project_id", "p.name"].concat(selections).join(",") + " " +
+        tableStr +
+        clauseStr + groupByStr + sortStr + offsetStr + limitStr;
 
 //    let locationClusterQuery = "SELECT ST_NumGeometries(gc) AS count, ST_AsGeoJSON(gc) AS collection, ST_AsGeoJSON(ST_Centroid(gc)) AS centroid, ST_AsGeoJSON(ST_MinimumBoundingCircle(gc)) AS circle, sqrt(ST_Area(ST_MinimumBoundingCircle(gc)) / pi()) AS radius " +
 //        "FROM (SELECT unnest(ST_ClusterWithin(locations::geometry, 100)) gc FROM sample " + clauseStr + ") f;"
@@ -1233,15 +1297,17 @@ async function search(db, params) {
 //        "FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
 //        clauseStr;
 
-    let locationClusterQuery = "SELECT sample.sample_id,sample.accn as sample_accn,project.name AS project_name,ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude, ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude " +
-        "FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
-        clauseStr;
+    let locationClusterQuery =
+        "SELECT s.sample_id,s.accn as sample_accn,p.name AS project_name,ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude, ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude " +
+        tableStr +
+        clauseStr + groupByStr;
 
     let count = await query({
         text: countQueryStr,
         values: [],
         rowMode: 'array'
     });
+    console.log(count.rows)
 
     let results = await query({
         text: queryStr,

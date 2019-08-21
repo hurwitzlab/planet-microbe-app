@@ -24,6 +24,23 @@ type alias File =
     }
 
 
+type alias FileFormat =
+    { id : Int
+    , name : String
+    , description : String
+    , extensions : List String
+    , fileCount : Int
+    }
+
+
+type alias FileType =
+    { id : Int
+    , name : String
+    , description : String
+    , fileCount : Int
+    }
+
+
 
 -- SERIALIZATION --
 
@@ -36,6 +53,25 @@ fileDecoder =
         |> required "file_type" Decode.string
         |> required "file_format" Decode.string
         |> optional "sample_id" Decode.int 0
+
+
+fileFormatDecoder : Decoder FileFormat
+fileFormatDecoder =
+    Decode.succeed FileFormat
+        |> required "file_format_id" Decode.int
+        |> required "name" Decode.string
+        |> optional "description" Decode.string ""
+        |> optional "extensions" (Decode.list Decode.string) []
+        |> required "file_count" Decode.int
+
+
+fileTypeDecoder : Decoder FileType
+fileTypeDecoder =
+    Decode.succeed FileType
+        |> required "file_type_id" Decode.int
+        |> required "name" Decode.string
+        |> optional "description" Decode.string ""
+        |> required "file_count" Decode.int
 
 
 
@@ -55,4 +91,26 @@ fetchAllBySamples sampleIds =
     HttpBuilder.post url
         |> HttpBuilder.withJsonBody body
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list fileDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchFormats : Http.Request (List FileFormat)
+fetchFormats =
+    let
+        url =
+            apiBaseUrl ++ "/samples/files/formats"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list fileFormatDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchTypes : Http.Request (List FileType)
+fetchTypes =
+    let
+        url =
+            apiBaseUrl ++ "/samples/files/types"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list fileTypeDecoder))
         |> HttpBuilder.toRequest

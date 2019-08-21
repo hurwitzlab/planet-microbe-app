@@ -23,9 +23,10 @@ import Dict exposing (Dict)
 import Route
 import Page exposing (viewBlank, viewSpinner, viewDialog)
 import Sample exposing (SearchTerm, PURL, annotationsToHide)
+import File exposing (FileFormat, FileType)
 import Cart
 import Icon
---import Debug exposing (toString)
+import Debug exposing (toString)
 import Config exposing (apiBaseUrl)
 
 
@@ -79,6 +80,8 @@ initialParams =
 type alias Model =
     { session : Session
     , projectCounts : List ProjectCount
+    , fileFormats : List FileFormat
+    , fileTypes : List FileType
     , allParams : List SearchTerm -- list of available params to add
     --TODO combine selectedParams/Terms/Vals into list of records, use get and set routines to access by PURL
     , selectedParams : List PURL -- added params, for maintaining order
@@ -86,6 +89,8 @@ type alias Model =
     , selectedVals : Dict PURL FilterValue
     , locationVal : LocationFilterValue
     , projectVals : List String
+    , fileFormatVals : List String
+    , fileTypeVals : List String
     , showAddFilterDialog : Bool
     , stringFilterDialogTerm : Maybe SearchTerm
     , paramSearchInputVal : String
@@ -99,6 +104,8 @@ type alias Model =
     , mapResults : Value --List MapResult
     , count : Int
     , errorMsg : Maybe String
+    , searchTab : String
+    , resultTab : String
     , pageNum : Int
     , pageSize : Int
     , showMap : Bool
@@ -112,12 +119,16 @@ init session =
     (
         { session = session
         , projectCounts = []
+        , fileFormats = []
+        , fileTypes = []
         , allParams = []
         , selectedParams = initialParams
         , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
         , locationVal = NoLocationValue
         , projectVals = []
+        , fileFormatVals = []
+        , fileTypeVals = []
         , showAddFilterDialog = False
         , stringFilterDialogTerm = Nothing
         , paramSearchInputVal = ""
@@ -131,6 +142,8 @@ init session =
         , mapResults = Encode.object []
         , count = 0
         , errorMsg = Nothing
+        , searchTab = "Samples"
+        , resultTab = "Samples"
         , pageNum = 0
         , pageSize = defaultPageSize
         , showMap = True
@@ -140,6 +153,8 @@ init session =
         [ Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map Sample.fetchSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
+        , File.fetchFormats |> Http.toTask |> Task.attempt GetFileFormatsCompleted
+        , File.fetchTypes |> Http.toTask |> Task.attempt GetFileTypesCompleted
         , GMap.removeMap "" -- workaround for blank map on navigating back to this page
         , GMap.changeMapSettings (GMap.Settings True True False True |> GMap.encodeSettings)
         ]
@@ -166,6 +181,8 @@ toSession model =
 
 type Msg
     = GetProjectCountsCompleted (Result Http.Error (List ProjectCount))
+    | GetFileFormatsCompleted (Result Http.Error (List FileFormat))
+    | GetFileTypesCompleted (Result Http.Error (List FileType))
     | GetAllSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | GetSearchTermCompleted (Result Http.Error SearchTerm)
     | ClearFilters
@@ -183,6 +200,10 @@ type Msg
     | SetFilterValue PURL FilterValue
     | SetLocationFilterValue LocationFilterValue
     | SetProjectFilterValue String Bool
+    | SetFileFormatFilterValue String Bool
+    | SetFileTypeFilterValue String Bool
+    | SetSearchTab String
+    | SetResultTab String
     | SetSortPos Int
     | SetPageSize Int
     | SetPageNum Int
@@ -206,6 +227,26 @@ update msg model =
 --            let
 --                _ = Debug.log "GetProjectCountsCompleted" (toString error)
 --            in
+            ( model, Cmd.none )
+
+        GetFileFormatsCompleted (Ok formats) ->
+            ( { model | fileFormats = formats }, Cmd.none )
+
+
+        GetFileFormatsCompleted (Err error) -> --TODO
+            let
+                _ = Debug.log "GetFileFormatsCompleted" (toString error)
+            in
+            ( model, Cmd.none )
+
+        GetFileTypesCompleted (Ok types) ->
+            ( { model | fileTypes = types }, Cmd.none )
+
+
+        GetFileTypesCompleted (Err error) -> --TODO
+            let
+                _ = Debug.log "GetFileTypesCompleted" (toString error)
+            in
             ( model, Cmd.none )
 
         GetAllSearchTermsCompleted (Ok terms) ->
@@ -249,7 +290,17 @@ update msg model =
                     |> Dict.remove purlDateTime
                     |> Dict.map (\k v -> NoValue)
             in
-            ( { model | doSearch = True, locationVal = NoLocationValue, selectedVals = newVals, projectVals = [], sortPos = 1 }, GMap.setLocation Nothing )
+            ( { model
+                | doSearch = True
+                , locationVal = NoLocationValue
+                , selectedVals = newVals
+                , projectVals = []
+                , fileFormatVals = []
+                , fileTypeVals = []
+                , sortPos = 1
+              }
+            , GMap.setLocation Nothing
+            )
 
         AddFilter id ->
             let
@@ -390,6 +441,32 @@ update msg model =
             in
             ( { model | doSearch = True, projectVals = vals }, Cmd.none )
 
+        SetFileFormatFilterValue val enable ->
+            let
+                vals =
+                    model.fileFormatVals
+                        |> Set.fromList
+                        |> (if enable then Set.insert val else Set.remove val)
+                        |> Set.toList
+            in
+            ( { model | doSearch = True, fileFormatVals = vals }, Cmd.none )
+
+        SetFileTypeFilterValue val enable ->
+            let
+                vals =
+                    model.fileTypeVals
+                        |> Set.fromList
+                        |> (if enable then Set.insert val else Set.remove val)
+                        |> Set.toList
+            in
+            ( { model | doSearch = True, fileTypeVals = vals }, Cmd.none )
+
+        SetSearchTab label ->
+            ( { model | searchTab = label }, Cmd.none )
+
+        SetResultTab label ->
+            ( { model | resultTab = label }, Cmd.none )
+
         SetSortPos pos ->
             let
                 newPos =
@@ -426,7 +503,7 @@ update msg model =
 --            let
 --                _ = Debug.log "Search" (toString model.selectedVals)
 --            in
-            case generateQueryParams model.locationVal model.projectVals model.selectedParams model.selectedVals of
+            case generateQueryParams model.locationVal model.projectVals model.fileFormatVals model.fileTypeVals model.selectedParams model.selectedVals of
                 Ok queryParams ->
                     let
                         searchTask =
@@ -540,14 +617,18 @@ validLocationParam val =
             True
 
 
-generateQueryParams : LocationFilterValue -> List String -> List PURL -> Dict PURL FilterValue -> Result String (List (String, String))
-generateQueryParams locationVal projectVals params vals =
+-- TODO refactor/simplify
+generateQueryParams : LocationFilterValue -> List String -> List String -> List String -> List PURL -> Dict PURL FilterValue -> Result String (List (String, String))
+generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params vals =
     let
         range from to =
             "[" ++ from ++ "," ++ to ++ "]"
 
         offset val ofs =
             val ++ "," ++ ofs
+
+        list values =
+            String.join "|" values
 
         formatParam val = --TODO use encoder instead
             case val of
@@ -598,17 +679,6 @@ generateQueryParams locationVal projectVals params vals =
 
                 NoLocationValue ->
                     ""
-
-        formatProjectParam values =
-            String.join "|" values
-
-        sortFirst id a b =
-            if Tuple.first a == id then
-                LT
-            else if Tuple.first b == id then
-                GT
-            else
-                EQ
     in
     --FIXME refactor section below
     if locationVal == NoLocationValue && projectVals == [] && Dict.isEmpty vals then
@@ -646,11 +716,24 @@ generateQueryParams locationVal projectVals params vals =
 
             projectParam =
                 if projectVals /= [] then
-                    [ ("project", formatProjectParam projectVals) ]
+                    [ ("project", list projectVals) ]
+                else
+                    []
+
+            fileFormatParam =
+                if fileFormatVals /= [] then
+                    [ ("fileFormat", list fileFormatVals) ]
+                else
+                    []
+
+            fileTypeParam =
+                if fileTypeVals /= [] then
+                    [ ("fileType", list fileTypeVals) ]
                 else
                     []
         in
-        List.concat [ projectParam, [(purlSampleID, "")], locParam, depthParam, datetimeParam, userParams ] |> Ok
+        List.concat [ projectParam, fileFormatParam, fileTypeParam, [(purlSampleID, "")], locParam, depthParam, datetimeParam, userParams ]
+            |> Ok
 --    else
 --        Err "Invalid query parameter"
 
@@ -868,22 +951,59 @@ viewSearchPanel model =
 --            ]
         div [ style "border" "1px solid lightgray", style "display" "inline-block" ]
             [ ul [ class "nav nav-tabs" ]
-                [ li [ class "nav-item" ]
-                    [ a [ class "nav-link", href "", style "color" "black" ] [ text "Projects" ] ]
-                , li [ class "nav-item" ]
-                    [ a [ class "nav-link active", href "", style "font-weight" "bold" ] [ text "Samples" ] ]
-                , li [ class "nav-item" ]
-                    [ a [ class "nav-link", href "", style "color" "black" ] [ text "Files" ] ]
-                , li [ class "nav-item ml-auto" ]
-                    [ a [ class "small nav-link", href "", style "font-weight" "bold", onClick ClearFilters ] [ text "Reset" ] ]
-                ]
-            , div []
-                [ viewLocationPanel model
-                , viewProjectPanel model.projectCounts model.projectVals
-                , viewAddedFiltersPanel model model.selectedParams model.selectedTerms model.selectedVals
-                , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allParams model.selectedParams
-                ]
+                ( (List.map (\lbl -> viewTab lbl (lbl == model.searchTab) SetSearchTab) [ "Projects", "Samples", "Files" ]) ++
+                  [ (li [ class "nav-item ml-auto" ]
+                    [ a [ class "small nav-link", href "", style "font-weight" "bold", onClick ClearFilters ]
+                        [ text "Reset" ]
+                    ])
+                  ]
+                )
+            , if model.searchTab == "Projects" then
+                text ""
+              else if model.searchTab == "Samples" then
+                viewSampleSearchPanel model
+              else if model.searchTab == "Files" then
+                viewFileSearchPanel model
+              else
+                text ""
             ]
+        ]
+
+
+viewSampleSearchPanel : Model -> Html Msg
+viewSampleSearchPanel model =
+    let
+        projectCounts =
+            model.projectCounts |> List.map (\pc -> (pc.name, pc.sampleCount))
+    in
+    div []
+        [ viewLocationPanel model
+        , viewProjectPanel projectCounts model.projectVals
+        , viewAddedFiltersPanel model model.selectedParams model.selectedTerms model.selectedVals
+        , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allParams model.selectedParams
+        ]
+
+
+viewFileSearchPanel : Model -> Html Msg
+viewFileSearchPanel model =
+    let
+        formatCounts =
+            model.fileFormats |> List.map (\ff -> (ff.name, ff.fileCount))
+
+        typeCounts =
+            model.fileTypes |> List.map (\ft -> (ft.name, ft.fileCount))
+    in
+    div []
+        [ viewFileFormatPanel formatCounts model.fileFormatVals
+        , viewFileTypePanel typeCounts model.fileTypeVals
+        ]
+
+
+viewTab : String -> Bool -> (String -> Msg) -> Html Msg
+viewTab label isSelected msg =
+    li [ class "nav-item" ]
+        [ a [ class "nav-link", classList [ ("active", isSelected), ("font-weight-bold", isSelected) ], href "", style "color" "black", onClick (msg label) ]
+            [ text label ]
         ]
 
 
@@ -1117,24 +1237,24 @@ viewSearchFilterPanel term val =
         ]
 
 
-viewProjectPanel : List ProjectCount -> List String -> Html Msg --TODO merge with viewStringFilterPanel
+viewProjectPanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
 viewProjectPanel counts selectedVals =
     let
-        viewRow vals count =
+        viewRow vals ( lbl, num ) =
             let
                 isChecked =
-                    List.member count.name vals
+                    List.member lbl vals
             in
             div []
                 [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetProjectFilterValue count.name) ] []
-                    , label [ class "form-check-label" ] [ text count.name ]
+                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetProjectFilterValue lbl) ] []
+                    , label [ class "form-check-label" ] [ text lbl ]
                     ]
-                , div [ class "badge badge-secondary float-right" ] [ count.sampleCount |> toFloat |> format myLocale |> text ]
+                , div [ class "badge badge-secondary float-right" ] [ num |> toFloat |> format myLocale |> text ]
                 ]
 
         truncatedOptions =
-            counts |> List.sortBy .sampleCount --|> List.take 4 maxNumPanelOptions
+            counts |> List.sortBy Tuple.second --|> List.take 4 maxNumPanelOptions
 
         numOptions =
             List.length counts
@@ -1143,6 +1263,76 @@ viewProjectPanel counts selectedVals =
             0 --numOptions - maxNumPanelOptions
     in
     viewPanel "" "Project" "" False
+        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
+        , if numMore > 0 then
+            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
+          else
+            viewBlank
+        ]
+
+
+viewFileFormatPanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
+viewFileFormatPanel counts selectedVals =
+    let
+        viewRow vals ( lbl, num ) =
+            let
+                isChecked =
+                    List.member lbl vals
+            in
+            div []
+                [ div [ class "form-check form-check-inline" ]
+                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileFormatFilterValue lbl) ] []
+                    , label [ class "form-check-label" ] [ text lbl ]
+                    ]
+                , div [ class "badge badge-secondary float-right" ]
+                    [ num |> toFloat |> format myLocale |> text ]
+                ]
+
+        truncatedOptions =
+            counts |> List.sortBy Tuple.second --|> List.take 4 maxNumPanelOptions
+
+        numOptions =
+            List.length counts
+
+        numMore =
+            numOptions - maxNumPanelOptions
+    in
+    viewPanel "" "Format" "" False
+        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
+        , if numMore > 0 then
+            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
+          else
+            viewBlank
+        ]
+
+
+viewFileTypePanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
+viewFileTypePanel counts selectedVals =
+    let
+        viewRow vals ( lbl, num ) =
+            let
+                isChecked =
+                    List.member lbl vals
+            in
+            div []
+                [ div [ class "form-check form-check-inline" ]
+                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileTypeFilterValue lbl) ] []
+                    , label [ class "form-check-label" ] [ text lbl ]
+                    ]
+                , div [ class "badge badge-secondary float-right" ]
+                    [ num |> toFloat |> format myLocale |> text ]
+                ]
+
+        truncatedOptions =
+            counts |> List.sortBy Tuple.second --|> List.take 4 maxNumPanelOptions
+
+        numOptions =
+            List.length counts
+
+        numMore =
+            numOptions - maxNumPanelOptions
+    in
+    viewPanel "" "Type" "" False
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
@@ -1624,17 +1814,9 @@ viewResults model =
                 div []
                     [ div [ style "border" "1px solid lightgray" ]
                         [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                            [ li [ class "nav-item" ]
-                                [ a [ class "nav-link", href "", style "color" "black" ] [ text "Summary" ] ]
-                            , li [ class "nav-item" ]
-                                [ a [ class "nav-link", href "", style "color" "black" ] [ text "Projects" ] ]
-                            , li [ class "nav-item" ]
-                                [ a [ class "nav-link active", href "", style "font-weight" "bold" ] [ text "Samples" ] ]
-                            , li [ class "nav-item" ]
-                                [ a [ class "nav-link", href "", style "color" "black" ] [ text "Files" ] ]
+                            (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Projects", "Samples", "Files" ] )
 --                            , li [ class "nav-item ml-auto" ] --TODO
 --                                [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
-                            ]
                         , table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
                             [ thead [] [ tr [] columns ]
                             , tbody [] (model.results |> Maybe.withDefault [] |> List.map mkRow)
