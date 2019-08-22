@@ -6,7 +6,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onCheck)
 import Http
 import HttpBuilder
-import Json.Encode as Encode exposing (Value)
+import Json.Encode as Encode exposing (Value, null)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 import FormatNumber exposing (format)
@@ -27,7 +27,7 @@ import File exposing (FileFormat, FileType)
 import Cart
 import Icon
 import Debug exposing (toString)
-import Config exposing (apiBaseUrl)
+import Config exposing (apiBaseUrl, dataCommonsUrl)
 
 
 
@@ -98,9 +98,11 @@ type alias Model =
     , showParamSearchDropdown : Bool
     , sortPos : Int
     , doSearch : Bool
-    , isSearching : Bool
     , searchStartTime : Int -- milliseconds
-    , results : Maybe (List SearchResult)
+    , isSearchingSamples : Bool
+    , isSearchingFiles : Bool
+    , sampleResults : Maybe (List SampleResult)
+    , fileResults : Maybe (List FileResult)
     , mapResults : Value --List MapResult
     , count : Int
     , errorMsg : Maybe String
@@ -136,9 +138,11 @@ init session =
         , showParamSearchDropdown = False
         , sortPos = 1
         , doSearch = True
-        , isSearching = True
         , searchStartTime = 0
-        , results = Nothing
+        , isSearchingSamples = True
+        , isSearchingFiles = True
+        , sampleResults = Nothing
+        , fileResults = Nothing
         , mapResults = Encode.object []
         , count = 0
         , errorMsg = Nothing
@@ -209,7 +213,8 @@ type Msg
     | SetPageNum Int
     | InputTimerTick Time.Posix
     | Search Int
-    | SearchCompleted (Result Http.Error SearchResponse)
+    | SampleSearchCompleted (Result Http.Error SearchResponse)
+    | FileSearchCompleted (Result Http.Error SearchResponse)
     | ToggleMap
     | UpdateLocationFromMap (Maybe GMap.Location)
     | MapLoaded Bool
@@ -506,10 +511,24 @@ update msg model =
             case generateQueryParams model.locationVal model.projectVals model.fileFormatVals model.fileTypeVals model.selectedParams model.selectedVals of
                 Ok queryParams ->
                     let
-                        searchTask =
-                            searchRequest queryParams model.sortPos model.pageSize (model.pageSize * newPageNum) model.showMap |> Http.toTask
+                        sampleSearchTask =
+                            searchRequest queryParams "sample" model.sortPos model.pageSize (model.pageSize * newPageNum) model.showMap |> Http.toTask
+
+                        fileSearchTask =
+                            searchRequest queryParams "file" model.sortPos model.pageSize (model.pageSize * newPageNum) model.showMap |> Http.toTask
+
                     in
-                    ( { model | doSearch = False, isSearching = True, pageNum = newPageNum }, Task.attempt SearchCompleted searchTask )
+                    ( { model
+                        | doSearch = False
+                        , isSearchingSamples = True
+                        , isSearchingFiles = True
+                        , pageNum = newPageNum
+                      }
+                    , Cmd.batch
+                        [ Task.attempt SampleSearchCompleted sampleSearchTask
+                        , Task.attempt FileSearchCompleted fileSearchTask
+                        ]
+                    )
 
                 Err error ->
 --                    let
@@ -517,15 +536,55 @@ update msg model =
 --                    in
                     ( model, Cmd.none )
 
-        SearchCompleted (Ok response) ->
-            ( { model | count = response.count, results = Just response.results, mapResults = response.map, isSearching = False }, GMap.loadMap response.map )
+        SampleSearchCompleted (Ok response) ->
+            let
+                sampleResults =
+                    case response.results of
+                        SampleSearchResults results ->
+                            Just results
 
-        SearchCompleted (Err error) ->
---            let
---                _ = Debug.log "SearchCompleted" (toString error)
---            in
---            ( { model | errorMsg = Just (toString error), isSearching = False }, Cmd.none )
-            ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
+                        _ ->
+                            Nothing
+            in
+            ( { model
+                | count = response.count
+                , sampleResults = sampleResults
+                , mapResults = response.map
+                , isSearchingSamples = False
+              }
+            , GMap.loadMap response.map
+            )
+
+        SampleSearchCompleted (Err error) ->
+            let
+                _ = Debug.log "SampleSearchCompleted" (toString error)
+            in
+            ( { model | errorMsg = Just "Error", isSearchingSamples = False }, Cmd.none ) --TODO
+
+        FileSearchCompleted (Ok response) ->
+            let
+                fileResults =
+                    case response.results of
+                        FileSearchResults results ->
+                            Just results
+
+                        _ ->
+                            Nothing
+            in
+            ( { model
+                | count = response.count
+                , fileResults = fileResults
+--                , mapResults = response.map
+                , isSearchingFiles = False
+              }
+            , GMap.loadMap response.map
+            )
+
+        FileSearchCompleted (Err error) ->
+            let
+                _ = Debug.log "FileSearchCompleted" (toString error)
+            in
+            ( { model | errorMsg = Just "Error", isSearchingFiles = False }, Cmd.none ) --TODO
 
         ToggleMap ->
             let
@@ -738,14 +797,15 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
 --        Err "Invalid query parameter"
 
 
-searchRequest : List (String, String) -> Int -> Int -> Int -> Bool -> Http.Request SearchResponse
-searchRequest queryParams sortPos limit offset showMap =
+searchRequest : List (String, String) -> String -> Int -> Int -> Int -> Bool -> Http.Request SearchResponse
+searchRequest queryParams result sortPos limit offset showMap =
     let
         url =
             apiBaseUrl ++ "/search"
 
         queryParams2 =
             queryParams
+                |> List.append [ ("result", result) ]
                 |> List.append [ ("sort", String.fromInt sortPos) ]
                 |> List.append [ ("limit", String.fromInt limit) ]
                 |> List.append [ ("offset", String.fromInt offset) ]
@@ -770,17 +830,34 @@ getProjectCounts =
 
 type alias SearchResponse =
     { count : Int
-    , results : List SearchResult
+    , results : SearchResults
     , map: Value --List MapResult
     }
 
 
-type alias SearchResult =
+type SearchResults
+    = SampleSearchResults (List SampleResult)
+    | FileSearchResults (List FileResult)
+
+
+type alias SampleResult =
     { schemaId : Int
     , sampleId : Int
     , projectId : Int
     , projectName : String
     , values : List SearchResultValue
+    }
+
+
+type alias FileResult =
+    { fileId : Int
+    , fileUrl : String
+    , fileFormat : String
+    , fileType : String
+    , sampleId : Int
+    , sampleAccn : String
+    , projectId : Int
+    , projectName : String
     }
 
 
@@ -843,18 +920,39 @@ decodeSearchResponse : Decoder SearchResponse
 decodeSearchResponse =
     Decode.succeed SearchResponse
         |> required "count" Decode.int
-        |> required "results" (Decode.list decodeSearchResult)
-        |> required "map" Decode.value --(Decode.list decodeMapResult) []
+        |> required "results" decodeSearchResults
+        |> optional "map" Decode.value null --(Decode.list decodeMapResult) []
 
 
-decodeSearchResult : Decoder SearchResult
-decodeSearchResult =
-    Decode.succeed SearchResult
+decodeSearchResults : Decoder SearchResults
+decodeSearchResults =
+    Decode.oneOf
+        [ Decode.map SampleSearchResults (Decode.list decodeSampleResult)
+        , Decode.map FileSearchResults (Decode.list decodeFileResult)
+        ]
+
+
+decodeSampleResult : Decoder SampleResult
+decodeSampleResult =
+    Decode.succeed SampleResult
         |> required "schemaId" Decode.int
         |> required "sampleId" Decode.int
         |> required "projectId" Decode.int
         |> required "projectName" Decode.string
         |> required "values" (Decode.list decodeSearchResultValue)
+
+
+decodeFileResult : Decoder FileResult
+decodeFileResult =
+    Decode.succeed FileResult
+        |> required "fileId" Decode.int
+        |> required "fileUrl" Decode.string
+        |> optional "fileFormat" Decode.string ""
+        |> optional "fileType" Decode.string ""
+        |> required "sampleId" Decode.int
+        |> required "sampleAccn" Decode.string
+        |> required "projectId" Decode.int
+        |> required "projectName" Decode.string
 
 
 decodeSearchResultValue : Decoder SearchResultValue
@@ -942,31 +1040,23 @@ view model =
 
 viewSearchPanel : Model -> Html Msg
 viewSearchPanel model =
-    div []
-        [
---        div [ class "small" ]
---            [ a [ class "alert-link", href "", onClick ClearFilters ] [ text "Reset" ]
---            , text " | "
---            , a [ class "alert-link", href "" ] [ text "Advanced Search" ] --TODO
---            ]
-        div [ style "border" "1px solid lightgray", style "display" "inline-block" ]
-            [ ul [ class "nav nav-tabs" ]
-                ( (List.map (\lbl -> viewTab lbl (lbl == model.searchTab) SetSearchTab) [ "Projects", "Samples", "Files" ]) ++
-                  [ (li [ class "nav-item ml-auto" ]
-                    [ a [ class "small nav-link", href "", style "font-weight" "bold", onClick ClearFilters ]
-                        [ text "Reset" ]
-                    ])
-                  ]
-                )
-            , if model.searchTab == "Projects" then
-                text ""
-              else if model.searchTab == "Samples" then
-                viewSampleSearchPanel model
-              else if model.searchTab == "Files" then
-                viewFileSearchPanel model
-              else
-                text ""
-            ]
+    div [ style "border" "1px solid lightgray", style "width" "25.5vw" ]
+        [ ul [ class "nav nav-tabs" ]
+            ( (List.map (\lbl -> viewTab lbl (lbl == model.searchTab) SetSearchTab) [ "Projects", "Samples", "Files" ]) ++
+              [ (li [ class "nav-item ml-auto" ]
+                [ a [ class "small nav-link", href "", style "font-weight" "bold", onClick ClearFilters ]
+                    [ text "Reset" ]
+                ])
+              ]
+            )
+        , if model.searchTab == "Projects" then
+            text ""
+          else if model.searchTab == "Samples" then
+            viewSampleSearchPanel model
+          else if model.searchTab == "Files" then
+            viewFileSearchPanel model
+          else
+            text ""
         ]
 
 
@@ -1282,7 +1372,7 @@ viewFileFormatPanel counts selectedVals =
             div []
                 [ div [ class "form-check form-check-inline" ]
                     [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileFormatFilterValue lbl) ] []
-                    , label [ class "form-check-label" ] [ text lbl ]
+                    , label [ class "form-check-label" ] [ text (String.Extra.toSentenceCase lbl) ]
                     ]
                 , div [ class "badge badge-secondary float-right" ]
                     [ num |> toFloat |> format myLocale |> text ]
@@ -1317,7 +1407,7 @@ viewFileTypePanel counts selectedVals =
             div []
                 [ div [ class "form-check form-check-inline" ]
                     [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileTypeFilterValue lbl) ] []
-                    , label [ class "form-check-label" ] [ text lbl ]
+                    , label [ class "form-check-label" ] [ text (String.Extra.toSentenceCase lbl) ]
                     ]
                 , div [ class "badge badge-secondary float-right" ]
                     [ num |> toFloat |> format myLocale |> text ]
@@ -1641,6 +1731,22 @@ viewPanel id title unit removable nodes =
 
 viewResults : Model -> Html Msg
 viewResults model =
+    div []
+        [ div [ style "border" "1px solid lightgray" ]
+            [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Projects", "Samples", "Files" ] )
+--              , li [ class "nav-item ml-auto" ] --TODO
+--                  [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+            , if model.resultTab == "Samples" then
+                viewSampleResults model
+              else
+                viewFileResults model
+            ]
+        ]
+
+
+viewSampleResults : Model -> Html Msg
+viewSampleResults model =
     let
         maxColWidth = "8em"
 
@@ -1713,7 +1819,12 @@ viewResults model =
 
         addToCartTh =
             th []
-                [ Cart.addAllToCartButton (Session.getCart model.session) Nothing (model.results |> Maybe.withDefault [] |> List.map .sampleId) |> Html.map CartMsg
+                [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
+                    (model.sampleResults
+                        |> Maybe.withDefault []
+                        |> List.map .sampleId
+                    )
+                    |> Html.map CartMsg
                 ]
 
         columns =
@@ -1743,7 +1854,7 @@ viewResults model =
                     ])
 
         count =
-            model.results |> Maybe.withDefault [] |> List.length
+            model.sampleResults |> Maybe.withDefault [] |> List.length
 
         pageInfo =
             div [ class "small", style "color" "dimgray" ]
@@ -1801,7 +1912,7 @@ viewResults model =
                 ]
 
         content =
-            if model.isSearching then
+            if model.isSearchingSamples then
                 viewSpinner
             else if count == 0 then
                 text "No Results"
@@ -1812,15 +1923,158 @@ viewResults model =
                     ]
             else
                 div []
-                    [ div [ style "border" "1px solid lightgray" ]
-                        [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                            (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Projects", "Samples", "Files" ] )
---                            , li [ class "nav-item ml-auto" ] --TODO
---                                [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
-                        , table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
-                            [ thead [] [ tr [] columns ]
-                            , tbody [] (model.results |> Maybe.withDefault [] |> List.map mkRow)
-                            ]
+                    [ table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
+                        [ thead [] [ tr [] columns ]
+                        , tbody [] (model.sampleResults |> Maybe.withDefault [] |> List.map mkRow)
+                        ]
+                    , pageControls
+                    ]
+    in
+    div []
+        [ if count > 0 then
+            pageInfo
+          else
+            viewBlank
+        , content
+        ]
+
+
+viewFileResults : Model -> Html Msg
+viewFileResults model =
+    let
+        maxColWidth = "8em"
+
+        mkTh index label =
+            let
+                pos =
+                    index + 1
+
+                dirSymbol =
+                    if model.sortPos > 0 then
+                        String.fromChar (Char.fromCode 9650)
+                    else
+                        String.fromChar (Char.fromCode 9660)
+
+                lbl =
+                    String.Extra.toTitleCase
+                        (if pos == abs model.sortPos then
+                            label ++ " " ++ dirSymbol
+                        else
+                            label
+                        )
+            in
+            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetSortPos pos) ] [ text lbl ]
+
+        paramNames =
+            [ "Project Name"
+            , "Sample ID"
+            , "File Format"
+            , "File Type"
+            , "Path"
+            ]
+
+--        addToCartTh =
+--            th []
+--                [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
+--                    (model.sampleResults
+--                        |> Maybe.withDefault []
+--                        |> List.map .sampleId
+--                    )
+--                    |> Html.map CartMsg
+--                ]
+
+        columns =
+            List.indexedMap mkTh paramNames
+--                ++ [ addToCartTh ]
+
+        mkTd label =
+            td [ style "max-width" maxColWidth ] [ text label ]
+
+        mkRow result =
+            tr []
+                [ mkTd result.projectName
+                , td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ]
+                , td [] [ text (String.Extra.toSentenceCase result.fileFormat) ]
+                , td [] [ text (String.Extra.toSentenceCase result.fileType) ]
+                , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text result.fileUrl ] ]
+--                , td [] [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
+                ]
+
+        count =
+            model.fileResults |> Maybe.withDefault [] |> List.length
+
+        pageInfo =
+            div [ class "small", style "color" "dimgray" ]
+                [ text "Showing "
+                , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
+                , text " - "
+                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.count |> String.fromInt |> text
+                , text " of "
+                , model.count |> toFloat |> format myLocale |> text
+                , text " sample"
+                , (if model.count /= 1 then "s" else "") |> text
+                ]
+
+        lastPageNum =
+            toFloat(model.count) / toFloat(model.pageSize) |> floor
+
+        pageControls =
+            let
+                sizeOption size =
+                    a [ class "dropdown-item", href "", onClick (SetPageSize size) ] [ text (String.fromInt size) ]
+
+                pageOption label num =
+                    let
+                        dis =
+                            num < 0 -- previous
+                                || num == model.pageNum -- current
+                                || num > lastPageNum -- next
+                    in
+                    li [ classList [ ("page-item", True), ("disabled", dis) ] ]
+                        [ a [ class "page-link", href "", onClick (SetPageNum num) ] [ text label ] ]
+            in
+            div [ style "padding" "0.5em" ]
+                [ div [ class "float-left" ]
+                    [ text "Show "
+                    , div [ class "dropup", style "display" "inline" ]
+                        [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (String.fromInt model.pageSize) ]
+                        , div [ class "dropdown-menu" ]
+                            (List.map sizeOption [20, 40, 60, 80, 100])
+                        ]
+                    , text " results"
+                ]
+                , nav [ class "float-right" ]
+                    [ ul [ class "pagination" ]
+                        --FIXME code below is a little kludgey
+                        [ pageOption "First" 0
+                        , pageOption "Previous" (model.pageNum - 1)
+                        , pageOption (String.fromInt (model.pageNum + 1)) model.pageNum
+                        , if model.pageNum + 1 > lastPageNum then text "" else pageOption (String.fromInt (model.pageNum + 2)) (model.pageNum + 1)
+                        , if model.pageNum + 2 > lastPageNum then text "" else pageOption (String.fromInt (model.pageNum + 3)) (model.pageNum + 2)
+                        , if model.pageNum + 3 > lastPageNum then text "" else pageOption "..." (model.pageNum + 3)
+                        , pageOption "Next" (model.pageNum + 1)
+                        , pageOption "Last" lastPageNum
+                        ]
+                    ]
+                ]
+
+        content =
+            if model.isSearchingFiles then
+                viewSpinner
+            else if count == 0 then
+                text "No Results"
+            else if model.errorMsg /= Nothing then
+                div []
+                    [ p [] [ text "An error occurred:" ]
+                    , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
+                    ]
+            else
+                div []
+                    [ table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
+                        [ thead []
+                            [ tr [] columns ]
+                        , tbody []
+                            (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
                         ]
                     , pageControls
                     ]

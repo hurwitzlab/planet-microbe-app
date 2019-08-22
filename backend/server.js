@@ -1056,7 +1056,7 @@ async function search(db, params) {
     let selections = [];
 
     for (param in params) {
-        param = param.replace(/\+/gi, ''); // work around for Elm uri encoding
+        param = param.replace(/\+/gi, ''); // workaround for Elm uri encoding
         let val = params[param];
 
         if (param == 'limit')
@@ -1070,14 +1070,15 @@ async function search(db, params) {
         else if (param == 'map')
             map = val == 1;
         else if (param == 'location') {
-//            if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // [lat, lng] exact match
-//                //TODO
-//            }
             if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // [lat, lng, radius] in meters
                 let bounds = JSON.parse(val);
                 console.log("location:", bounds);
                 selections.push("replace(replace(replace(replace(ST_AsGeoJson(ST_FlipCoordinates(locations::geometry))::json->>'coordinates', '[[', '['), ']]', ']'), '[', '('), ']', ')')"); // ugly af
                 gisClause = "ST_DWithin(ST_MakePoint(" + bounds[1] + "," + bounds[0] + ")::geography, locations, " + bounds[2] + ")";
+            }
+            else if (val) {
+                //TODO error
+                console.log("Error: invalid location query", val);
             }
         }
         else if (param == 'project') {
@@ -1262,6 +1263,11 @@ async function search(db, params) {
     let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
     let sortStr = (typeof sort !== 'undefined' && Math.abs(sort) <= selections.length+1 ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
 
+    if (!limit)
+        limit = 50;
+    let limitStr = (limit ? " LIMIT " + limit : "");
+    let offsetStr = (offset ? " OFFSET " + offset : "");
+
     let tableStr =
         "FROM sample s \
         JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
@@ -1273,55 +1279,35 @@ async function search(db, params) {
         LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
         LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id ";
 
-    let groupByStr = " GROUP BY s.sample_id,p.project_id "
+    let results = [], count = 0, clusters = [];
 
-    let countQueryStr =
-        "SELECT COUNT(foo) FROM (SELECT s.sample_id " +
-        tableStr +
-        clauseStr + groupByStr + ") AS foo";
+    if (result == "sample") {
+        let groupByStr = " GROUP BY s.sample_id,p.project_id ";
 
-    if (!limit)
-        limit = 50;
-    let limitStr = (limit ? " LIMIT " + limit : "");
-    let offsetStr = (offset ? " OFFSET " + offset : "");
+        let countQueryStr =
+            "SELECT COUNT(foo) FROM (SELECT s.sample_id " +
+            tableStr +
+            clauseStr + groupByStr + ") AS foo";
 
-    let queryStr =
-        "SELECT " + ["schema_id", "s.sample_id", "p.project_id", "p.name"].concat(selections).join(",") + " " +
-        tableStr +
-        clauseStr + groupByStr + sortStr + offsetStr + limitStr;
+        let queryStr =
+            "SELECT " + ["schema_id", "s.sample_id", "p.project_id", "p.name"].concat(selections).join(",") + " " +
+            tableStr +
+            clauseStr + groupByStr + sortStr + offsetStr + limitStr;
 
-//    let locationClusterQuery = "SELECT ST_NumGeometries(gc) AS count, ST_AsGeoJSON(gc) AS collection, ST_AsGeoJSON(ST_Centroid(gc)) AS centroid, ST_AsGeoJSON(ST_MinimumBoundingCircle(gc)) AS circle, sqrt(ST_Area(ST_MinimumBoundingCircle(gc)) / pi()) AS radius " +
-//        "FROM (SELECT unnest(ST_ClusterWithin(locations::geometry, 100)) gc FROM sample " + clauseStr + ") f;"
+        count = await query({
+            text: countQueryStr,
+            values: [],
+            rowMode: 'array'
+        });
+        count = count.rows[0][0]*1;
 
-//    let locationClusterQuery = "SELECT ST_AsGeoJSON(ST_Union(ST_GeometryN(locations::geometry, 1))) AS points " +
-//        "FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
-//        clauseStr;
+        results = await query({
+            text: queryStr,
+            values: [],
+            rowMode: 'array'
+        });
 
-    let locationClusterQuery =
-        "SELECT s.sample_id,s.accn as sample_accn,p.name AS project_name,ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude, ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude " +
-        tableStr +
-        clauseStr + groupByStr;
-
-    let count = await query({
-        text: countQueryStr,
-        values: [],
-        rowMode: 'array'
-    });
-    console.log(count.rows)
-
-    let results = await query({
-        text: queryStr,
-        values: [],
-        rowMode: 'array'
-    });
-
-    let clusters;
-    //if (map)
-        clusters = await query(locationClusterQuery);
-
-    return {
-        count: count.rows[0][0]*1,
-        results: results.rows.map(r => {
+        results = results.rows.map(r => {
             return {
                 schemaId: r[0],
                 sampleId: r[1],
@@ -1329,7 +1315,67 @@ async function search(db, params) {
                 projectName: r[3],
                 values: r.slice(4).map(v => typeof v == "undefined" ? "" : v ) // kludge to convert null to empty string
             }
-        }),
+        })
+
+        //    let locationClusterQuery = "SELECT ST_NumGeometries(gc) AS count, ST_AsGeoJSON(gc) AS collection, ST_AsGeoJSON(ST_Centroid(gc)) AS centroid, ST_AsGeoJSON(ST_MinimumBoundingCircle(gc)) AS circle, sqrt(ST_Area(ST_MinimumBoundingCircle(gc)) / pi()) AS radius " +
+        //        "FROM (SELECT unnest(ST_ClusterWithin(locations::geometry, 100)) gc FROM sample " + clauseStr + ") f;"
+        //    let locationClusterQuery = "SELECT ST_AsGeoJSON(ST_Union(ST_GeometryN(locations::geometry, 1))) AS points " +
+        //        "FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
+        //        clauseStr;
+        let locationClusterQuery =
+            "SELECT s.sample_id,s.accn as sample_accn,p.name AS project_name,ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude, ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude " +
+            tableStr +
+            clauseStr + groupByStr;
+
+        //if (map)
+            clusters = await query(locationClusterQuery);
+    }
+    else if (result == "file") {
+        let groupByStr = " GROUP BY f.file_id,ff.file_format_id,ft.file_type_id,s.sample_id,p.project_id ";
+
+        let countQueryStr =
+            "SELECT COUNT(foo) FROM (SELECT f.file_id " +
+            tableStr +
+            clauseStr + groupByStr + ") AS foo";
+
+        let queryStr =
+            "SELECT f.file_id,f.url,ff.name,ft.name,s.sample_id,s.accn,p.project_id,p.name " +
+            tableStr +
+            clauseStr + groupByStr + sortStr + offsetStr + limitStr;
+
+        count = await query({
+            text: countQueryStr,
+            values: [],
+            rowMode: 'array'
+        });
+        count = count.rows[0][0]*1;
+
+        results = await query({
+            text: queryStr,
+            values: [],
+            rowMode: 'array'
+        });
+
+        results = results.rows.map(r => {
+            return {
+                fileId: r[0],
+                fileUrl: r[1],
+                fileFormat: r[2],
+                fileType: r[3],
+                sampleId: r[4],
+                sampleAccn: r[5],
+                projectId: r[6],
+                projectName: r[7]
+            }
+        })
+    }
+    else {
+        console.log("Error: invalid result specifier:", result);
+    }
+
+    return {
+        count: count,
+        results: results,
         map: (clusters ? clusters.rows : {})
     };
 }
