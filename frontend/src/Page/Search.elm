@@ -1851,15 +1851,19 @@ viewSampleResults model =
 
         pageInfo =
             div [ class "small ml-1", style "color" "dimgray" ]
-                [ text "Showing "
-                , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
-                , text " - "
-                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.sampleResultCount |> String.fromInt |> text
-                , text " of "
-                , model.sampleResultCount |> toFloat |> format myLocale |> text
-                , text " sample"
-                , (if model.sampleResultCount /= 1 then "s" else "") |> text
-                ]
+                (if model.sampleResultCount > 0 then
+                    [ text "Showing "
+                    , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
+                    , text " - "
+                    , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.sampleResultCount |> String.fromInt |> text
+                    , text " of "
+                    , model.sampleResultCount |> toFloat |> format myLocale |> text
+                    , text " sample"
+                    , (if model.sampleResultCount /= 1 then "s" else "") |> text
+                    ]
+                 else
+                    [ text "No results" ]
+                 )
 
         lastPageNum =
             toFloat(model.sampleResultCount) / toFloat(model.pageSize) |> floor
@@ -1903,39 +1907,37 @@ viewSampleResults model =
                         ]
                     ]
                 ]
-
-        content =
-            if model.isSearchingFiles then
-                viewSpinner
-            else if count == 0 then
-                text "No Results"
-            else if model.errorMsg /= Nothing then
-                div []
-                    [ p [] [ text "An error occurred:" ]
-                    , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
-                    ]
-            else
-                div []
-                    [ div [ style "border" "1px solid lightgray" ]
-                        [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                            (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
+    in
+    if model.isSearchingSamples then
+        viewSpinner
+    else
+        div []
+            [ div [ style "border" "1px solid lightgray" ]
+                [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                    (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
 --                          , li [ class "nav-item ml-auto" ] --TODO
 --                              [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
-                        , table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
-                            [ thead [] [ tr [] columns ]
-                            , tbody [] (model.sampleResults |> Maybe.withDefault [] |> List.map mkRow)
-                            ]
+                , pageInfo
+                , if model.errorMsg /= Nothing then
+                    div []
+                        [ p [] [ text "An error occurred:" ]
+                        , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
                         ]
-                    , pageControls
-                    ]
-    in
-    div []
-        [ if count > 0 then
-            pageInfo
-          else
-            viewBlank
-        , content
-        ]
+                  else if model.sampleResultCount > 0 then
+                    table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
+                        [ thead []
+                            [ tr [] columns ]
+                        , tbody []
+                            (model.sampleResults |> Maybe.withDefault [] |> List.map mkRow)
+                        ]
+                  else
+                    viewBlank
+                ]
+            , if count > 0 then
+                pageControls
+              else
+                viewBlank
+            ]
 
 
 viewFileResults : Model -> Html Msg
@@ -2004,15 +2006,19 @@ viewFileResults model =
 
         pageInfo =
             div [ class "small ml-1", style "color" "dimgray" ]
-                [ text "Showing "
-                , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
-                , text " - "
-                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.fileResultCount |> String.fromInt |> text
-                , text " of "
-                , model.fileResultCount |> toFloat |> format myLocale |> text
-                , text " file"
-                , (if model.fileResultCount /= 1 then "s" else "") |> text
-                ]
+                (if model.fileResultCount > 0 then
+                    [ text "Showing "
+                    , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
+                    , text " - "
+                    , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.fileResultCount |> String.fromInt |> text
+                    , text " of "
+                    , model.fileResultCount |> toFloat |> format myLocale |> text
+                    , text " file"
+                    , (if model.fileResultCount /= 1 then "s" else "") |> text
+                    ]
+                 else
+                    [ text "No results" ]
+                )
 
         lastPageNum =
             toFloat(model.fileResultCount) / toFloat(model.pageSize) |> floor
@@ -2056,41 +2062,37 @@ viewFileResults model =
                         ]
                     ]
                 ]
-
-        content =
-            if model.isSearchingFiles then
-                viewSpinner
-            else if count == 0 then
-                text "No Results"
-            else if model.errorMsg /= Nothing then
-                div []
-                    [ p [] [ text "An error occurred:" ]
-                    , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
-                    ]
-            else
-                div []
-                    [ div [ style "border" "1px solid lightgray" ]
-                        [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                            (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
+    in
+    if model.isSearchingFiles then
+        viewSpinner
+    else
+        div []
+            [ div [ style "border" "1px solid lightgray" ]
+                [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                    (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
 --                          , li [ class "nav-item ml-auto" ] --TODO
 --                              [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
-                        , table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
-                            [ thead []
-                                [ tr [] columns ]
-                            , tbody []
-                                (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
-                            ]
+                , pageInfo
+                , if model.errorMsg /= Nothing then
+                    div []
+                        [ p [] [ text "An error occurred:" ]
+                        , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
                         ]
-                    , pageControls
-                    ]
-    in
-    div []
-        [ if count > 0 then
-            pageInfo
-          else
-            viewBlank
-        , content
-        ]
+                  else if model.fileResultCount > 0 then
+                    table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
+                        [ thead []
+                            [ tr [] columns ]
+                        , tbody []
+                            (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
+                        ]
+                  else
+                    viewBlank
+                ]
+            , if count > 0 then
+                pageControls
+              else
+                viewBlank
+            ]
 
 
 viewMap : Bool -> Bool -> Html Msg

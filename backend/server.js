@@ -1331,17 +1331,18 @@ async function search(db, params) {
             clusters = await query(locationClusterQuery);
     }
     else if (result == "file") {
+        let fileClause = " AND f.file_id IS NOT NULL ";
         let groupByStr = " GROUP BY f.file_id,ff.file_format_id,ft.file_type_id,s.sample_id,p.project_id ";
 
         let countQueryStr =
             "SELECT COUNT(foo) FROM (SELECT f.file_id " +
             tableStr +
-            clauseStr + groupByStr + ") AS foo";
+            clauseStr + fileClause + groupByStr + ") AS foo";
 
         let queryStr =
             "SELECT f.file_id,f.url,ff.name,ft.name,s.sample_id,s.accn,p.project_id,p.name " +
             tableStr +
-            clauseStr + groupByStr + sortStr + offsetStr + limitStr;
+            clauseStr + fileClause + groupByStr + sortStr + offsetStr + limitStr;
 
         count = await query({
             text: countQueryStr,
