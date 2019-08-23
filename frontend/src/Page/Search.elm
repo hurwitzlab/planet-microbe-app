@@ -26,7 +26,7 @@ import Sample exposing (SearchTerm, PURL, annotationsToHide)
 import File exposing (FileFormat, FileType)
 import Cart
 import Icon
-import Debug exposing (toString)
+--import Debug exposing (toString)
 import Config exposing (apiBaseUrl, dataCommonsUrl)
 
 
@@ -241,9 +241,9 @@ update msg model =
 
 
         GetFileFormatsCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetFileFormatsCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetFileFormatsCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetFileTypesCompleted (Ok types) ->
@@ -251,9 +251,9 @@ update msg model =
 
 
         GetFileTypesCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetFileTypesCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetFileTypesCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         GetAllSearchTermsCompleted (Ok terms) ->
@@ -558,9 +558,9 @@ update msg model =
             )
 
         SampleSearchCompleted (Err error) ->
-            let
-                _ = Debug.log "SampleSearchCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "SampleSearchCompleted" (toString error)
+--            in
             ( { model | errorMsg = Just "Error", isSearchingSamples = False }, Cmd.none ) --TODO
 
         FileSearchCompleted (Ok response) ->
@@ -583,9 +583,9 @@ update msg model =
             )
 
         FileSearchCompleted (Err error) ->
-            let
-                _ = Debug.log "FileSearchCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "FileSearchCompleted" (toString error)
+--            in
             ( { model | errorMsg = Just "Error", isSearchingFiles = False }, Cmd.none ) --TODO
 
         ToggleMap ->
