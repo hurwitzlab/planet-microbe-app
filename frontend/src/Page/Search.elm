@@ -104,7 +104,8 @@ type alias Model =
     , sampleResults : Maybe (List SampleResult)
     , fileResults : Maybe (List FileResult)
     , mapResults : Value --List MapResult
-    , count : Int
+    , sampleResultCount : Int
+    , fileResultCount : Int
     , errorMsg : Maybe String
     , searchTab : String
     , resultTab : String
@@ -144,7 +145,8 @@ init session =
         , sampleResults = Nothing
         , fileResults = Nothing
         , mapResults = Encode.object []
-        , count = 0
+        , sampleResultCount = 0
+        , fileResultCount = 0
         , errorMsg = Nothing
         , searchTab = "Samples"
         , resultTab = "Samples"
@@ -547,7 +549,7 @@ update msg model =
                             Nothing
             in
             ( { model
-                | count = response.count
+                | sampleResultCount = response.count
                 , sampleResults = sampleResults
                 , mapResults = response.map
                 , isSearchingSamples = False
@@ -572,7 +574,7 @@ update msg model =
                             Nothing
             in
             ( { model
-                | count = response.count
+                | fileResultCount = response.count
                 , fileResults = fileResults
 --                , mapResults = response.map
                 , isSearchingFiles = False
@@ -1042,16 +1044,14 @@ viewSearchPanel : Model -> Html Msg
 viewSearchPanel model =
     div [ style "border" "1px solid lightgray", style "width" "25.5vw" ]
         [ ul [ class "nav nav-tabs" ]
-            ( (List.map (\lbl -> viewTab lbl (lbl == model.searchTab) SetSearchTab) [ "Projects", "Samples", "Files" ]) ++
+            ( (List.map (\lbl -> viewTab lbl (lbl == model.searchTab) SetSearchTab) [ "Samples", "Files" ]) ++
               [ (li [ class "nav-item ml-auto" ]
                 [ a [ class "small nav-link", href "", style "font-weight" "bold", onClick ClearFilters ]
                     [ text "Reset" ]
                 ])
               ]
             )
-        , if model.searchTab == "Projects" then
-            text ""
-          else if model.searchTab == "Samples" then
+        , if model.searchTab == "Samples" then
             viewSampleSearchPanel model
           else if model.searchTab == "Files" then
             viewFileSearchPanel model
@@ -1729,20 +1729,13 @@ viewPanel id title unit removable nodes =
 --        ]
 
 
+--TODO combine viewSampleResults/viewFileResults and pass columns as input
 viewResults : Model -> Html Msg
 viewResults model =
-    div []
-        [ div [ style "border" "1px solid lightgray" ]
-            [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Projects", "Samples", "Files" ] )
---              , li [ class "nav-item ml-auto" ] --TODO
---                  [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
-            , if model.resultTab == "Samples" then
-                viewSampleResults model
-              else
-                viewFileResults model
-            ]
-        ]
+    if model.resultTab == "Samples" then
+        viewSampleResults model
+    else
+        viewFileResults model
 
 
 viewSampleResults : Model -> Html Msg
@@ -1857,19 +1850,19 @@ viewSampleResults model =
             model.sampleResults |> Maybe.withDefault [] |> List.length
 
         pageInfo =
-            div [ class "small", style "color" "dimgray" ]
+            div [ class "small ml-1", style "color" "dimgray" ]
                 [ text "Showing "
                 , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
                 , text " - "
-                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.count |> String.fromInt |> text
+                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.sampleResultCount |> String.fromInt |> text
                 , text " of "
-                , model.count |> toFloat |> format myLocale |> text
+                , model.sampleResultCount |> toFloat |> format myLocale |> text
                 , text " sample"
-                , (if model.count /= 1 then "s" else "") |> text
+                , (if model.sampleResultCount /= 1 then "s" else "") |> text
                 ]
 
         lastPageNum =
-            toFloat(model.count) / toFloat(model.pageSize) |> floor
+            toFloat(model.sampleResultCount) / toFloat(model.pageSize) |> floor
 
         pageControls =
             let
@@ -1912,7 +1905,7 @@ viewSampleResults model =
                 ]
 
         content =
-            if model.isSearchingSamples then
+            if model.isSearchingFiles then
                 viewSpinner
             else if count == 0 then
                 text "No Results"
@@ -1923,9 +1916,15 @@ viewSampleResults model =
                     ]
             else
                 div []
-                    [ table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
-                        [ thead [] [ tr [] columns ]
-                        , tbody [] (model.sampleResults |> Maybe.withDefault [] |> List.map mkRow)
+                    [ div [ style "border" "1px solid lightgray" ]
+                        [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                            (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
+--                          , li [ class "nav-item ml-auto" ] --TODO
+--                              [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+                        , table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
+                            [ thead [] [ tr [] columns ]
+                            , tbody [] (model.sampleResults |> Maybe.withDefault [] |> List.map mkRow)
+                            ]
                         ]
                     , pageControls
                     ]
@@ -2004,19 +2003,19 @@ viewFileResults model =
             model.fileResults |> Maybe.withDefault [] |> List.length
 
         pageInfo =
-            div [ class "small", style "color" "dimgray" ]
+            div [ class "small ml-1", style "color" "dimgray" ]
                 [ text "Showing "
                 , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
                 , text " - "
-                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.count |> String.fromInt |> text
+                , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.fileResultCount |> String.fromInt |> text
                 , text " of "
-                , model.count |> toFloat |> format myLocale |> text
-                , text " sample"
-                , (if model.count /= 1 then "s" else "") |> text
+                , model.fileResultCount |> toFloat |> format myLocale |> text
+                , text " file"
+                , (if model.fileResultCount /= 1 then "s" else "") |> text
                 ]
 
         lastPageNum =
-            toFloat(model.count) / toFloat(model.pageSize) |> floor
+            toFloat(model.fileResultCount) / toFloat(model.pageSize) |> floor
 
         pageControls =
             let
@@ -2070,11 +2069,17 @@ viewFileResults model =
                     ]
             else
                 div []
-                    [ table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
-                        [ thead []
-                            [ tr [] columns ]
-                        , tbody []
-                            (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
+                    [ div [ style "border" "1px solid lightgray" ]
+                        [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                            (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
+--                          , li [ class "nav-item ml-auto" ] --TODO
+--                              [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+                        , table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
+                            [ thead []
+                                [ tr [] columns ]
+                            , tbody []
+                                (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
+                            ]
                         ]
                     , pageControls
                     ]
