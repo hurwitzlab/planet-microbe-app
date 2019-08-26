@@ -24,9 +24,10 @@ import Route
 import Page exposing (viewBlank, viewSpinner, viewDialog)
 import Sample exposing (SearchTerm, PURL, annotationsToHide)
 import File exposing (FileFormat, FileType)
+import SortableTable
 import Cart
 import Icon
---import Debug exposing (toString)
+import Debug exposing (toString)
 import Config exposing (apiBaseUrl, dataCommonsUrl)
 
 
@@ -96,7 +97,6 @@ type alias Model =
     , paramSearchInputVal : String
     , dialogSearchInputVal : String
     , showParamSearchDropdown : Bool
-    , sortPos : Int
     , doSearch : Bool
     , searchStartTime : Int -- milliseconds
     , isSearchingSamples : Bool
@@ -106,6 +106,8 @@ type alias Model =
     , mapResults : Value --List MapResult
     , sampleResultCount : Int
     , fileResultCount : Int
+    , sampleTableState : SortableTable.State
+    , fileTableState : SortableTable.State
     , errorMsg : Maybe String
     , searchTab : String
     , resultTab : String
@@ -137,7 +139,6 @@ init session =
         , paramSearchInputVal = ""
         , dialogSearchInputVal = ""
         , showParamSearchDropdown = False
-        , sortPos = 1
         , doSearch = True
         , searchStartTime = 0
         , isSearchingSamples = True
@@ -147,6 +148,8 @@ init session =
         , mapResults = Encode.object []
         , sampleResultCount = 0
         , fileResultCount = 0
+        , sampleTableState = SortableTable.initialState
+        , fileTableState = SortableTable.initialState
         , errorMsg = Nothing
         , searchTab = "Samples"
         , resultTab = "Samples"
@@ -210,7 +213,8 @@ type Msg
     | SetFileTypeFilterValue String Bool
     | SetSearchTab String
     | SetResultTab String
-    | SetSortPos Int
+    | SetSampleSortPos Int
+    | SetFileSortPos Int
     | SetPageSize Int
     | SetPageNum Int
     | InputTimerTick Time.Posix
@@ -304,7 +308,8 @@ update msg model =
                 , projectVals = []
                 , fileFormatVals = []
                 , fileTypeVals = []
-                , sortPos = 1
+                , sampleTableState = SortableTable.initialState
+                , fileTableState = SortableTable.initialState
               }
             , GMap.setLocation Nothing
             )
@@ -330,7 +335,16 @@ update msg model =
                 newVals =
                     Dict.remove id model.selectedVals
             in
-            ( { model | doSearch = True, selectedParams = newParams, selectedTerms = newTerms, selectedVals = newVals, sortPos = 1 }, Cmd.none )
+            ( { model
+                | doSearch = True
+                , selectedParams = newParams
+                , selectedTerms = newTerms
+                , selectedVals = newVals
+                , sampleTableState = SortableTable.initialState
+                , fileTableState = SortableTable.initialState
+              }
+            , Cmd.none
+            )
 
         SetParamSearchInput val ->
             ( { model | paramSearchInputVal = val }, Cmd.none )
@@ -474,15 +488,32 @@ update msg model =
         SetResultTab label ->
             ( { model | resultTab = label }, Cmd.none )
 
-        SetSortPos pos ->
+        SetSampleSortPos pos ->
             let
-                newPos =
-                    if pos == model.sortPos then
-                        pos * -1
+                direction =
+                    if pos == model.sampleTableState.sortCol then
+                        SortableTable.toggleDirection model.sampleTableState.sortDir
                     else
-                        pos
+                        SortableTable.ASC
+
+                newTableState =
+                    SortableTable.State pos direction
+
             in
-            ( { model | doSearch = True, sortPos = newPos }, Cmd.none )
+            ( { model | doSearch = True, sampleTableState = newTableState }, Cmd.none )
+
+        SetFileSortPos pos ->
+            let
+                direction =
+                    if pos == model.fileTableState.sortCol then
+                        SortableTable.toggleDirection model.fileTableState.sortDir
+                    else
+                        SortableTable.ASC
+
+                newTableState =
+                    SortableTable.State pos direction
+            in
+            ( { model | doSearch = True, fileTableState = newTableState }, Cmd.none )
 
         SetPageSize size ->
             ( { model | doSearch = True, pageSize = size }, Cmd.none )
@@ -507,17 +538,23 @@ update msg model =
                 ( model, Cmd.none )
 
         Search newPageNum ->
---            let
+            let
 --                _ = Debug.log "Search" (toString model.selectedVals)
---            in
+
+                sampleSortPos =
+                    model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir)
+
+                fileSortPos =
+                    model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir)
+            in
             case generateQueryParams model.locationVal model.projectVals model.fileFormatVals model.fileTypeVals model.selectedParams model.selectedVals of
                 Ok queryParams ->
                     let
                         sampleSearchTask =
-                            searchRequest queryParams "sample" model.sortPos model.pageSize (model.pageSize * newPageNum) model.showMap |> Http.toTask
+                            searchRequest queryParams "sample" sampleSortPos model.pageSize (model.pageSize * newPageNum) model.showMap |> Http.toTask
 
                         fileSearchTask =
-                            searchRequest queryParams "file" model.sortPos model.pageSize (model.pageSize * newPageNum) model.showMap |> Http.toTask
+                            searchRequest queryParams "file" fileSortPos model.pageSize (model.pageSize * newPageNum) model.showMap |> Http.toTask
 
                     in
                     ( { model
@@ -558,9 +595,9 @@ update msg model =
             )
 
         SampleSearchCompleted (Err error) ->
---            let
---                _ = Debug.log "SampleSearchCompleted" (toString error)
---            in
+            let
+                _ = Debug.log "SampleSearchCompleted" (toString error)
+            in
             ( { model | errorMsg = Just "Error", isSearchingSamples = False }, Cmd.none ) --TODO
 
         FileSearchCompleted (Ok response) ->
@@ -583,9 +620,9 @@ update msg model =
             )
 
         FileSearchCompleted (Err error) ->
---            let
---                _ = Debug.log "FileSearchCompleted" (toString error)
---            in
+            let
+                _ = Debug.log "FileSearchCompleted" (toString error)
+            in
             ( { model | errorMsg = Just "Error", isSearchingFiles = False }, Cmd.none ) --TODO
 
         ToggleMap ->
@@ -947,8 +984,8 @@ decodeSampleResult =
 decodeFileResult : Decoder FileResult
 decodeFileResult =
     Decode.succeed FileResult
-        |> required "fileId" Decode.int
-        |> required "fileUrl" Decode.string
+        |> optional "fileId" Decode.int 0 -- optional for case where file table not yet loaded
+        |> optional "fileUrl" Decode.string ""
         |> optional "fileFormat" Decode.string ""
         |> optional "fileType" Decode.string ""
         |> required "sampleId" Decode.int
@@ -1749,20 +1786,20 @@ viewSampleResults model =
                     index + 1
 
                 dirSymbol =
-                    if model.sortPos > 0 then
+                    if model.sampleTableState.sortDir == SortableTable.ASC then
                         String.fromChar (Char.fromCode 9650)
                     else
                         String.fromChar (Char.fromCode 9660)
 
                 lbl =
                     String.Extra.toTitleCase
-                        (if pos == abs model.sortPos then
+                        (if pos == abs model.sampleTableState.sortCol then
                             label ++ " " ++ dirSymbol
                         else
                             label
                         )
             in
-            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetSortPos pos) ] [ text lbl ]
+            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetSampleSortPos pos) ] [ text lbl ]
 
         timeSpaceParamNames = -- kinda kludgey, find another way to order time/space params
             let
@@ -1811,7 +1848,7 @@ viewSampleResults model =
                 ]
 
         addToCartTh =
-            th []
+            th [ class "text-right", style "min-width" "10em" ]
                 [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
                     (model.sampleResults
                         |> Maybe.withDefault []
@@ -1841,9 +1878,13 @@ viewSampleResults model =
             tr []
                 (List.concat --FIXME kludgey
                     [ [ mkTd result.projectName ]
-                    , [ td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text (List.head result.values |> Maybe.withDefault NoResultValue |> formatVal) ] ] ]
+                    , [ td [] [ a [ Route.href (Route.Sample result.sampleId) ]
+                        [ text (List.head result.values |> Maybe.withDefault NoResultValue |> formatVal) ] ]
+                      ]
                     , result.values |> List.tail |> Maybe.withDefault [] |> List.map (formatVal >> mkTd)
-                    , [ td [] [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ] ]
+                    , [ td [ class "text-right", style "min-width" "10em" ]
+                        [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
+                      ]
                     ])
 
         count =
@@ -1924,12 +1965,12 @@ viewSampleResults model =
                         , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
                         ]
                   else if model.sampleResultCount > 0 then
-                    table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
-                        [ thead []
-                            [ tr [] columns ]
-                        , tbody []
-                            (model.sampleResults |> Maybe.withDefault [] |> List.map mkRow)
-                        ]
+                    SortableTable.view
+                        { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
+                        model.sampleTableState
+                        columns
+                        (model.sampleResults |> Maybe.withDefault [] |> List.map mkRow)
+                        []
                   else
                     viewBlank
                 ]
@@ -1951,20 +1992,20 @@ viewFileResults model =
                     index + 1
 
                 dirSymbol =
-                    if model.sortPos > 0 then
+                    if model.fileTableState.sortDir == SortableTable.ASC then
                         String.fromChar (Char.fromCode 9650)
                     else
                         String.fromChar (Char.fromCode 9660)
 
                 lbl =
                     String.Extra.toTitleCase
-                        (if pos == abs model.sortPos then
+                        (if pos == abs model.fileTableState.sortCol then
                             label ++ " " ++ dirSymbol
                         else
                             label
                         )
             in
-            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetSortPos pos) ] [ text lbl ]
+            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetFileSortPos pos) ] [ text lbl ]
 
         paramNames =
             [ "Project Name"
@@ -2079,12 +2120,18 @@ viewFileResults model =
                         , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
                         ]
                   else if model.fileResultCount > 0 then
-                    table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
-                        [ thead []
-                            [ tr [] columns ]
-                        , tbody []
-                            (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
-                        ]
+--                    table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
+--                        [ thead []
+--                            [ tr [] columns ]
+--                        , tbody []
+--                            (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
+--                        ]
+                    SortableTable.view
+                        { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
+                        model.fileTableState
+                        columns
+                        (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
+                        []
                   else
                     viewBlank
                 ]
