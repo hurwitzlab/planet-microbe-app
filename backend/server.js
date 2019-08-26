@@ -1340,7 +1340,7 @@ async function search(db, params) {
             clauseStr + fileClause + groupByStr + ") AS foo";
 
         let queryStr =
-            "SELECT f.file_id,f.url,ff.name,ft.name,s.sample_id,s.accn,p.project_id,p.name " +
+            "SELECT f.file_id,s.sample_id,s.accn,p.project_id,p.name,ff.name,ft.name,f.url " +
             tableStr +
             clauseStr + fileClause + groupByStr + sortStr + offsetStr + limitStr;
 
@@ -1360,13 +1360,13 @@ async function search(db, params) {
         results = results.rows.map(r => {
             return {
                 fileId: r[0],
-                fileUrl: r[1],
-                fileFormat: r[2],
-                fileType: r[3],
-                sampleId: r[4],
-                sampleAccn: r[5],
-                projectId: r[6],
-                projectName: r[7]
+                sampleId: r[1],
+                sampleAccn: r[2],
+                projectId: r[3],
+                projectName: r[4],
+                fileFormat: r[5],
+                fileType: r[6],
+                fileUrl: r[7]
             }
         })
     }
