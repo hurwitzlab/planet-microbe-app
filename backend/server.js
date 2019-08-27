@@ -1260,9 +1260,6 @@ async function search(db, params) {
     if (clauseStr)
         clauseStr = "WHERE " + clauseStr;
 
-    let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-    let sortStr = (typeof sort !== 'undefined' && Math.abs(sort) <= selections.length+1 ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
-
     if (!limit)
         limit = 50;
     let limitStr = (limit ? " LIMIT " + limit : "");
@@ -1282,6 +1279,9 @@ async function search(db, params) {
     let results = [], count = 0, clusters = [];
 
     if (result == "sample") {
+        let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
+        let sortStr = (typeof sort !== 'undefined' && Math.abs(sort) <= selections.length+1 ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
+
         let groupByStr = " GROUP BY s.sample_id,p.project_id ";
 
         let countQueryStr =
@@ -1331,6 +1331,9 @@ async function search(db, params) {
             clusters = await query(locationClusterQuery);
     }
     else if (result == "file") {
+        let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
+        let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+1) + " " + sortDir : "");
+
         let fileClause = " AND f.file_id IS NOT NULL ";
         let groupByStr = " GROUP BY f.file_id,ff.file_format_id,ft.file_type_id,s.sample_id,p.project_id ";
 
@@ -1340,7 +1343,7 @@ async function search(db, params) {
             clauseStr + fileClause + groupByStr + ") AS foo";
 
         let queryStr =
-            "SELECT f.file_id,s.sample_id,s.accn,p.project_id,p.name,ff.name,ft.name,f.url " +
+            "SELECT f.file_id,p.name,s.accn,ff.name,ft.name,f.url,s.sample_id,p.project_id " + // FIXME order of fields should match sample query above in order for sorting to work
             tableStr +
             clauseStr + fileClause + groupByStr + sortStr + offsetStr + limitStr;
 
@@ -1360,13 +1363,13 @@ async function search(db, params) {
         results = results.rows.map(r => {
             return {
                 fileId: r[0],
-                sampleId: r[1],
+                sampleId: r[6],
+                projectId: r[7],
+                projectName: r[1],
                 sampleAccn: r[2],
-                projectId: r[3],
-                projectName: r[4],
-                fileFormat: r[5],
-                fileType: r[6],
-                fileUrl: r[7]
+                fileFormat: r[3],
+                fileType: r[4],
+                fileUrl: r[5]
             }
         })
     }

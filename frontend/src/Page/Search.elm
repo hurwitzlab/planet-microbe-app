@@ -27,7 +27,7 @@ import File exposing (FileFormat, FileType)
 import SortableTable
 import Cart
 import Icon
---import Debug exposing (toString)
+import Debug exposing (toString)
 import Config exposing (apiBaseUrl, dataCommonsUrl)
 
 
@@ -99,8 +99,7 @@ type alias Model =
     , showParamSearchDropdown : Bool
     , doSearch : Bool
     , searchStartTime : Int -- milliseconds
-    , isSearchingSamples : Bool
-    , isSearchingFiles : Bool
+    , isSearching : Bool
     , sampleResults : Maybe (List SampleResult)
     , fileResults : Maybe (List FileResult)
     , mapResults : Value --List MapResult
@@ -141,8 +140,7 @@ init session =
         , showParamSearchDropdown = False
         , doSearch = True
         , searchStartTime = 0
-        , isSearchingSamples = True
-        , isSearchingFiles = True
+        , isSearching = True
         , sampleResults = Nothing
         , fileResults = Nothing
         , mapResults = Encode.object []
@@ -486,7 +484,11 @@ update msg model =
             ( { model | searchTab = label }, Cmd.none )
 
         SetResultTab label ->
-            ( { model | resultTab = label }, Cmd.none )
+            let
+                doSearch =
+                    (label == "Samples" && model.sampleResults == Nothing) || (label == "Files" && model.fileResults == Nothing)
+            in
+            ( { model | doSearch = doSearch, resultTab = label }, Cmd.none )
 
         SetSampleSortPos pos ->
             let
@@ -538,35 +540,26 @@ update msg model =
                 ( model, Cmd.none )
 
         Search newPageNum ->
-            let
---                _ = Debug.log "Search" (toString model.selectedVals)
-
-                sampleSortPos =
-                    model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir)
-
-                fileSortPos =
-                    model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir)
-            in
             case generateQueryParams model.locationVal model.projectVals model.fileFormatVals model.fileTypeVals model.selectedParams model.selectedVals of
                 Ok queryParams ->
                     let
-                        sampleSearchTask =
-                            searchRequest queryParams "sample" sampleSortPos model.pageSize (model.pageSize * newPageNum) model.showMap |> Http.toTask
+                        ( result, sortPos, cmd ) =
+                            if model.resultTab == "Samples" then
+                                ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
+                            else
+                                ( "file", model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir), FileSearchCompleted )
 
-                        fileSearchTask =
-                            searchRequest queryParams "file" fileSortPos model.pageSize (model.pageSize * newPageNum) model.showMap |> Http.toTask
-
+                        searchTask =
+                            searchRequest queryParams result sortPos model.pageSize (model.pageSize * newPageNum) model.showMap
+                                |> Http.toTask
+                                |> Task.attempt cmd
                     in
                     ( { model
                         | doSearch = False
-                        , isSearchingSamples = True
-                        , isSearchingFiles = True
+                        , isSearching = True
                         , pageNum = newPageNum
                       }
-                    , Cmd.batch
-                        [ Task.attempt SampleSearchCompleted sampleSearchTask
-                        , Task.attempt FileSearchCompleted fileSearchTask
-                        ]
+                    , searchTask
                     )
 
                 Err error ->
@@ -589,16 +582,16 @@ update msg model =
                 | sampleResultCount = response.count
                 , sampleResults = sampleResults
                 , mapResults = response.map
-                , isSearchingSamples = False
+                , isSearching = False
               }
             , GMap.loadMap response.map
             )
 
         SampleSearchCompleted (Err error) ->
---            let
---                _ = Debug.log "SampleSearchCompleted" (toString error)
---            in
-            ( { model | errorMsg = Just "Error", isSearchingSamples = False }, Cmd.none ) --TODO
+            let
+                _ = Debug.log "SampleSearchCompleted" (toString error)
+            in
+            ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
 
         FileSearchCompleted (Ok response) ->
             let
@@ -614,16 +607,16 @@ update msg model =
                 | fileResultCount = response.count
                 , fileResults = fileResults
 --                , mapResults = response.map
-                , isSearchingFiles = False
+                , isSearching = False
               }
-            , GMap.loadMap response.map
+            , Cmd.none
             )
 
         FileSearchCompleted (Err error) ->
---            let
---                _ = Debug.log "FileSearchCompleted" (toString error)
---            in
-            ( { model | errorMsg = Just "Error", isSearchingFiles = False }, Cmd.none ) --TODO
+            let
+                _ = Debug.log "FileSearchCompleted" (toString error)
+            in
+            ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
 
         ToggleMap ->
             let
@@ -1949,7 +1942,7 @@ viewSampleResults model =
                     ]
                 ]
     in
-    if model.isSearchingSamples then
+    if model.isSearching || model.sampleResults == Nothing then
         viewSpinner
     else
         div []
@@ -2104,7 +2097,7 @@ viewFileResults model =
                     ]
                 ]
     in
-    if model.isSearchingFiles then
+    if model.isSearching || model.fileResults == Nothing then
         viewSpinner
     else
         div []
