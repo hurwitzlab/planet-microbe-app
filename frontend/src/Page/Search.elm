@@ -27,7 +27,7 @@ import File exposing (FileFormat, FileType)
 import SortableTable
 import Cart
 import Icon
-import Debug exposing (toString)
+--import Debug exposing (toString)
 import Config exposing (apiBaseUrl, dataCommonsUrl)
 
 
@@ -588,9 +588,9 @@ update msg model =
             )
 
         SampleSearchCompleted (Err error) ->
-            let
-                _ = Debug.log "SampleSearchCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "SampleSearchCompleted" (toString error)
+--            in
             ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
 
         FileSearchCompleted (Ok response) ->
@@ -613,9 +613,9 @@ update msg model =
             )
 
         FileSearchCompleted (Err error) ->
-            let
-                _ = Debug.log "FileSearchCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "FileSearchCompleted" (toString error)
+--            in
             ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
 
         ToggleMap ->
