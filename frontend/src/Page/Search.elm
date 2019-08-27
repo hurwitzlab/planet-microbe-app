@@ -1153,7 +1153,7 @@ viewLocationPanel model =
                                 ++ [ div [ class "input-group-append" ]
                                     [ viewFormatButton
                                     , div [ class "dropdown-menu" ]
-                                        [ a [ class "dropdown-item", href "", onClick (SetLocationFilterValue (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (m)" ]
+                                        [ a [ class "dropdown-item active", href "", onClick (SetLocationFilterValue (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (m)" ]
 --                                        , a [ class "dropdown-item", href "", onClick (SetLocationFilterValue (  ("","") ("",""))) ] [ text "Lat min/max, Lng min/max (deg)" ]
 --                                        , a [ class "dropdown-item", href "", onClick (SetLocationFilterValue (LatLngValue "" "")) ] [ text "Lat, Lng (deg)" ]
                                         , a [ class "dropdown-item disabled", href "", disabled True, onClick (SetLocationFilterValue (LonghurstValue "")) ] [ text "Longhurst Province - coming soon" ]
@@ -1167,7 +1167,7 @@ viewLocationPanel model =
                         [ div [ class "input-group input-group-sm" ]
                             ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Depth"] ])
                                 :: (viewNumberFilterInput purlDepth depthVal)
-                                ++ [ viewNumberFilterFormatOptions purlDepth ]
+                                ++ [ viewNumberFilterFormatOptions purlDepth depthVal ]
                             )
                         ]
                     , br [] []
@@ -1558,7 +1558,7 @@ viewNumberFilterPanel term val =
     viewTermPanel term
         [ div [ class "input-group input-group-sm" ]
             (List.append (viewNumberFilterInput term.id val)
-                [ viewNumberFilterFormatOptions term.id
+                [ viewNumberFilterFormatOptions term.id val
                 ]
             )
         ]
@@ -1589,11 +1589,29 @@ viewNumberFilterInput id val =
             rangeInput "" ""
 
 
-viewNumberFilterFormatOptions : PURL -> Html Msg
-viewNumberFilterFormatOptions id =
+viewNumberFilterFormatOptions : PURL -> FilterValue -> Html Msg
+viewNumberFilterFormatOptions id val =
     let
         viewOption (label, filterVal) =
-            a [ class "dropdown-item", href "", onClick (SetFilterValue id filterVal) ]
+            let
+                isSelected =
+                    case (val, filterVal) of --FIXME kludgey
+                        (SingleValue _, SingleValue _) ->
+                            True
+
+                        (NoValue, RangeValue _ _) -> -- this is the default
+                            True
+
+                        (RangeValue _ _, RangeValue _ _) ->
+                            True
+
+                        (OffsetValue _ _, OffsetValue _ _) ->
+                            True
+
+                        (_, _) ->
+                            False
+            in
+            a [ class "dropdown-item", classList [ ("active", isSelected) ], href "", onClick (SetFilterValue id filterVal) ]
                 [ label |> String.Extra.toSentenceCase |> text ]
 
         options =
@@ -1640,7 +1658,7 @@ viewDateTimeFilterFormatOptions : PURL -> Html Msg
 viewDateTimeFilterFormatOptions id =
     let
         viewOption (label, filterVal) =
-            a [ class "dropdown-item", href "", onClick (SetFilterValue id filterVal) ]
+            a [ class "dropdown-item active", href "", onClick (SetFilterValue id filterVal) ]
                 [ label |> String.Extra.toSentenceCase |> text ]
 
         options =
