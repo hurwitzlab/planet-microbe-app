@@ -81,7 +81,7 @@ sampleDecoder =
     Decode.succeed Sample
         |> required "sample_id" Decode.int
         |> required "accn" Decode.string
-        |> required "locations" (Decode.list LatLng.decoder)
+        |> optional "locations" (Decode.list LatLng.decoder) []
         |> optional "project_id" Decode.int 0
         |> optional "project_name" Decode.string ""
 
