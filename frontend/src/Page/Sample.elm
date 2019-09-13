@@ -310,7 +310,7 @@ viewSample sample samplingEvents =
                         (samplingEvents
                             |> List.map
                                 (\event ->
-                                    a [ Route.href (Route.SamplingEvent event.id) ]
+                                    a [ Route.href (Route.SamplingEvent event.id), class "text-nowrap" ]
                                         [ (String.Extra.toSentenceCase event.type_) ++ " " ++ event.name |> text ]
                                 )
                             |> List.intersperse (text ", ")
@@ -462,7 +462,7 @@ viewTooltip tooltip =
                     , td [ class "align-top" ] [ text anno.value ]
                     ]
         in
-        div [ class "rounded border py-2 px-3", style "background-color" "#efefef", style "z-index" "1000", style "position" "absolute", style "top" top, style "left" left ]
+        div [ class "rounded border py-2 px-3", style "background-color" "#efefef", style "z-index" "1000", style "position" "absolute", style "top" top, style "left" left, style "max-width" "50vw" ]
             [ table []
                 (List.map row tooltip.content)
             ]
