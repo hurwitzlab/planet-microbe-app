@@ -196,7 +196,12 @@ viewProject project =
                 ]
             , tr []
                 [ th [] [ text "Files" ]
-                , td [] [ fileTable project.files ]
+                , td []
+                    [ if project.files /= [] then
+                        fileTable project.files
+                      else
+                        text "None"
+                    ]
                 ]
             ]
         ]
