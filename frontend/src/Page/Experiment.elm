@@ -16,7 +16,7 @@ import String.Extra
 import Json.Encode as Encode
 --import Debug exposing (toString)
 import Icon
-import Config exposing (discoveryEnvironmentUrl)
+import Config exposing (dataCommonsUrl)
 
 
 
@@ -220,7 +220,7 @@ viewRuns maybeRuns =
             tr []
                 [ td [] [ text (String.Extra.toSentenceCase f.type_) ]
                 , td [] [ text (String.Extra.toSentenceCase f.format) ]
-                , td [] [ a [ href (discoveryEnvironmentUrl ++ f.url), target "_blank" ] [ text f.url ] ]
+                , td [] [ a [ href (dataCommonsUrl ++ f.url), target "_blank" ] [ text f.url ] ]
                 ]
     in
     case maybeRuns |> Maybe.withDefault [] of

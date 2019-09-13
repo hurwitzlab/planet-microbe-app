@@ -14,7 +14,7 @@ import Http
 import Task exposing (Task)
 import String.Extra
 --import Debug exposing (toString)
-import Config exposing (discoveryEnvironmentUrl)
+import Config exposing (dataCommonsUrl)
 
 
 
@@ -177,7 +177,7 @@ viewProject project =
         fileRow f =
             tr []
                 [ td [] [ text (String.Extra.toSentenceCase f.type_) ]
-                , td [] [ a [ href (discoveryEnvironmentUrl ++ f.url), target "_blank" ] [ text f.url ] ]
+                , td [] [ a [ href (dataCommonsUrl ++ f.url), target "_blank" ] [ text f.url ] ]
                 ]
     in
     table [ class "table table-borderless table-sm" ]
