@@ -1374,7 +1374,7 @@ viewProjectPanel counts selectedVals =
                 ]
 
         truncatedOptions =
-            counts |> List.sortBy Tuple.second --|> List.take 4 maxNumPanelOptions
+            counts |> List.sortBy Tuple.second |> List.reverse --|> List.take 4 maxNumPanelOptions
 
         numOptions =
             List.length counts
