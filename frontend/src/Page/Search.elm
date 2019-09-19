@@ -11,8 +11,8 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (usLocale)
---import Date exposing (Date, day, month, weekday, year)
---import DatePicker exposing (DateEvent(..), defaultSettings)
+import Date exposing (Date, day, month, weekday, year)
+import DatePicker exposing (DatePicker, DateEvent(..))
 import Time exposing (Weekday(..))
 import Task
 import String.Extra
@@ -75,7 +75,7 @@ initialParams =
 
 
 
--- MODEL
+-- MODEL --
 
 
 type alias Model =
@@ -114,12 +114,19 @@ type alias Model =
     , pageSize : Int
     , showMap : Bool
     , mapLoaded : Bool
+    , datePickers : Dict PURL (DatePicker,
     }
 
 
--- lat/lon (constrained to -180/180, -90/90, respectively), date, depth.
 init : Session -> ( Model, Cmd Msg )
 init session =
+    let
+        ( startDatePicker, startDatePickerCmd ) =
+            DatePicker.init
+
+        ( endDatePicker, endDatePickerCmd ) =
+            DatePicker.init
+    in
     (
         { session = session
         , projectCounts = []
@@ -155,9 +162,15 @@ init session =
         , pageSize = defaultPageSize
         , showMap = True
         , mapLoaded = False
+        , startDatePicker = startDatePicker
+        , endDatePicker = endDatePicker
+        , startDate = Nothing
+        , endDate = Nothing
         }
     , Cmd.batch
-        [ Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
+        [ Cmd.map SetStartDatePicker startDatePickerCmd
+        , Cmd.map SetEndDatePicker endDatePickerCmd
+        , Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map Sample.fetchSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         , File.fetchFormats |> Http.toTask |> Task.attempt GetFileFormatsCompleted
@@ -183,7 +196,7 @@ toSession model =
 
 
 
--- UPDATE
+-- UPDATE --
 
 
 type Msg
@@ -222,6 +235,8 @@ type Msg
     | ToggleMap
     | UpdateLocationFromMap (Maybe GMap.Location)
     | MapLoaded Bool
+    | SetStartDatePicker DatePicker.Msg
+    | SetEndDatePicker DatePicker.Msg
     | CartMsg Cart.Msg
 
 
@@ -640,6 +655,46 @@ update msg model =
         MapLoaded success ->
             ( { model | mapLoaded = True }, Cmd.none )
 
+        SetStartDatePicker subMsg ->
+            let
+                ( newDatePicker, dateEvent ) =
+                    DatePicker.update startDatePickerSettings subMsg model.startDatePicker
+
+                date =
+                    case dateEvent of
+                        Picked newDate ->
+                            Just newDate
+
+                        _ ->
+                            model.startDate
+
+            in
+                ({ model
+                    | startDate = date
+                    , startDatePicker = newDatePicker
+                }
+                , Cmd.none)
+
+        SetEndDatePicker subMsg ->
+            let
+                ( newDatePicker, dateEvent ) =
+                    DatePicker.update endDatePickerSettings subMsg model.endDatePicker
+
+                date =
+                    case dateEvent of
+                        Picked newDate ->
+                            Just newDate
+
+                        _ ->
+                            model.endDate
+
+            in
+                ({ model
+                    | endDate = date
+                    , endDatePicker = newDatePicker
+                }
+                , Cmd.none)
+
         CartMsg subMsg ->
             let
                 newCart =
@@ -1042,7 +1097,7 @@ decodeProjectCount =
 
 
 
--- VIEW
+-- VIEW --
 
 
 view : Model -> Html Msg
@@ -1643,15 +1698,63 @@ viewDateTimeFilterInput model id val =
     in
     case val of
         DateTimeValue dt ->
-            singleInput dt
+            let
+                date =
+                    Date.fromIsoString dt |> Result.toMaybe
+            in
+--            singleInput dt
+            [ DatePicker.view
+                model.startDate
+                DatePicker.defaultSettings
+                model.startDatePicker
+             |> Html.map SetStartDatePicker
+            ]
 
         DateTimeRangeValue dt1 dt2 ->
-            [ input [ type_ "text", class "form-control", placeholder "start", value dt1, onInput (\p -> SetFilterValue id (DateTimeRangeValue p dt2)) ] []
-            , input [ type_ "text", class "form-control", placeholder "end", value dt2, onInput (\p -> SetFilterValue id (DateTimeRangeValue dt1 p)) ] []
+            let
+                date1 =
+                    Date.fromIsoString dt1 |> Result.toMaybe
+
+                date2 =
+                    Date.fromIsoString dt2 |> Result.toMaybe
+            in
+            [ DatePicker.view
+                date1
+                startDatePickerSettings
+                model.startDatePicker
+                |> Html.map (SetStartDatePicker id val)
+            , DatePicker.view
+                date2
+                endDatePickerSettings
+                model.endDatePicker
+                |> Html.map SetEndDatePicker
             ]
+--            [ input [ type_ "text", class "form-control", placeholder "start", value dt1, onInput (\p -> SetFilterValue id (DateTimeRangeValue p dt2)) ] []
+--            , input [ type_ "text", class "form-control", placeholder "end", value dt2, onInput (\p -> SetFilterValue id (DateTimeRangeValue dt1 p)) ] []
+--            ]
 
         _ ->
             singleInput ""
+
+
+defaultDatePickerSettings =
+    DatePicker.defaultSettings
+
+
+startDatePickerSettings =
+    { defaultDatePickerSettings
+        | placeholder = "start"
+        , dateFormatter = Date.format "yyyy-MM-dd"
+        , containerClassList = [ ( "input-group-prepend", True ) ]
+    }
+
+
+endDatePickerSettings =
+    { defaultDatePickerSettings
+        | placeholder = "end"
+        , dateFormatter = Date.format "yyyy-MM-dd"
+        , containerClassList = [ ( "input-group-append", True ) ]
+    }
 
 
 viewDateTimeFilterFormatOptions : PURL -> Html Msg
