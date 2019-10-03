@@ -60,13 +60,21 @@ purlDepth =
     "http://purl.obolibrary.org/obo/ENVO_3100031" --"http://purl.obolibrary.org/obo/PMO_00000029"
 
 
-purlDateTime =
+-- Need to resolve time zone issue with fields that reference this PURL
+--purlDateTimeLocal =
+--    "http://purl.obolibrary.org/obo/PMO_00000081"
+
+
+purlDateTimeISO =
+    "http://purl.obolibrary.org/obo/OBI_0001619"
+
+
+purlDateTimeISOStart =
     "http://purl.obolibrary.org/obo/PMO_00000008"
 
 
-facets =
-    [ ("Biomes", purlBiome)
-    ]
+purlDateTimeISOEnd =
+    "http://purl.obolibrary.org/obo/PMO_00000009"
 
 
 initialParams =
@@ -296,7 +304,7 @@ update msg model =
                 newVals =
                     model.selectedVals
                     |> Dict.remove purlDepth
-                    |> Dict.remove purlDateTime
+                    |> Dict.remove purlDateTimeISO
                     |> Dict.map (\k v -> NoValue)
             in
             ( { model
@@ -798,12 +806,22 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
                         [ (purlDepth, if validParam val then formatParam val else "") ]
 
             datetimeParam =
-                case Dict.get purlDateTime vals of
+                case Dict.get purlDateTimeISO vals of
                     Nothing ->
                         []
 
                     Just val ->
-                        [ (purlDateTime, if validParam val then formatParam val else "") ]
+                        let
+                            fmtVal =
+                                if validParam val then
+                                    formatParam val
+                                else
+                                    ""
+                        in
+                        [ --(purlDateTimeISO, fmtVal) -- Need to resolve separate date and time fields in HOT-DeLong datapackage in order to use this field
+                          (purlDateTimeISOStart, fmtVal)
+                        , (purlDateTimeISOEnd, fmtVal)
+                        ]
 
             projectParam =
                 if projectVals /= [] then
@@ -1134,7 +1152,7 @@ viewLocationPanel model =
             Dict.get purlDepth model.selectedVals |> Maybe.withDefault NoValue
 
         datetimeVal =
-            Dict.get purlDateTime model.selectedVals |> Maybe.withDefault (DateTimeRangeValue "" "")
+            Dict.get purlDateTimeISO model.selectedVals |> Maybe.withDefault (DateTimeRangeValue "" "")
     in
     div []
         [ div [ class "card", style "font-size" "0.85em" ]
@@ -1174,8 +1192,8 @@ viewLocationPanel model =
                     , div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
                             ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Date/Time"] ])
-                                :: (viewDateTimeFilterInput model purlDateTime datetimeVal)
-                                ++ [ viewDateTimeFilterFormatOptions purlDateTime ]
+                                :: (viewDateTimeFilterInput model purlDateTimeISO datetimeVal)
+                                ++ [ viewDateTimeFilterFormatOptions purlDateTimeISO ]
                             )
                         ]
                     , br [] []
@@ -1667,7 +1685,7 @@ viewDateTimeFilterFormatOptions id =
 --            , a [ class "dropdown-item", href "#" ] [ text "Year YYYY" ]
 --            , a [ class "dropdown-item", href "#" ] [ text "Range YY-MM-DD HH:MM:SS, YY-MM-DD HH:MM:SS" ]
 --            ]
-            [ ("Range YY-MM-DD HH:MM:SS, YY-MM-DD HH:MM:SS", DateTimeRangeValue "" "")
+            [ ("Range YYYY-MM-DD HH:MM:SS, YYYY-MM-DD HH:MM:SS", DateTimeRangeValue "" "")
             ]
     in
     div [ class "input-group-append" ]
@@ -1818,7 +1836,7 @@ viewSampleResults model =
                     Dict.get purlDepth model.selectedVals |> Maybe.withDefault NoValue
 
                 datetimeVal =
-                    Dict.get purlDateTime model.selectedVals |> Maybe.withDefault NoValue
+                    Dict.get purlDateTimeISO model.selectedVals |> Maybe.withDefault NoValue
             in
             [ if model.locationVal /= NoLocationValue && validLocationParam model.locationVal then
                 "Location"
