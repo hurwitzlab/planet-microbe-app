@@ -57,7 +57,15 @@ purlBiome =
 
 
 purlDepth =
-    "http://purl.obolibrary.org/obo/ENVO_3100031" --"http://purl.obolibrary.org/obo/PMO_00000029"
+    "http://purl.obolibrary.org/obo/ENVO_3100031"
+
+
+purlDepthMin =
+    "http://purl.obolibrary.org/obo/PMO_00000172"
+
+
+purlDepthMax =
+    "http://purl.obolibrary.org/obo/PMO_00000052"
 
 
 -- Need to resolve time zone issue with fields that reference this PURL
@@ -854,7 +862,17 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
                         []
 
                     Just val ->
-                        [ (purlDepth, if validParam val then formatParam val else "") ]
+                        let
+                            fmtVal =
+                                if validParam val then
+                                    formatParam val
+                                else
+                                    ""
+                        in
+                        [ ( purlDepth, fmtVal )
+                        , ( purlDepthMin, fmtVal )
+                        , ( purlDepthMax, fmtVal )
+                        ]
 
             datetimeParam =
                 case Dict.get purlDateTimeISO vals of
