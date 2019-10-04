@@ -887,9 +887,9 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
                                 else
                                     ""
                         in
-                        [ --(purlDateTimeISO, fmtVal) -- Need to resolve separate date and time fields in HOT-DeLong datapackage in order to use this field
-                          (purlDateTimeISOStart, fmtVal)
-                        , (purlDateTimeISOEnd, fmtVal)
+                        [ ( purlDateTimeISO, fmtVal )
+                        , ( purlDateTimeISOStart, fmtVal )
+                        , ( purlDateTimeISOEnd, fmtVal )
                         ]
 
             projectParam =
