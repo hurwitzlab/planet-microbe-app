@@ -11,8 +11,8 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (usLocale)
---import Date exposing (Date, day, month, weekday, year)
---import DatePicker exposing (DatePicker, DateEvent(..))
+import Date exposing (Date, day, month, weekday, year)
+import DatePicker exposing (DatePicker, DateEvent(..))
 import Time exposing (Weekday(..))
 import Task
 import String.Extra
@@ -27,8 +27,8 @@ import File exposing (FileFormat, FileType)
 import SortableTable
 import Cart
 import Icon
---import Debug exposing (toString)
 import Config exposing (apiBaseUrl, dataCommonsUrl)
+--import Debug exposing (toString)
 
 
 
@@ -130,19 +130,20 @@ type alias Model =
     , pageSize : Int
     , showMap : Bool
     , mapLoaded : Bool
---    , datePickers : Dict PURL (DatePicker,
+    , startDatePickers : Dict PURL DatePicker
+    , endDatePickers : Dict PURL DatePicker
     }
 
 
 init : Session -> ( Model, Cmd Msg )
 init session =
---    let
---        ( startDatePicker, startDatePickerCmd ) =
---            DatePicker.init
---
---        ( endDatePicker, endDatePickerCmd ) =
---            DatePicker.init
---    in
+    let
+        ( startDatePicker, startDatePickerCmd ) =
+            DatePicker.init
+
+        ( endDatePicker, endDatePickerCmd ) =
+            DatePicker.init
+    in
     (
         { session = session
         , projectCounts = []
@@ -178,11 +179,13 @@ init session =
         , pageSize = defaultPageSize
         , showMap = True
         , mapLoaded = False
+        , startDatePickers = Dict.insert purlDateTimeISO startDatePicker Dict.empty
+        , endDatePickers = Dict.insert purlDateTimeISO endDatePicker Dict.empty
         }
     , Cmd.batch
-        --[ Cmd.map SetStartDatePicker startDatePickerCmd
-        --, Cmd.map SetEndDatePicker endDatePickerCmd
-        [ Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
+        [ Cmd.map (SetStartDatePicker purlDateTimeISO (DateTimeRangeValue "" "")) startDatePickerCmd
+        , Cmd.map (SetEndDatePicker purlDateTimeISO (DateTimeRangeValue "" "")) endDatePickerCmd
+        , Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map Sample.fetchSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         , File.fetchFormats |> Http.toTask |> Task.attempt GetFileFormatsCompleted
@@ -247,8 +250,8 @@ type Msg
     | ToggleMap
     | UpdateLocationFromMap (Maybe GMap.Location)
     | MapLoaded Bool
---    | SetStartDatePicker DatePicker.Msg
---    | SetEndDatePicker DatePicker.Msg
+    | SetStartDatePicker PURL FilterValue DatePicker.Msg
+    | SetEndDatePicker PURL FilterValue DatePicker.Msg
     | CartMsg Cart.Msg
 
 
@@ -667,45 +670,95 @@ update msg model =
         MapLoaded success ->
             ( { model | mapLoaded = True }, Cmd.none )
 
---        SetStartDatePicker subMsg ->
---            let
---                ( newDatePicker, dateEvent ) =
---                    DatePicker.update startDatePickerSettings subMsg model.startDatePicker
---
---                date =
---                    case dateEvent of
---                        Picked newDate ->
---                            Just newDate
---
---                        _ ->
---                            model.startDate
---
---            in
---                ({ model
---                    | startDate = date
---                    , startDatePicker = newDatePicker
---                }
---                , Cmd.none)
---
---        SetEndDatePicker subMsg ->
---            let
---                ( newDatePicker, dateEvent ) =
---                    DatePicker.update endDatePickerSettings subMsg model.endDatePicker
---
---                date =
---                    case dateEvent of
---                        Picked newDate ->
---                            Just newDate
---
---                        _ ->
---                            model.endDate
---
---            in
---                ({ model
---                    | endDate = date
---                    , endDatePicker = newDatePicker
---                }
---                , Cmd.none)
+        SetStartDatePicker id val subMsg ->
+            let
+                startDatePicker =
+                    Dict.get id model.startDatePickers
+            in
+            case startDatePicker of
+                Just datePicker ->
+                    let
+                        ( newDatePicker, dateEvent ) =
+                            DatePicker.update startDatePickerSettings subMsg datePicker
+
+                        newDate =
+                            case dateEvent of
+                                Picked date ->
+                                    Just date
+
+                                _ ->
+                                    Nothing
+
+                        newDateVal =
+                            case newDate of
+                                Just date ->
+                                    case val of
+                                        DateTimeValue _ ->
+                                            DateTimeValue (Date.toIsoString date)
+
+                                        DateTimeRangeValue _ dt2 ->
+                                            DateTimeRangeValue (Date.toIsoString date) dt2
+
+                                        _ ->
+                                            val
+
+                                Nothing ->
+                                    val
+                    in
+                    ({ model
+                        | doSearch = True
+                        , selectedVals = Dict.insert id newDateVal model.selectedVals
+                        , startDatePickers = Dict.insert id newDatePicker model.startDatePickers
+                    }
+                    , Cmd.none)
+
+                Nothing -> -- should never happen
+                    ( model, Cmd.none )
+
+        SetEndDatePicker id val subMsg ->
+            let
+                endDatePicker =
+                    Dict.get id model.endDatePickers
+            in
+            case endDatePicker of
+                Just datePicker ->
+                    let
+                        ( newDatePicker, dateEvent ) =
+                            DatePicker.update endDatePickerSettings subMsg datePicker
+
+                        newDate =
+                            case dateEvent of
+                                Picked date ->
+                                    Just date
+
+                                _ ->
+                                    Nothing
+
+                        newDateVal =
+                            case newDate of
+                                Just date ->
+                                    case val of
+                                        DateTimeValue _ ->
+                                            DateTimeValue (Date.toIsoString date)
+
+                                        DateTimeRangeValue dt1 _ ->
+                                            DateTimeRangeValue dt1 (Date.toIsoString date)
+
+                                        _ ->
+                                            val
+
+                                Nothing ->
+                                    val
+                    in
+                    ({ model
+                        | doSearch = True
+                        , selectedVals = Dict.insert id newDateVal model.selectedVals
+                        , endDatePickers = Dict.insert id newDatePicker model.endDatePickers
+                    }
+                    , Cmd.none)
+
+                Nothing -> -- should never happen
+                    ( model, Cmd.none )
 
         CartMsg subMsg ->
             let
@@ -1725,68 +1778,91 @@ viewDateTimeFilterPanel model term val =
 viewDateTimeFilterInput : Model -> PURL -> FilterValue -> List (Html Msg)
 viewDateTimeFilterInput model id val =
     let
+--        singleInput dt =
+--            [ input [ type_ "text", class "form-control", placeholder "value", value dt, onInput (\p -> SetFilterValue id (DateTimeValue p)) ] [] ]
+--
+--        rangeInput dt1 dt2 =
+--            [ input [ type_ "text", class "form-control", placeholder "start", value dt1, onInput (\p -> SetFilterValue id (DateTimeRangeValue p dt2)) ] []
+--            , input [ type_ "text", class "form-control", placeholder "end", value dt2, onInput (\p -> SetFilterValue id (DateTimeRangeValue dt1 p)) ] []
+--            ]
+
         singleInput dt =
-            [ input [ type_ "text", class "form-control", placeholder "value", value dt, onInput (\p -> SetFilterValue id (DateTimeValue p)) ] [] ]
+            let
+                date =
+                    Date.fromIsoString dt |> Result.toMaybe
+            in
+            case startDatePicker of
+                Just datePicker ->
+                    [ DatePicker.view
+                        date
+                        DatePicker.defaultSettings
+                        datePicker
+                     |> Html.map (SetStartDatePicker id val)
+                    ]
+
+                Nothing -> -- should never happen
+                    [ text "error" ]
+
+        rangeInput dt1 dt2 =
+            let
+                date1 =
+                    Date.fromIsoString dt1 |> Result.toMaybe
+
+                date2 =
+                    Date.fromIsoString dt2 |> Result.toMaybe
+            in
+            case (startDatePicker, endDatePicker) of
+                (Just datePicker1, Just datePicker2) ->
+                    [ DatePicker.view
+                        date1
+                        startDatePickerSettings
+                        datePicker1
+                        |> Html.map (SetStartDatePicker id val)
+                    , DatePicker.view
+                        date2
+                        endDatePickerSettings
+                        datePicker2
+                        |> Html.map (SetEndDatePicker id val)
+                    ]
+
+                (_, _) -> -- should never happen
+                    [ text "error" ]
+
+        startDatePicker =
+            Dict.get id model.startDatePickers
+
+        endDatePicker =
+            Dict.get id model.endDatePickers
     in
     case val of
         DateTimeValue dt ->
---            let
---                date =
---                    Date.fromIsoString dt |> Result.toMaybe
---            in
---            [ DatePicker.view
---                model.startDate
---                DatePicker.defaultSettings
---                model.startDatePicker
---             |> Html.map SetStartDatePicker
---            ]
             singleInput dt
 
         DateTimeRangeValue dt1 dt2 ->
---            let
---                date1 =
---                    Date.fromIsoString dt1 |> Result.toMaybe
---
---                date2 =
---                    Date.fromIsoString dt2 |> Result.toMaybe
---            in
---            [ DatePicker.view
---                date1
---                startDatePickerSettings
---                model.startDatePicker
---                |> Html.map (SetStartDatePicker id val)
---            , DatePicker.view
---                date2
---                endDatePickerSettings
---                model.endDatePicker
---                |> Html.map SetEndDatePicker
---            ]
-            [ input [ type_ "text", class "form-control", placeholder "start", value dt1, onInput (\p -> SetFilterValue id (DateTimeRangeValue p dt2)) ] []
-            , input [ type_ "text", class "form-control", placeholder "end", value dt2, onInput (\p -> SetFilterValue id (DateTimeRangeValue dt1 p)) ] []
-            ]
+            rangeInput dt1 dt2
 
         _ ->
-            singleInput ""
+            rangeInput "" ""
 
 
---defaultDatePickerSettings =
---    DatePicker.defaultSettings
---
---
---startDatePickerSettings =
---    { defaultDatePickerSettings
---        | placeholder = "start"
---        , dateFormatter = Date.format "yyyy-MM-dd"
---        , containerClassList = [ ( "input-group-prepend", True ) ]
---    }
---
---
---endDatePickerSettings =
---    { defaultDatePickerSettings
---        | placeholder = "end"
---        , dateFormatter = Date.format "yyyy-MM-dd"
---        , containerClassList = [ ( "input-group-append", True ) ]
---    }
+defaultDatePickerSettings =
+    DatePicker.defaultSettings
+
+
+startDatePickerSettings =
+    { defaultDatePickerSettings
+        | placeholder = "start"
+        , dateFormatter = Date.format "yyyy-MM-dd"
+        , containerClassList = [ ( "input-group-prepend", True ) ]
+    }
+
+
+endDatePickerSettings =
+    { defaultDatePickerSettings
+        | placeholder = "end"
+        , dateFormatter = Date.format "yyyy-MM-dd"
+        , containerClassList = [ ( "input-group-append", True ) ]
+    }
 
 
 viewDateTimeFilterFormatOptions : PURL -> Html Msg
