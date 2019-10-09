@@ -1180,6 +1180,17 @@ async function search(db, params) {
                             console.log("Error: string similarity query not supported for type", term.type);
                         }
                     }
+                    else if (val.match(/^(\d{4}\-\d{2}\-\d{2})/)) { // date/time exact match
+                        if (term.type == "datetime" || term.type == "date") {
+                            console.log("exact datetime match");
+                            field = "datetime_vals[" + arrIndex + "]";
+                            clause = field + "=timestamp'" + val + "'";
+                        }
+                        else {
+                            //TODO error
+                            console.log("Error: datetime exact query not supported for type", term.type);
+                        }
+                    }
                     else if (val.match(/^(\w+)(\|\w+)*/)) { // literal string match on one or more values
                         if (term.type == "string") {
                             let vals = val.split("|");
@@ -1205,17 +1216,6 @@ async function search(db, params) {
                         else {
                             //TODO error
                             console.log("Error: datetime range query not supported for type", term.type);
-                        }
-                    }
-                    else if (val.match(/^(\d{4}\-\d{2}\-\d{2})/)) { // date/time exact match
-                        if (term.type == "datetime" || term.type == "date") {
-                            console.log("exact datetime match");
-                            field = "datetime_vals[" + arrIndex + "]";
-                            clause = field + "=timestamp'" + val + "'";
-                        }
-                        else {
-                            //TODO error
-                            console.log("Error: datetime exact query not supported for type", term.type);
                         }
                     }
                     else {

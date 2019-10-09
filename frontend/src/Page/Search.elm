@@ -28,7 +28,7 @@ import SortableTable
 import Cart
 import Icon
 import Config exposing (apiBaseUrl, dataCommonsUrl)
---import Debug exposing (toString)
+import Debug exposing (toString)
 
 
 
@@ -183,9 +183,9 @@ init session =
         , endDatePickers = Dict.insert purlDateTimeISO endDatePicker Dict.empty
         }
     , Cmd.batch
-        [ Cmd.map (SetStartDatePicker purlDateTimeISO (DateTimeRangeValue "" "")) startDatePickerCmd
-        , Cmd.map (SetEndDatePicker purlDateTimeISO (DateTimeRangeValue "" "")) endDatePickerCmd
-        , Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
+--        [ Cmd.map (SetStartDatePicker purlDateTimeISO NoValue) startDatePickerCmd
+--        , Cmd.map (SetEndDatePicker purlDateTimeISO NoValue) endDatePickerCmd
+        [ Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map Sample.fetchSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         , File.fetchFormats |> Http.toTask |> Task.attempt GetFileFormatsCompleted
@@ -451,8 +451,6 @@ update msg model =
 
         SetFilterValue id val ->
             let
---                _ = Debug.log "SetFilterValue" (toString (id, val))
-
                 newVals =
                     Dict.insert id val model.selectedVals
             in
@@ -788,25 +786,60 @@ validParam val =
             defined min || defined max -- Either/both can defined --TODO check for valid number
 
         OffsetValue value ofs ->
-            defined value && defined ofs -- TODO check for valid number
+            defined value && defined ofs --TODO check for valid number
 
         SearchValue s ->
             defined s
 
         SingleValue s ->
-            True
+            defined s --True --TODO check for valid number
 
         MultipleValues vals ->
-            List.all defined vals
+            List.all defined vals --TODO check for valid numbers
 
         DateTimeValue dt ->
-            defined dt --TODO
+            defined dt --TODO check for valid date format
 
         DateTimeRangeValue dt1 dt2 ->
-            defined dt1 && defined dt2 --TODO
+            defined dt1 && defined dt2 --TODO check for valid date format
 
         NoValue ->
             True
+
+
+formatParam : FilterValue -> String
+formatParam val = --TODO use encoder instead
+    let
+        range from to =
+            "[" ++ from ++ "," ++ to ++ "]"
+
+        offset val2 ofs =
+            val2 ++ "," ++ ofs
+    in
+    case val of
+        RangeValue min max ->
+            range min max
+
+        OffsetValue value ofs ->
+            offset value ofs --FIXME
+
+        SearchValue s ->
+            "~" ++ s
+
+        SingleValue s ->
+            s
+
+        MultipleValues values ->
+            String.join "|" values
+
+        DateTimeValue dt ->
+            dt
+
+        DateTimeRangeValue dt1 dt2 ->
+            range dt1 dt2
+
+        NoValue ->
+            ""
 
 
 validLocationParam : LocationFilterValue -> Bool
@@ -828,68 +861,38 @@ validLocationParam val =
             True
 
 
+formatLocationParam : LocationFilterValue -> String
+formatLocationParam val = --TODO use encoder instead
+    case val of
+--        LatLngValue lat lng ->
+--            range lat lng
+--
+--        LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
+--            "[" ++ lat1 ++ "," ++ lng1 ++ "-" ++ lat2 ++ "," ++ lng2 ++ "]"
+
+        LatLngRadiusValue (lat,lng) radius ->
+            let
+                r =
+                    if radius == "" then
+                        "0"
+                    else
+                        radius
+            in
+            "[" ++ lat ++ "," ++ lng ++ "," ++ r ++ "]"
+
+        LonghurstValue s ->
+            s
+
+        NoLocationValue ->
+            ""
+
+
 -- TODO refactor/simplify
 generateQueryParams : LocationFilterValue -> List String -> List String -> List String -> List PURL -> Dict PURL FilterValue -> Result String (List (String, String))
 generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params vals =
     let
-        range from to =
-            "[" ++ from ++ "," ++ to ++ "]"
-
-        offset val ofs =
-            val ++ "," ++ ofs
-
         list values =
             String.join "|" values
-
-        formatParam val = --TODO use encoder instead
-            case val of
-                RangeValue min max ->
-                    range min max
-
-                OffsetValue value ofs ->
-                    offset value ofs --FIXME
-
-                SearchValue s ->
-                    "~" ++ s
-
-                SingleValue s ->
-                    s
-
-                MultipleValues values ->
-                    String.join "|" values
-
-                DateTimeValue dt ->
-                    dt
-
-                DateTimeRangeValue dt1 dt2 ->
-                    range dt1 dt2
-
-                NoValue ->
-                    ""
-
-        formatLocationParam val = --TODO use encoder instead
-            case val of
---                LatLngValue lat lng ->
---                    range lat lng
---
---                LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
---                    "[" ++ lat1 ++ "," ++ lng1 ++ "-" ++ lat2 ++ "," ++ lng2 ++ "]"
-
-                LatLngRadiusValue (lat,lng) radius ->
-                    let
-                        r =
-                            if radius == "" then
-                                "0"
-                            else
-                                radius
-                    in
-                    "[" ++ lat ++ "," ++ lng ++ "," ++ r ++ "]"
-
-                LonghurstValue s ->
-                    s
-
-                NoLocationValue ->
-                    ""
     in
     --FIXME refactor section below
     if locationVal == NoLocationValue && projectVals == [] && Dict.isEmpty vals then
@@ -915,17 +918,17 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
                         []
 
                     Just val ->
-                        let
-                            fmtVal =
-                                if validParam val then
+                        if validParam val then
+                            let
+                                fmtVal =
                                     formatParam val
-                                else
-                                    ""
-                        in
-                        [ ( purlDepth, fmtVal )
-                        , ( purlDepthMin, fmtVal )
-                        , ( purlDepthMax, fmtVal )
-                        ]
+                            in
+                            [ ( purlDepth, fmtVal )
+                            , ( purlDepthMin, fmtVal )
+                            , ( purlDepthMax, fmtVal )
+                            ]
+                        else
+                            []
 
             datetimeParam =
                 case Dict.get purlDateTimeISO vals of
@@ -933,17 +936,17 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
                         []
 
                     Just val ->
-                        let
-                            fmtVal =
-                                if validParam val then
+                        if validParam val then
+                            let
+                                fmtVal =
                                     formatParam val
-                                else
-                                    ""
-                        in
-                        [ ( purlDateTimeISO, fmtVal )
-                        , ( purlDateTimeISOStart, fmtVal )
-                        , ( purlDateTimeISOEnd, fmtVal )
-                        ]
+                            in
+                            [ ( purlDateTimeISO, fmtVal )
+                            , ( purlDateTimeISOStart, fmtVal )
+                            , ( purlDateTimeISOEnd, fmtVal )
+                            ]
+                        else
+                            []
 
             projectParam =
                 if projectVals /= [] then
@@ -1237,7 +1240,7 @@ viewSampleSearchPanel model =
             model.projectCounts |> List.map (\pc -> (pc.name, pc.sampleCount))
     in
     div []
-        [ viewLocationPanel model
+        [ view4DPanel model
         , viewProjectPanel projectCounts model.projectVals
         , viewAddedFiltersPanel model model.selectedParams model.selectedTerms model.selectedVals
         , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allParams model.selectedParams
@@ -1267,8 +1270,8 @@ viewTab label isSelected msg =
         ]
 
 
-viewLocationPanel : Model -> Html Msg
-viewLocationPanel model =
+view4DPanel : Model -> Html Msg
+view4DPanel model =
     let
         depthVal =
             Dict.get purlDepth model.selectedVals |> Maybe.withDefault NoValue
@@ -1315,7 +1318,7 @@ viewLocationPanel model =
                         [ div [ class "input-group input-group-sm" ]
                             ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Date/Time"] ])
                                 :: (viewDateTimeFilterInput model purlDateTimeISO datetimeVal)
-                                ++ [ viewDateTimeFilterFormatOptions purlDateTimeISO ]
+                                ++ [ viewDateTimeFilterFormatOptions purlDateTimeISO datetimeVal ]
                             )
                         ]
                     , br [] []
@@ -1769,7 +1772,7 @@ viewDateTimeFilterPanel model term val =
     viewTermPanel term
         [ div [ class "input-group input-group-sm" ]
             (List.append (viewDateTimeFilterInput model term.id val)
-                [ viewDateTimeFilterFormatOptions term.id
+                [ viewDateTimeFilterFormatOptions term.id val
                 ]
             )
         ]
@@ -1786,6 +1789,12 @@ viewDateTimeFilterInput model id val =
 --            , input [ type_ "text", class "form-control", placeholder "end", value dt2, onInput (\p -> SetFilterValue id (DateTimeRangeValue dt1 p)) ] []
 --            ]
 
+        startDatePicker =
+            Dict.get id model.startDatePickers
+
+        endDatePicker =
+            Dict.get id model.endDatePickers
+
         singleInput dt =
             let
                 date =
@@ -1795,7 +1804,7 @@ viewDateTimeFilterInput model id val =
                 Just datePicker ->
                     [ DatePicker.view
                         date
-                        DatePicker.defaultSettings
+                        defaultDatePickerSettings
                         datePicker
                      |> Html.map (SetStartDatePicker id val)
                     ]
@@ -1827,12 +1836,6 @@ viewDateTimeFilterInput model id val =
 
                 (_, _) -> -- should never happen
                     [ text "error" ]
-
-        startDatePicker =
-            Dict.get id model.startDatePickers
-
-        endDatePicker =
-            Dict.get id model.endDatePickers
     in
     case val of
         DateTimeValue dt ->
@@ -1846,39 +1849,51 @@ viewDateTimeFilterInput model id val =
 
 
 defaultDatePickerSettings =
-    DatePicker.defaultSettings
-
-
-startDatePickerSettings =
-    { defaultDatePickerSettings
-        | placeholder = "start"
+    let
+        defaultSettings =
+            DatePicker.defaultSettings
+    in
+    { defaultSettings
+        | placeholder = "value"
         , dateFormatter = Date.format "yyyy-MM-dd"
         , containerClassList = [ ( "input-group-prepend", True ) ]
     }
 
 
+startDatePickerSettings =
+    { defaultDatePickerSettings | placeholder = "start" }
+
+
 endDatePickerSettings =
-    { defaultDatePickerSettings
-        | placeholder = "end"
-        , dateFormatter = Date.format "yyyy-MM-dd"
-        , containerClassList = [ ( "input-group-append", True ) ]
-    }
+    { defaultDatePickerSettings | placeholder = "end" }
 
 
-viewDateTimeFilterFormatOptions : PURL -> Html Msg
-viewDateTimeFilterFormatOptions id =
+viewDateTimeFilterFormatOptions : PURL -> FilterValue -> Html Msg
+viewDateTimeFilterFormatOptions id val =
     let
         viewOption (label, filterVal) =
-            a [ class "dropdown-item active", href "", onClick (SetFilterValue id filterVal) ]
+            let
+                isSelected =
+                    case (val, filterVal) of --FIXME kludgey
+                        (DateTimeValue _, DateTimeValue _) ->
+                            True
+
+                        (DateTimeRangeValue _ _, DateTimeRangeValue _ _) ->
+                            True
+
+                        _ ->
+                            False
+            in
+            a [ class "dropdown-item", classList [ ( "active", isSelected ) ], href "", onClick (SetFilterValue id filterVal) ]
                 [ label |> String.Extra.toSentenceCase |> text ]
 
         options =
 --            [ a [ class "dropdown-item", href "#" ] [ text "Time YY-MM-DD HH:MM:SS" ]
 --            , a [ class "dropdown-item", href "#" ] [ text "Day YY-MM-DD" ]
 --            , a [ class "dropdown-item", href "#" ] [ text "Year YYYY" ]
---            , a [ class "dropdown-item", href "#" ] [ text "Range YY-MM-DD HH:MM:SS, YY-MM-DD HH:MM:SS" ]
 --            ]
-            [ ("Range YYYY-MM-DD HH:MM:SS, YYYY-MM-DD HH:MM:SS", DateTimeRangeValue "" "")
+            [ ("Point (YYYY-MM-DD HH:MM:SS)", DateTimeValue "")
+            , ("Range (YYYY-MM-DD HH:MM:SS)", DateTimeRangeValue "" "")
             ]
     in
     div [ class "input-group-append" ]
@@ -2035,11 +2050,11 @@ viewSampleResults model =
                 "Location"
               else
                 ""
-            , if depthVal /= NoValue then --&& validParam depthVal then
+            , if depthVal /= NoValue && validParam depthVal then
                 "Depth"
               else
                 ""
-            , if datetimeVal /= NoValue then --&& validParam datetimeVal then
+            , if datetimeVal /= NoValue && validParam datetimeVal then
                 "Date/Time"
               else
                 ""
