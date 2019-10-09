@@ -132,6 +132,7 @@ type alias Model =
     , mapLoaded : Bool
     , startDatePickers : Dict PURL DatePicker
     , endDatePickers : Dict PURL DatePicker
+    , previousQueryParams : List (String, String)
     }
 
 
@@ -181,6 +182,7 @@ init session =
         , mapLoaded = False
         , startDatePickers = Dict.insert purlDateTimeISO startDatePicker Dict.empty
         , endDatePickers = Dict.insert purlDateTimeISO endDatePicker Dict.empty
+        , previousQueryParams = []
         }
     , Cmd.batch
 --        [ Cmd.map (SetStartDatePicker purlDateTimeISO NoValue) startDatePickerCmd
@@ -570,25 +572,29 @@ update msg model =
         Search newPageNum ->
             case generateQueryParams model.locationVal model.projectVals model.fileFormatVals model.fileTypeVals model.selectedParams model.selectedVals of
                 Ok queryParams ->
-                    let
-                        ( result, sortPos, cmd ) =
-                            if model.resultTab == "Samples" then
-                                ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
-                            else
-                                ( "file", model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir), FileSearchCompleted )
+                    if queryParams == model.previousQueryParams then
+                        ( model, Cmd.none )
+                    else
+                        let
+                            ( result, sortPos, cmd ) =
+                                if model.resultTab == "Samples" then
+                                    ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
+                                else
+                                    ( "file", model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir), FileSearchCompleted )
 
-                        searchTask =
-                            searchRequest queryParams result sortPos model.pageSize (model.pageSize * newPageNum) model.showMap
-                                |> Http.toTask
-                                |> Task.attempt cmd
-                    in
-                    ( { model
-                        | doSearch = False
-                        , isSearching = True
-                        , pageNum = newPageNum
-                      }
-                    , searchTask
-                    )
+                            searchTask =
+                                searchRequest queryParams result sortPos model.pageSize (model.pageSize * newPageNum) model.showMap
+                                    |> Http.toTask
+                                    |> Task.attempt cmd
+                        in
+                        ( { model
+                            | doSearch = False
+                            , isSearching = True
+                            , pageNum = newPageNum
+                            , previousQueryParams = queryParams
+                          }
+                        , searchTask
+                        )
 
                 Err error ->
 --                    let
