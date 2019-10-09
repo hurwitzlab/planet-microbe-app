@@ -845,12 +845,6 @@ formatParam val = --TODO use encoder instead
 validLocationParam : LocationFilterValue -> Bool
 validLocationParam val =
     case val of
---        LatLngValue lat lng ->
---            defined lat && defined lng
---
---        LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
---            defined lat1 && defined lng1 && defined lat2 && defined lng2
-
         LatLngRadiusValue (lat,lng) radius ->
             defined lat && defined lng
 
@@ -864,12 +858,6 @@ validLocationParam val =
 formatLocationParam : LocationFilterValue -> String
 formatLocationParam val = --TODO use encoder instead
     case val of
---        LatLngValue lat lng ->
---            range lat lng
---
---        LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
---            "[" ++ lat1 ++ "," ++ lng1 ++ "-" ++ lat2 ++ "," ++ lng2 ++ "]"
-
         LatLngRadiusValue (lat,lng) radius ->
             let
                 r =
@@ -1079,8 +1067,6 @@ type FilterValue
 
 type LocationFilterValue
     = NoLocationValue
---    | LatLngValue String String -- latitude/longitude
---    | LatLngRangeValue (String, String) (String, String) -- latitude/longitude to latitude/longitude
     | LatLngRadiusValue (String, String) String -- latitude/longitude with radius
     | LonghurstValue String -- Longhurst province
 
@@ -1297,8 +1283,6 @@ view4DPanel model =
                                     [ viewFormatButton
                                     , div [ class "dropdown-menu" ]
                                         [ a [ class "dropdown-item active", href "", onClick (SetLocationFilterValue (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (m)" ]
---                                        , a [ class "dropdown-item", href "", onClick (SetLocationFilterValue (  ("","") ("",""))) ] [ text "Lat min/max, Lng min/max (deg)" ]
---                                        , a [ class "dropdown-item", href "", onClick (SetLocationFilterValue (LatLngValue "" "")) ] [ text "Lat, Lng (deg)" ]
                                         , a [ class "dropdown-item disabled", href "", disabled True, onClick (SetLocationFilterValue (LonghurstValue "")) ] [ text "Longhurst Province - coming soon" ]
                                         ]
                                     ]
@@ -1893,7 +1877,7 @@ viewDateTimeFilterFormatOptions id val =
 --            , a [ class "dropdown-item", href "#" ] [ text "Year YYYY" ]
 --            ]
             [ ("Point (YYYY-MM-DD HH:MM:SS)", DateTimeValue "")
-            , ("Range (YYYY-MM-DD HH:MM:SS)", DateTimeRangeValue "" "")
+            , ("Range (YYYY-MM-DD HH:MM:SS to YYYY-MM-DD HH:MM:SS)", DateTimeRangeValue "" "")
             ]
     in
     div [ class "input-group-append" ]
@@ -1913,19 +1897,6 @@ viewLocationFilterInput val =
             ]
     in
     case val of
---        LatLngValue lat lng ->
---            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetLocationFilterValue (LatLngValue p lng)) ] []
---            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> SetLocationFilterValue (LatLngValue lat p)) ] []
---            ]
-
---        LatLngRangeValue (lat1,lng1) (lat2,lng2) ->
---            [ input [ type_ "text", class "form-control", placeholder "lat1", value lat1, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (p,lng1) (lat2,lng2))) ] []
---            , input [ type_ "text", class "form-control", placeholder "lng1", value lng1, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,p) (lat2,lng2))) ] []
---            , text " "
---            , input [ type_ "text", class "form-control", placeholder "lat2", value lat2, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,lng2) (p,lng2))) ] []
---            , input [ type_ "text", class "form-control", placeholder "lng2", value lng2, onInput (\p -> SetLocationFilterValue (LatLngRangeValue (lat1,lng2) (lat2,p))) ] []
---            ]
-
         LatLngRadiusValue (lat,lng) radius ->
             latLngRadiusInput lat lng radius
 
