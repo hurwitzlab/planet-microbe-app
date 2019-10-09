@@ -1183,8 +1183,8 @@ async function search(db, params) {
                     else if (val.match(/^(\d{4}\-\d{2}\-\d{2})/)) { // date/time exact match
                         if (term.type == "datetime" || term.type == "date") {
                             console.log("exact datetime match");
-                            field = "datetime_vals[" + arrIndex + "]";
-                            clause = field + "=timestamp'" + val + "'";
+                            field = "CAST (datetime_vals[" + arrIndex + "] as DATE)";
+                            clause = field + "='" + val + "'";
                         }
                         else {
                             //TODO error
