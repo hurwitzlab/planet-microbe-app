@@ -128,7 +128,7 @@ type alias Model =
     , mapLoaded : Bool
     , startDatePickers : Dict PURL DatePicker
     , endDatePickers : Dict PURL DatePicker
-    , previousQueryParams : List (String, String)
+    , previousSearchParams : List (String, String)
     }
 
 
@@ -178,7 +178,7 @@ init session =
         , mapLoaded = False
         , startDatePickers = Dict.insert purlDateTimeISO startDatePicker Dict.empty
         , endDatePickers = Dict.insert purlDateTimeISO endDatePicker Dict.empty
-        , previousQueryParams = []
+        , previousSearchParams = []
         }
     , Cmd.batch
 --        [ Cmd.map (SetStartDatePicker purlDateTimeISO NoValue) startDatePickerCmd
@@ -568,29 +568,31 @@ update msg model =
         Search newPageNum ->
             case generateQueryParams model.locationVal model.projectVals model.fileFormatVals model.fileTypeVals model.selectedParams model.selectedVals of
                 Ok queryParams ->
-                    if queryParams == model.previousQueryParams then
+                    let
+                        ( result, sortPos, cmd ) =
+                            if model.resultTab == "Samples" then
+                                ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
+                            else
+                                ( "file", model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir), FileSearchCompleted )
+
+                        allParams =
+                            queryParams ++
+                                (generateControlParams result [] sortPos model.pageSize (model.pageSize * newPageNum) model.showMap)
+
+                        searchReq =
+                            searchRequest allParams
+                    in
+                    if allParams == model.previousSearchParams then
                         ( model, Cmd.none )
                     else
-                        let
-                            ( result, sortPos, cmd ) =
-                                if model.resultTab == "Samples" then
-                                    ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
-                                else
-                                    ( "file", model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir), FileSearchCompleted )
-
-                            searchTask =
-                                searchRequest queryParams [] result sortPos model.pageSize (model.pageSize * newPageNum) model.showMap
-                                    |> Http.toTask
-                                    |> Task.attempt cmd
-                        in
-                        ( { model
-                            | doSearch = False
-                            , isSearching = True
-                            , pageNum = newPageNum
-                            , previousQueryParams = queryParams
-                          }
-                        , searchTask
-                        )
+                    ( { model
+                        | doSearch = False
+                        , isSearching = True
+                        , pageNum = newPageNum
+                        , previousSearchParams = allParams
+                      }
+                    , searchReq |> Http.toTask |> Task.attempt cmd
+                    )
 
                 Err error ->
 --                    let
@@ -962,23 +964,25 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
 --        Err "Invalid query parameter"
 
 
-searchRequest : List (String, String) -> List String -> String -> Int -> Int -> Int -> Bool -> Http.Request SearchResponse
-searchRequest queryParams columns result sortPos limit offset showMap =
+generateControlParams : String -> List String -> Int -> Int -> Int -> Bool -> List (String, String)
+generateControlParams result columns sortPos limit offset showMap =
+    [ ("result", result)
+    , ("columns", String.join "," columns)
+    , ("sort", String.fromInt sortPos)
+    , ("limit", String.fromInt limit)
+    , ("offset", String.fromInt offset)
+    , ("map", if showMap then "1" else "0")
+    ]
+
+
+searchRequest : List (String, String) -> Http.Request SearchResponse
+searchRequest queryParams =
     let
         url =
             apiBaseUrl ++ "/search"
-
-        queryParams2 =
-            queryParams
-                |> List.append [ ("result", result) ]
-                |> List.append [ ("columns", String.join "," columns) ]
-                |> List.append [ ("sort", String.fromInt sortPos) ]
-                |> List.append [ ("limit", String.fromInt limit) ]
-                |> List.append [ ("offset", String.fromInt offset) ]
-                |> List.append [ ("map", if showMap then "1" else "0") ]
     in
     HttpBuilder.get url
-        |> HttpBuilder.withQueryParams queryParams2
+        |> HttpBuilder.withQueryParams queryParams
         |> HttpBuilder.withExpect (Http.expectJson decodeSearchResponse)
         |> HttpBuilder.toRequest
 
