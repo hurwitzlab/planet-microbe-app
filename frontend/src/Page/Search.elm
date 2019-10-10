@@ -28,7 +28,7 @@ import SortableTable
 import Cart
 import Icon
 import Config exposing (apiBaseUrl, dataCommonsUrl)
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -46,14 +46,6 @@ maxNumPanelOptions =
 
 minNumPanelOptionsForSearchBar =
     100
-
-
-purlSampleID =
-    "http://purl.obolibrary.org/obo/OBI_0001901"
-
-
-purlBiome =
-    "http://purl.obolibrary.org/obo/ENVO_00000428"
 
 
 purlDepth =
@@ -83,6 +75,10 @@ purlDateTimeISOStart =
 
 purlDateTimeISOEnd =
     "http://purl.obolibrary.org/obo/PMO_00000009"
+
+
+purlBiome =
+    "http://purl.obolibrary.org/obo/ENVO_00000428"
 
 
 initialParams =
@@ -583,7 +579,7 @@ update msg model =
                                     ( "file", model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir), FileSearchCompleted )
 
                             searchTask =
-                                searchRequest queryParams result sortPos model.pageSize (model.pageSize * newPageNum) model.showMap
+                                searchRequest queryParams [] result sortPos model.pageSize (model.pageSize * newPageNum) model.showMap
                                     |> Http.toTask
                                     |> Task.attempt cmd
                         in
@@ -890,7 +886,7 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
     in
     --FIXME refactor section below
     if locationVal == NoLocationValue && projectVals == [] && Dict.isEmpty vals then
-        Ok [(purlSampleID, "")]
+        Ok []
     else --else if vals |> Dict.toList |> List.map Tuple.second |> List.all validParam then
         let
             userParams =
@@ -960,14 +956,14 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
                 else
                     []
         in
-        List.concat [ projectParam, fileFormatParam, fileTypeParam, [(purlSampleID, "")], locParam, depthParam, datetimeParam, userParams ]
+        List.concat [ projectParam, fileFormatParam, fileTypeParam, locParam, depthParam, datetimeParam, userParams ]
             |> Ok
 --    else
 --        Err "Invalid query parameter"
 
 
-searchRequest : List (String, String) -> String -> Int -> Int -> Int -> Bool -> Http.Request SearchResponse
-searchRequest queryParams result sortPos limit offset showMap =
+searchRequest : List (String, String) -> List String -> String -> Int -> Int -> Int -> Bool -> Http.Request SearchResponse
+searchRequest queryParams columns result sortPos limit offset showMap =
     let
         url =
             apiBaseUrl ++ "/search"
@@ -975,6 +971,7 @@ searchRequest queryParams result sortPos limit offset showMap =
         queryParams2 =
             queryParams
                 |> List.append [ ("result", result) ]
+                |> List.append [ ("columns", String.join "," columns) ]
                 |> List.append [ ("sort", String.fromInt sortPos) ]
                 |> List.append [ ("limit", String.fromInt limit) ]
                 |> List.append [ ("offset", String.fromInt offset) ]
@@ -1012,6 +1009,7 @@ type SearchResults
 type alias SampleResult =
     { schemaId : Int
     , sampleId : Int
+    , sampleAccn : String
     , projectId : Int
     , projectName : String
     , values : List SearchResultValue
@@ -1104,6 +1102,7 @@ decodeSampleResult =
     Decode.succeed SampleResult
         |> required "schemaId" Decode.int
         |> required "sampleId" Decode.int
+        |> required "sampleAccn" Decode.string
         |> required "projectId" Decode.int
         |> required "projectName" Decode.string
         |> required "values" (Decode.list decodeSearchResultValue)
@@ -2015,20 +2014,19 @@ viewSampleResults model =
             in
             th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetSampleSortPos pos) ] [ text lbl ]
 
-        timeSpaceParamNames = -- kinda kludgey, find another way to order time/space params
-            let
-                depthVal =
-                    Dict.get purlDepth model.selectedVals |> Maybe.withDefault NoValue
+        depthVal =
+            Dict.get purlDepth model.selectedVals |> Maybe.withDefault NoValue
 
-                datetimeVal =
-                    Dict.get purlDateTimeISO model.selectedVals |> Maybe.withDefault NoValue
-            in
+        datetimeVal =
+            Dict.get purlDateTimeISO model.selectedVals |> Maybe.withDefault NoValue
+
+        timeSpaceParamNames = -- kinda kludgey, find a better way to order time/space params
             [ if model.locationVal /= NoLocationValue && validLocationParam model.locationVal then
                 "Location"
               else
                 ""
             , if depthVal /= NoValue && validParam depthVal then
-                "Depth"
+                "Depth/Min/Max"
               else
                 ""
             , if datetimeVal /= NoValue && validParam datetimeVal then
@@ -2091,15 +2089,19 @@ viewSampleResults model =
         mkRow result =
             tr []
                 (List.concat --FIXME kludgey
-                    [ [ mkTd result.projectName ]
-                    , [ td [] [ a [ Route.href (Route.Sample result.sampleId) ]
-                        [ text (List.head result.values |> Maybe.withDefault NoResultValue |> formatVal) ] ]
-                      ]
-                    , result.values |> List.tail |> Maybe.withDefault [] |> List.map (formatVal >> mkTd)
+                    [ [ td [] [ a [ Route.href (Route.Project result.projectId) ] [ text result.projectName ] ] ]
+                    , [ td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ] ]
+                    , if depthVal /= NoValue && validParam depthVal then
+                        ((td [] [ result.values |> List.take 3 |> List.map formatVal |> String.join ", " |> text ]) ::
+                            (result.values |> List.drop 3 |> List.map (formatVal >> mkTd))
+                        )
+                      else
+                        result.values |> List.map (formatVal >> mkTd)
                     , [ td [ class "text-right", style "min-width" "10em" ]
                         [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
                       ]
-                    ])
+                    ]
+                )
 
         count =
             model.sampleResults |> Maybe.withDefault [] |> List.length
@@ -2169,9 +2171,10 @@ viewSampleResults model =
         div []
             [ div [ style "border" "1px solid lightgray" ]
                 [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                    (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
---                          , li [ class "nav-item ml-auto" ] --TODO
---                              [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] ) ++
+                        [ li [ class "nav-item ml-auto" ]
+                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+                        ])
                 , pageInfo
                 , if model.errorMsg /= Nothing then
                     div []
