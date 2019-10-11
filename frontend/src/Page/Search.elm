@@ -1286,7 +1286,7 @@ view4DPanel model =
                 , Html.form [ style "padding-top" "0.5em" ]
                     [ div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
-                            ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Location"] ])
+                            ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "5em" ] [ text "Location"] ])
                                 :: (viewLocationFilterInput model.locationVal)
                                 ++ [ div [ class "input-group-append" ]
                                     [ viewFormatButton
@@ -1301,7 +1301,7 @@ view4DPanel model =
                     , br [] []
                     , div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
-                            ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Depth"] ])
+                            ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "5em" ] [ text "Depth"] ])
                                 :: (viewNumberFilterInput purlDepth depthVal)
                                 ++ [ viewNumberFilterFormatOptions purlDepth depthVal ]
                             )
@@ -1309,7 +1309,7 @@ view4DPanel model =
                     , br [] []
                     , div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
-                            ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "6em" ] [ text "Date/Time"] ])
+                            ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "5em" ] [ text "Date"] ])
                                 :: (viewDateTimeFilterInput model purlDateTimeISO datetimeVal)
                                 ++ [ viewDateTimeFilterFormatOptions purlDateTimeISO datetimeVal ]
                             )
@@ -1885,8 +1885,8 @@ viewDateTimeFilterFormatOptions id val =
 --            , a [ class "dropdown-item", href "#" ] [ text "Day YY-MM-DD" ]
 --            , a [ class "dropdown-item", href "#" ] [ text "Year YYYY" ]
 --            ]
-            [ ("Point (YYYY-MM-DD HH:MM:SS)", DateTimeValue "")
-            , ("Range (YYYY-MM-DD HH:MM:SS to YYYY-MM-DD HH:MM:SS)", DateTimeRangeValue "" "")
+            [ ("Point (YYYY-MM-DD)", DateTimeValue "")
+            , ("Range (YYYY-MM-DD to YYYY-MM-DD)", DateTimeRangeValue "" "")
             ]
     in
     div [ class "input-group-append" ]
@@ -2035,7 +2035,7 @@ viewSampleResults model =
                   else
                     []
                 , if datetimeVal /= NoValue && validParam datetimeVal then
-                    [ "Date/Time", "Start Date/Time", "End Date/Time" ]
+                    [ "Date", "Start Date", "End Date" ]
                   else
                     []
                 |> List.filter (\s -> defined s)
