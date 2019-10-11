@@ -1121,6 +1121,8 @@ async function search(db, params) {
                             clauses[schemaId] = []
                         clauses[schemaId].push(clause);
                     }
+
+                    break; //TODO add support for multiple values
                 }
             }
 
@@ -1202,7 +1204,8 @@ async function search(db, params) {
 
     if (result == "sample") {
         let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-        let sortStr = (typeof sort !== 'undefined' && Math.abs(sort) <= selections.length+1 ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
+//        let sortStr = (typeof sort !== 'undefined' && Math.abs(sort) <= selections.length+1 ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
+        let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
 
         let groupByStr = " GROUP BY s.sample_id,p.project_id ";
 
@@ -1212,7 +1215,7 @@ async function search(db, params) {
             clauseStr + groupByStr + ") AS foo";
 
         let queryStr =
-            "SELECT " + ["schema_id", "s.sample_id", "s.accn", "p.project_id", "p.name"].concat(selections).join(",") + " " +
+            "SELECT " + ["schema_id", "s.sample_id", "p.project_id", "p.name", "s.accn"].concat(selections).join(",") + " " +
             tableStr +
             clauseStr + groupByStr + sortStr + offsetStr + limitStr;
 
@@ -1233,9 +1236,9 @@ async function search(db, params) {
             return {
                 schemaId: r[0],
                 sampleId: r[1],
-                sampleAccn: r[2],
-                projectId: r[3],
-                projectName: r[4],
+                projectId: r[2],
+                projectName: r[3],
+                sampleAccn: r[4],
                 values: r.slice(5).map(v => typeof v == "undefined" ? "" : v ) // kludge to convert null to empty string
             }
         })
