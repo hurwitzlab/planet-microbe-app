@@ -2035,7 +2035,7 @@ viewSampleResults model =
                   else
                     []
                 , if datetimeVal /= NoValue && validParam datetimeVal then
-                    [ "Date/Time" ]
+                    [ "Start Date/Time", "End Date/Time" ]
                   else
                     []
                 |> List.filter (\s -> defined s)
@@ -2096,11 +2096,6 @@ viewSampleResults model =
                 (List.concat --FIXME kludgey
                     [ [ td [] [ a [ Route.href (Route.Project result.projectId) ] [ text result.projectName ] ] ]
                     , [ td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ] ]
---                    , if depthVal /= NoValue && validParam depthVal then
---                        ((td [] [ result.values |> List.take 3 |> List.map formatVal |> String.join ", " |> text ]) ::
---                            (result.values |> List.drop 3 |> List.map (formatVal >> mkTd))
---                        )
---                      else
                     , result.values |> List.map (formatVal >> mkTd)
                     , [ td [ class "text-right", style "min-width" "10em" ]
                         [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
