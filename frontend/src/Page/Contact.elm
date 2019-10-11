@@ -5,7 +5,6 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onInput, onClick)
 import Page
---import Page.Error as Error exposing (PageLoadError)
 import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline as Pipeline exposing (optional, required)
@@ -28,19 +27,22 @@ type alias Model =
 
 init : Session -> ( Model, Cmd Msg )
 init session =
---    let
---        email =
---            session.user |> Maybe.map .email |> Maybe.withDefault ""
---
---        name =
---            session.user
---                |> Maybe.map (\user -> user.first_name ++ " " ++ user.last_name)
---                |> Maybe.withDefault ""
---    in
+    let
+        user =
+            Session.getUser session
+
+        email =
+            user |> Maybe.map .email |> Maybe.withDefault ""
+
+        name =
+            user
+                |> Maybe.map (\u -> u.first_name ++ " " ++ u.last_name)
+                |> Maybe.withDefault ""
+    in
     (
         { session = session
-        , name = "" --name
-        , email = "" --email
+        , name = name
+        , email = email
         , message = ""
         , sent = False
         }
@@ -78,9 +80,6 @@ update msg model =
             ( { model | message = message }, Cmd.none )
 
         Submit ->
---            let
---                _ = Debug.log "Contact.Submit" model
---            in
             ( { model | sent = True }, submit model )
 
         SubmitDone response ->
