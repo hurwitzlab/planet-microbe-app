@@ -2035,7 +2035,7 @@ viewSampleResults model =
                   else
                     []
                 , if datetimeVal /= NoValue && validParam datetimeVal then
-                    [ "Start Date/Time", "End Date/Time" ]
+                    [ "Date/Time", "Start Date/Time", "End Date/Time" ]
                   else
                     []
                 |> List.filter (\s -> defined s)
