@@ -967,7 +967,6 @@ async function generateTermIndex(db, ontologyDescriptors) {
 
             index[purl]['schemas'][schema.schema_id][field.name] = i+1
             index[purl]['type'] = field.type;
-            index[purl]['sourceUrl'] = field['pm:sourceUrl'];
 
             if (unitPurl && unitPurl in index) {
                 index[purl]['unitId'] = unitPurl;
@@ -1204,7 +1203,6 @@ async function search(db, params) {
 
     if (result == "sample") {
         let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-//        let sortStr = (typeof sort !== 'undefined' && Math.abs(sort) <= selections.length+1 ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
         let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
 
         let groupByStr = " GROUP BY s.sample_id,p.project_id ";
