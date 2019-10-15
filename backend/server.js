@@ -77,7 +77,8 @@ app.get('/searchTerms', (req, res) => {
             Object.values(rdfTermIndex)
             .filter(term => term.id && term.schemas)
             .map(term => {
-                let aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
+                let aliases = [].concat.apply([], Object.values(term.schemas)).map(schema => { return { name: schema.name, sourceName: schema.sourceName, sourceUrl: schema.sourceUrl } });
+
                 let annotations = [];
                 if (term.annotations) { // TODO move into function
                     annotations = term.annotations.map(a => {
@@ -91,6 +92,7 @@ app.get('/searchTerms', (req, res) => {
                         };
                     });
                 }
+
                 return {
                     id: term.id,
                     label: term.label,
@@ -122,7 +124,7 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
 
     let aliases = [];
     if (term.schemas)
-        aliases = Array.from(new Set(Object.values(term.schemas).reduce((acc, schema) => acc.concat(Object.keys(schema)), [])));
+        aliases = [].concat.apply([], Object.values(term.schemas)).map(schema => { return { name: schema.name, sourceName: schema.sourceName, sourceUrl: schema.sourceUrl } });
 
     let annotations = [];
     if (term.annotations) { // TODO move into function
@@ -140,18 +142,14 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
 
     if (term.type == "string") {
         let uniqueVals = {};
-        for (let schemaId in term.schemas) {
-            console.log("schemaId:", schemaId);
-            for (let alias in term.schemas[schemaId]) {
-                let arrIndex = term.schemas[schemaId][alias];
-                let vals = await query({ text: "SELECT string_vals[$1],count(string_vals[$1]) FROM sample WHERE schema_id=$2 GROUP BY string_vals[$1]", values: [arrIndex,schemaId*1], rowMode: 'array'});
-                vals.rows.forEach(row => {
-                    let val = row[0];
-                    if (!uniqueVals[val])
-                        uniqueVals[val] = 0;
-                    uniqueVals[val] += 1*row[1];
-                });
-            }
+        for (let schema of [].concat.apply([], Object.values(term.schemas))) {
+            let vals = await query({ text: "SELECT string_vals[$1],count(string_vals[$1]) FROM sample WHERE schema_id=$2 GROUP BY string_vals[$1]", values: [schema.position,schema.schemaId*1], rowMode: 'array'});
+            vals.rows.forEach(row => {
+                let val = row[0];
+                if (!uniqueVals[val])
+                    uniqueVals[val] = 0;
+                uniqueVals[val] += 1*row[1];
+            });
         }
 
         res.json({
@@ -172,13 +170,13 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
 //        });
     }
     else if (term.type == "number") { // numeric
-        let queries = [];
-        for (let schemaId in term.schemas) {
-            for (let alias in term.schemas[schemaId]) {
-                let arrIndex = term.schemas[schemaId][alias];
-                queries.push({ text: "SELECT MIN(number_vals[$1]),MAX(number_vals[$1]) FROM sample WHERE schema_id=$2", values: [arrIndex,schemaId*1], rowMode: 'array' });
-            }
-        }
+        let queries = [].concat.apply([], Object.values(term.schemas)).map(schema => {
+            return {
+                text: "SELECT MIN(number_vals[$1]),MAX(number_vals[$1]) FROM sample WHERE schema_id=$2",
+                values: [schema.position, schema.schemaId*1],
+                rowMode: 'array'
+            };
+        });
 
         let min, max;
         let results = await batchQuery(queries); // FIXME would a single query be faster?
@@ -209,13 +207,13 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
 //        });
     }
     else if (term.type == "datetime") {
-        let queries = [];
-        for (let schemaId in term.schemas) {
-            for (let alias in term.schemas[schemaId]) {
-                let arrIndex = term.schemas[schemaId][alias];
-                queries.push({ text: "SELECT MIN(datetime_vals[$1]),MAX(datetime_vals[$1]) FROM sample WHERE schema_id=$2", values: [arrIndex,schemaId*1], rowMode: 'array' });
-            }
-        }
+        let queries = term.schema.map(schema => {
+            return {
+                text: "SELECT MIN(datetime_vals[$1]),MAX(datetime_vals[$1]) FROM sample WHERE schema_id=$2",
+                values: [schema.position,schema.schemaId*1],
+                rowMode: 'array'
+            };
+        });
 
         let min, max;
         let results = await batchQuery(queries); // FIXME would a single query be faster?
@@ -948,8 +946,8 @@ async function generateTermIndex(db, ontologyDescriptors) {
 
             let purl = field.rdfType;
             let unitPurl = field['pm:unitRdfType'];
-            if (!purl || !field["pm:searchable"])
-                continue; // skip this field if no PURL value (not in term catalog)
+            if (!purl || !field['pm:searchable'])
+                continue; // skip this field if no PURL value (not in term catalog) or not searchable
 
             if (!(purl in index))
                 index[purl] = {};
@@ -962,10 +960,18 @@ async function generateTermIndex(db, ontologyDescriptors) {
 
             if (!('schemas' in index[purl]))
                 index[purl]['schemas'] = {};
-            if (!index[purl]['schemas'][schema.schema_id])
-                index[purl]['schemas'][schema.schema_id] = {};
+            if (!(schema.schema_id in index[purl]['schemas']))
+                index[purl]['schemas'][schema.schema_id] = []
 
-            index[purl]['schemas'][schema.schema_id][field.name] = i+1
+            index[purl]['schemas'][schema.schema_id].push({
+                schemaId: schema.schema_id,
+                position: i + 1,
+                //type: field.type,
+                name: field.name,
+                sourceName: field.name, //FIXME
+                sourceUrl: field['pm:sourceUrl'] || ''
+            });
+
             index[purl]['type'] = field.type;
 
             if (unitPurl && unitPurl in index) {
@@ -1103,7 +1109,7 @@ async function search(db, params) {
                 console.log("Error: term not found for param '" + param + "'");
                 return;
             }
-            //console.log("term:", term);
+            console.log("term:", term);
 
             let selectStr = "";
             if (!term.schemas || term.schemas.length == 0)
@@ -1111,9 +1117,8 @@ async function search(db, params) {
 
             for (schemaId in term.schemas) {
                 let fields = [];
-                for (alias in term.schemas[schemaId]) {
-                    let arrIndex = term.schemas[schemaId][alias];
-                    let [field, clause] = buildTermSQL(arrIndex, val);
+                for (schema of term.schemas[schemaId]) {
+                    let [field, clause] = buildTermSQL(schema.position, val);
 
                     if (clause) {
                         if (!clauses[schemaId])

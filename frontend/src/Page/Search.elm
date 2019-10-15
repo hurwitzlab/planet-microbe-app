@@ -135,10 +135,10 @@ type alias Model =
 init : Session -> ( Model, Cmd Msg )
 init session =
     let
-        ( startDatePicker, startDatePickerCmd ) =
+        ( startDatePicker, _ ) =
             DatePicker.init
 
-        ( endDatePicker, endDatePickerCmd ) =
+        ( endDatePicker, _ ) =
             DatePicker.init
     in
     (
@@ -181,8 +181,6 @@ init session =
         , previousSearchParams = []
         }
     , Cmd.batch
---        [ Cmd.map (SetStartDatePicker purlDateTimeISO NoValue) startDatePickerCmd
---        , Cmd.map (SetEndDatePicker purlDateTimeISO NoValue) endDatePickerCmd
         [ Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map Sample.fetchSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
@@ -195,7 +193,7 @@ init session =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.batch
         [ Time.every 1000 InputTimerTick -- milliseconds
         , GMap.getLocation UpdateLocationFromMap
@@ -1036,6 +1034,8 @@ type SearchResultValue
     = NoResultValue
     | NumberResultValue Float
     | StringResultValue String
+    | MultipleNumberResultValue (List Float)
+    | MultipleStringResultValue (List String)
 
 
 --type alias MapResult =
@@ -1130,6 +1130,8 @@ decodeSearchResultValue =
     Decode.oneOf
         [ Decode.map NumberResultValue Decode.float
         , Decode.map StringResultValue Decode.string
+        , Decode.map MultipleNumberResultValue (Decode.list Decode.float)
+        , Decode.map MultipleStringResultValue (Decode.list Decode.string)
         , Decode.map (\a -> NoResultValue) (Decode.null a)
         ]
 
@@ -2074,8 +2076,28 @@ viewSampleResults model =
                     |> Html.map CartMsg
                 ]
 
-        columns =
-            List.indexedMap mkTh paramNames ++ [ addToCartTh ]
+        aliases =
+            model.selectedParams
+                |> List.filterMap
+                    (\param ->
+                        case Dict.get param model.selectedTerms of
+                            Nothing ->
+                                Nothing
+
+                            Just term ->
+                                Just term.aliases
+                    )
+
+        mkTh2 a =
+            if List.length a > 1 then
+                th [] [ text (List.map .name a |> String.join ", ") ]
+            else
+                th [] []
+
+        columns = --FIXME kludgey
+            [ tr [] (List.indexedMap mkTh paramNames ++ [ addToCartTh ])
+            , tr [] ((List.repeat ((List.length timeSpaceParamNames) + 2) (th [] [])) ++ (List.map mkTh2 aliases))
+            ]
 
         mkTd label =
             td [ style "max-width" maxColWidth ] [ text label ]
@@ -2085,8 +2107,14 @@ viewSampleResults model =
                 StringResultValue s ->
                     s
 
+                MultipleStringResultValue l ->
+                    String.join ", " l
+
                 NumberResultValue n ->
                     String.fromFloat n
+
+                MultipleNumberResultValue l ->
+                    l |> List.map String.fromFloat |> String.join ", "
 
                 NoResultValue ->
                     ""

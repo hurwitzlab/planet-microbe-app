@@ -52,11 +52,18 @@ type alias SearchTerm =
     , unitLabel : String
     , sourceUrl : String
     , alias_ : String
-    , aliases : List String
+    , aliases : List Alias
     , min : Float
     , max : Float
     , values : Dict String Int --FIXME change to List (String, Int)
     , annotations : List Annotation
+    }
+
+
+type alias Alias =
+    { name : String
+    , sourceName : String
+    , sourceUrl : String
     }
 
 
@@ -116,11 +123,19 @@ searchTermDecoder =
         |> optional "unitLabel" Decode.string ""
         |> optional "sourceUrl" Decode.string ""
         |> optional "alias" Decode.string ""
-        |> optional "aliases" (Decode.list Decode.string) []
+        |> optional "aliases" (Decode.list aliasDecoder) []
         |> optional "min" Decode.float 0
         |> optional "max" Decode.float 0
         |> optional "values" (Decode.dict Decode.int) Dict.empty
         |> optional "annotations" (Decode.list annotationDecoder) []
+
+
+aliasDecoder : Decoder Alias
+aliasDecoder =
+    Decode.succeed Alias
+        |> required "name" Decode.string
+        |> required "sourceName" Decode.string
+        |> required "sourceUrl" Decode.string
 
 
 annotationDecoder : Decoder Annotation
