@@ -1129,12 +1129,7 @@ async function search(db, params) {
                     fields.push(field);
                 }
 
-                fieldStr = "";
-                if (fields.length == 1)
-                    fieldsStr = fields[0];
-                else
-                    fieldsStr = "ARRAY[" + fields.join(",") + "]";
-
+                let fieldsStr = "ARRAY[" + fields.join(",") + "]";
                 selectStr += " WHEN schema_id=" + schemaId + " THEN " + fieldsStr;
             }
 
