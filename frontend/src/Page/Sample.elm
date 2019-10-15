@@ -439,7 +439,10 @@ viewMetadata maybeMetadata  =
                         ]
                     ]
                 , tbody []
-                    (List.Extra.zip metadata.terms metadata.values |> List.map mkRow )
+                    (List.Extra.zip metadata.terms metadata.values
+                        |> List.sortBy (Tuple.first >> .label >> String.toLower)
+                        |> List.map mkRow
+                    )
                 ]
 
         Nothing ->
