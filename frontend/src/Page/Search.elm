@@ -2195,7 +2195,7 @@ viewSampleResults model =
                 ]
     in
     if model.isSearching || model.sampleResults == Nothing then
-        viewSpinner
+        div [ style "min-height" "50em" ] [ viewSpinner ]
     else
         div []
             [ div [ style "border" "1px solid lightgray" ]
@@ -2352,7 +2352,7 @@ viewFileResults model =
                 ]
     in
     if model.isSearching || model.fileResults == Nothing then
-        viewSpinner
+        div [ style "min-height" "50em" ] [ viewSpinner ]
     else
         div []
             [ div [ style "border" "1px solid lightgray" ]
