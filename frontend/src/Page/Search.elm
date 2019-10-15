@@ -295,6 +295,9 @@ update msg model =
 
         GetSearchTermCompleted (Ok term) ->
             let
+                selectedParams =
+                    List.singleton term.id |> List.append model.selectedParams |> List.Extra.unique -- cannot use Set because it doesn't preserve order
+
                 selectedTerms =
                     Dict.insert term.id term model.selectedTerms
 
@@ -309,7 +312,7 @@ update msg model =
                 selectedVals =
                     Dict.insert term.id val model.selectedVals
             in
-            ( { model | doSearch = True, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
+            ( { model | doSearch = True, selectedParams = selectedParams, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
 
         GetSearchTermCompleted (Err error) -> --TODO
 --            let
@@ -341,13 +344,10 @@ update msg model =
 
         AddFilter id ->
             let
-                params =
-                    List.singleton id |> List.append model.selectedParams |> List.Extra.unique -- cannot use Set because it doesn't preserve order
-
                 getTerm =
                     Sample.fetchSearchTerm id |> Http.toTask
             in
-            ( { model | showParamSearchDropdown = False, paramSearchInputVal = "", selectedParams = params, showAddFilterDialog = False }, Task.attempt GetSearchTermCompleted getTerm )
+            ( { model | showParamSearchDropdown = False, paramSearchInputVal = "", showAddFilterDialog = False }, Task.attempt GetSearchTermCompleted getTerm )
 
         RemoveFilter id ->
             let
@@ -2194,7 +2194,7 @@ viewSampleResults model =
                     ]
                 ]
     in
-    if model.isSearching || model.sampleResults == Nothing then
+    if model.doSearch || model.isSearching || model.sampleResults == Nothing then
         div [ style "min-height" "50em" ] [ viewSpinner ]
     else
         div []
