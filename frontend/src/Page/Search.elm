@@ -2094,9 +2094,9 @@ viewSampleResults model =
             else
                 th [] []
 
-        columns = --FIXME kludgey
+        columns =
             [ tr [] (List.indexedMap mkTh paramNames ++ [ addToCartTh ])
-            , tr [] ((List.repeat ((List.length timeSpaceParamNames) + 2) (th [] [])) ++ (List.map mkTh2 aliases))
+--            , tr [] ((List.repeat ((List.length timeSpaceParamNames) + 2) (th [] [])) ++ (List.map mkTh2 aliases)) --FIXME kludgey
             ]
 
         mkTd label =
