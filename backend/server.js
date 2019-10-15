@@ -1103,26 +1103,34 @@ async function search(db, params) {
                 console.log("Error: term not found for param '" + param + "'");
                 return;
             }
-            console.log("term:", term);
+            //console.log("term:", term);
 
             let selectStr = "";
             if (!term.schemas || term.schemas.length == 0)
                 console.log("Error: schema not found for term", param);
 
             for (schemaId in term.schemas) {
+                let fields = [];
                 for (alias in term.schemas[schemaId]) {
                     let arrIndex = term.schemas[schemaId][alias];
                     let [field, clause] = buildTermSQL(arrIndex, val);
 
-                    selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
                     if (clause) {
                         if (!clauses[schemaId])
                             clauses[schemaId] = []
                         clauses[schemaId].push(clause);
                     }
 
-                    break; //TODO add support for multiple values
+                    fields.push(field);
                 }
+
+                fieldStr = "";
+                if (fields.length == 1)
+                    fieldsStr = fields[0];
+                else
+                    fieldsStr = "ARRAY[" + fields.join(",") + "]";
+
+                selectStr += " WHEN schema_id=" + schemaId + " THEN " + fieldsStr;
             }
 
             if (selectStr)
@@ -1241,11 +1249,11 @@ async function search(db, params) {
             }
         })
 
-        //    let locationClusterQuery = "SELECT ST_NumGeometries(gc) AS count, ST_AsGeoJSON(gc) AS collection, ST_AsGeoJSON(ST_Centroid(gc)) AS centroid, ST_AsGeoJSON(ST_MinimumBoundingCircle(gc)) AS circle, sqrt(ST_Area(ST_MinimumBoundingCircle(gc)) / pi()) AS radius " +
-        //        "FROM (SELECT unnest(ST_ClusterWithin(locations::geometry, 100)) gc FROM sample " + clauseStr + ") f;"
-        //    let locationClusterQuery = "SELECT ST_AsGeoJSON(ST_Union(ST_GeometryN(locations::geometry, 1))) AS points " +
-        //        "FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
-        //        clauseStr;
+        //let locationClusterQuery = "SELECT ST_NumGeometries(gc) AS count, ST_AsGeoJSON(gc) AS collection, ST_AsGeoJSON(ST_Centroid(gc)) AS centroid, ST_AsGeoJSON(ST_MinimumBoundingCircle(gc)) AS circle, sqrt(ST_Area(ST_MinimumBoundingCircle(gc)) / pi()) AS radius " +
+        //    "FROM (SELECT unnest(ST_ClusterWithin(locations::geometry, 100)) gc FROM sample " + clauseStr + ") f;"
+        //let locationClusterQuery = "SELECT ST_AsGeoJSON(ST_Union(ST_GeometryN(locations::geometry, 1))) AS points " +
+        //    "FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
+        //    clauseStr;
         let locationClusterQuery =
             "SELECT s.sample_id,s.accn as sample_accn,p.name AS project_name,ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude, ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude " +
             tableStr +
