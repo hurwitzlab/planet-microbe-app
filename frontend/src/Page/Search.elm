@@ -2200,10 +2200,11 @@ viewSampleResults model =
         div []
             [ div [ style "border" "1px solid lightgray" ]
                 [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] ) ++
-                        [ li [ class "nav-item ml-auto" ]
-                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
-                        ])
+                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
+--                     ++ [ li [ class "nav-item ml-auto" ]
+--                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+--                        ]
+                    )
                 , pageInfo
                 , if model.errorMsg /= Nothing then
                     div []
