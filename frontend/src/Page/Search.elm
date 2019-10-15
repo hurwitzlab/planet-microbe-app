@@ -321,13 +321,14 @@ update msg model =
             let
                 newVals =
                     model.selectedVals
-                    |> Dict.remove purlDepth
-                    |> Dict.remove purlDateTimeISO
-                    |> Dict.map (\k v -> NoValue)
+                        |> Dict.remove purlDepth
+                        |> Dict.remove purlDateTimeISO
+                        |> Dict.map (\k v -> NoValue)
             in
             ( { model
                 | doSearch = True
                 , locationVal = NoLocationValue
+                , selectedParams = initialParams
                 , selectedVals = newVals
                 , projectVals = []
                 , fileFormatVals = []
