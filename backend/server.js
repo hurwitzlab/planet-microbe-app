@@ -26,6 +26,7 @@ const ERR_UNAUTHORIZED = new MyError("Unauthorized", 401);
 const ERR_PERMISSION_DENIED = new MyError("Permission denied", 403);
 const ERR_NOT_FOUND = new MyError("Not found", 404);
 
+//var schemaIndex = {};
 var rdfTermIndex = {};
 var db;
 
@@ -40,7 +41,9 @@ var db;
     await db.connect();
 
     rdfTermIndex = await generateTermIndex(db, config.ontologies);
-    //console.log("index:", JSON.stringify(rdfTermIndex, null, 4));
+    //console.log("term index:", JSON.stringify(rdfTermIndex, null, 4));
+//    schemaIndex = await generateSchemaIndex(db);
+//    console.log("schema index:", JSON.stringify(schemaIndex, null, 4));
 
     app.listen(config.serverPort, () => console.log('Server listening on port', config.serverPort));
 })();
@@ -927,136 +930,13 @@ async function agaveGetToken(provider, code) {
     return(response);
 }
 
-async function generateTermIndex(db, ontologyDescriptors) {
-    //let result = await query('select fields[1].string from sample limit 1')
-    let schemas = await query("SELECT schema_id,name,fields FROM schema");
-    //console.log(schemas.rows);
-
-    let index = {};
-    ontologyDescriptors.forEach( desc => {
-        console.log("Indexing ontology", desc.name);
-        loadOntology(desc.type, desc.path, index);
-    });
-
-    schemas.rows.forEach( schema => {
-        console.log("Indexing schema", schema.name);
-
-        for (let i = 0; i < schema.fields.fields.length; i++) {
-            let field = schema.fields.fields[i];
-
-            let purl = field.rdfType;
-            let unitPurl = field['pm:unitRdfType'];
-            if (!purl || !field['pm:searchable'])
-                continue; // skip this field if no PURL value (not in term catalog) or not searchable
-
-            if (!(purl in index))
-                index[purl] = {};
-            else { // Check type consistency
-                if (index[purl].type && index[purl].type != field.type)
-                    console.log("WARNING: type mismatch for", purl, index[purl].type, field.type);
-                if (index[purl].unitId && index[purl].unitId != unitPurl)
-                    console.log("WARNING: unit mismatch for", purl, index[purl].unitId, unitPurl);
-            }
-
-            if (!('schemas' in index[purl]))
-                index[purl]['schemas'] = {};
-            if (!(schema.schema_id in index[purl]['schemas']))
-                index[purl]['schemas'][schema.schema_id] = []
-
-            index[purl]['schemas'][schema.schema_id].push({
-                schemaId: schema.schema_id,
-                position: i + 1,
-                //type: field.type,
-                name: field.name,
-                sourceName: field.name, //FIXME
-                sourceUrl: field['pm:sourceUrl'] || ''
-            });
-
-            index[purl]['type'] = field.type;
-
-            if (unitPurl && unitPurl in index) {
-                index[purl]['unitId'] = unitPurl;
-                index[purl]['unitLabel'] = index[unitPurl]['label'];
-            }
-        }
-    });
-
-    return index;
-}
-
-function loadOntology(type, path, index) {
-    if (path.endsWith(".json")) {
-        ontology = JSON.parse(fs.readFileSync(path));
-
-        if (type == "term") { // pmo.json
-            ontology.graphs.forEach( g => {
-                g.nodes.forEach(node => {
-                    let annotations = [];
-                    if (node.meta && node.meta.basicPropertyValues)
-                        annotations = node.meta.basicPropertyValues.map(prop => { return { id: prop.pred, value: prop.val }; });
-
-                    if (!(node.id in index))
-                        index[node.id] = {};
-                    index[node.id] = Object.assign(index[node.id],
-                        {
-                            id: node.id,
-                            label: node.lbl,
-                            definition: (node.meta && node.meta.definition ? node.meta.definition.val : null),
-                            annotations: annotations
-                        }
-                    );
-                });
-            });
-        }
-        else if (type == "term_owl") { // pmo_owl.json
-            ontology.classAttribute.forEach(node => {
-                let label = "<unknown>";
-                if (node["label"]) {
-                    if (node["label"]["en"])
-                        label = node["label"]["en"];
-                    else if (node["label"]["undefined"])
-                        label = node["label"]["undefined"];
-                }
-
-                if (!(node.iri in index))
-                    index[node.iri] = {};
-                index[node.iri] = Object.assign(index[node.iri],
-                    {
-                        id: node.iri,
-                        label: label,
-                    }
-                );
-            });
-        }
-        else {
-            throw("Error: unsupported ontology type");
-        }
-    }
-    else if (path.endsWith(".csv")) {
-        var data = fs.readFileSync(path, { encoding: "UTF8" });
-        data.split('\n').forEach(line => {
-            let fields = line.split(',');
-            let purl = fields[0];
-            let label = fields[1];
-            index[purl] = {
-                id: purl,
-                label : label
-            }
-        })
-    }
-    else {
-        throw("Error: unsupported ontology file format");
-    }
-
-    return index;
-}
-
 // TODO refactor/simplify
 async function search(db, params) {
     console.log("params:", params);
 
     let limit = 20, offset, sort, columns, result = "sample", map;
     let gisClause, projectClause, fileFormatClause, fileTypeClause;
+    let terms = [];
     let clauses = {};
     let selections = [];
 
@@ -1107,35 +987,44 @@ async function search(db, params) {
             let term = getTerm(param);
             if (!term) {
                 console.log("Error: term not found for param '" + param + "'");
-                return;
+                continue;
             }
+
+            if (!term.schemas || term.schemas.length == 0) {
+                console.log("Error: Schema not found for term", param);
+                continue;
+            }
+
+            terms.push(term);
             console.log("term:", term);
+        }
+    }
 
-            let selectStr = "";
-            if (!term.schemas || term.schemas.length == 0)
-                console.log("Error: schema not found for term", param);
+    let schemas = getSchemasForTerms(terms);
+    console.log("schemas:", schemas);
 
-            for (schemaId in term.schemas) {
-                let fields = [];
-                for (schema of term.schemas[schemaId]) {
-                    let [field, clause] = buildTermSQL(schema.position, val);
+    for (term of terms) {
+        let selectStr = "";
+        for (schemaId of schemas) {
+            let fields = [];
+            for (schema of term.schemas[schemaId]) {
+                let [field, clause] = buildTermSQL(schema.position, params[term.id]);
 
-                    if (clause) {
-                        if (!clauses[schemaId])
-                            clauses[schemaId] = []
-                        clauses[schemaId].push(clause);
-                    }
-
-                    fields.push(field);
+                if (clause) {
+                    if (!clauses[schemaId])
+                        clauses[schemaId] = []
+                    clauses[schemaId].push(clause);
                 }
 
-                let fieldsStr = "ARRAY[" + fields.join(",") + "]";
-                selectStr += " WHEN schema_id=" + schemaId + " THEN " + fieldsStr;
+                fields.push(field);
             }
 
-            if (selectStr)
-                selections.push("CASE" + selectStr + " END");
+            let fieldsStr = "ARRAY[" + fields.join(",") + "]";
+            selectStr += " WHEN schema_id=" + schemaId + " THEN " + fieldsStr;
         }
+
+        if (selectStr)
+            selections.push("CASE" + selectStr + " END");
     }
 
     if (columns && columns.length > 0) {
@@ -1324,6 +1213,172 @@ function getTerm(nameOrId) {
     }
 
     return null;
+}
+
+async function generateTermIndex(db, ontologyDescriptors) {
+    //let result = await query('select fields[1].string from sample limit 1')
+    let schemas = await query("SELECT schema_id,name,fields FROM schema");
+    //console.log(schemas.rows);
+
+    let index = {};
+    ontologyDescriptors.forEach( desc => {
+        console.log("Indexing ontology", desc.name);
+        loadOntology(desc.type, desc.path, index);
+    });
+
+    schemas.rows.forEach( schema => {
+        console.log("Indexing schema", schema.name);
+
+        for (let i = 0; i < schema.fields.fields.length; i++) {
+            let field = schema.fields.fields[i];
+
+            let purl = field.rdfType;
+            let unitPurl = field['pm:unitRdfType'];
+            if (!purl || ('pm:searchable' in field && !field['pm:searchable']))
+                continue; // skip this field if no PURL value (not in term catalog) or not searchable
+
+            if (!(purl in index))
+                index[purl] = {};
+            else { // Check type consistency
+                if (index[purl].type && index[purl].type != field.type)
+                    console.log("WARNING: type mismatch for", purl, index[purl].type, field.type);
+                if (index[purl].unitId && index[purl].unitId != unitPurl)
+                    console.log("WARNING: unit mismatch for", purl, index[purl].unitId, unitPurl);
+            }
+
+            if (!('schemas' in index[purl]))
+                index[purl]['schemas'] = {};
+            if (!(schema.schema_id in index[purl]['schemas']))
+                index[purl]['schemas'][schema.schema_id] = []
+
+            index[purl]['schemas'][schema.schema_id].push({
+                schemaId: schema.schema_id,
+                position: i + 1,
+                //type: field.type,
+                name: field.name,
+                sourceName: field.name, //FIXME
+                sourceUrl: field['pm:sourceUrl'] || ''
+            });
+
+            index[purl]['type'] = field.type;
+
+            if (unitPurl && unitPurl in index) {
+                index[purl]['unitId'] = unitPurl;
+                index[purl]['unitLabel'] = index[unitPurl]['label'];
+            }
+        }
+    });
+
+    return index;
+}
+
+function loadOntology(type, path, index) {
+    if (path.endsWith(".json")) {
+        ontology = JSON.parse(fs.readFileSync(path));
+
+        if (type == "term") { // pmo.json
+            ontology.graphs.forEach( g => {
+                g.nodes.forEach(node => {
+                    let annotations = [];
+                    if (node.meta && node.meta.basicPropertyValues)
+                        annotations = node.meta.basicPropertyValues.map(prop => { return { id: prop.pred, value: prop.val }; });
+
+                    if (!(node.id in index))
+                        index[node.id] = {};
+                    index[node.id] = Object.assign(index[node.id],
+                        {
+                            id: node.id,
+                            label: node.lbl,
+                            definition: (node.meta && node.meta.definition ? node.meta.definition.val : null),
+                            annotations: annotations
+                        }
+                    );
+                });
+            });
+        }
+        else if (type == "term_owl") { // pmo_owl.json
+            ontology.classAttribute.forEach(node => {
+                let label = "<unknown>";
+                if (node["label"]) {
+                    if (node["label"]["en"])
+                        label = node["label"]["en"];
+                    else if (node["label"]["undefined"])
+                        label = node["label"]["undefined"];
+                }
+
+                if (!(node.iri in index))
+                    index[node.iri] = {};
+                index[node.iri] = Object.assign(index[node.iri],
+                    {
+                        id: node.iri,
+                        label: label,
+                    }
+                );
+            });
+        }
+        else {
+            throw("Error: unsupported ontology type");
+        }
+    }
+    else if (path.endsWith(".csv")) {
+        var data = fs.readFileSync(path, { encoding: "UTF8" });
+        data.split('\n').forEach(line => {
+            let fields = line.split(',');
+            let purl = fields[0];
+            let label = fields[1];
+            index[purl] = {
+                id: purl,
+                label : label
+            }
+        })
+    }
+    else {
+        throw("Error: unsupported ontology file format");
+    }
+
+    return index;
+}
+
+//async function generateSchemaIndex() {
+//    let results = await query("SELECT schema_id,name,fields FROM schema");
+//    let schemas = {};
+//
+//    results.rows.forEach(row => {
+//        let id = row.schema_id;
+//        schemas[id] = {};
+//        for (f of row.fields.fields) {
+//            let purl = f['rdfType'];
+//            if (!purl) continue;
+//
+//            if (!(purl in schemas[id]))
+//                schemas[id][purl] = []
+//            schemas[id][purl].push(f);
+//        }
+//    });
+//
+//    return schemas;
+//}
+
+function getSchemasForTerms(terms) {
+    let schemas;
+    for (term of terms) {
+        if (!term.schemas || term.schemas.length == 0)
+            continue;
+
+        if (!schemas)
+            schemas = Object.keys(term.schemas);
+        else
+            schemas = intersect(schemas, Object.keys(term.schemas));
+    }
+    return schemas;
+}
+
+function intersect(a, b) {
+    var t;
+    if (b.length > a.length) t = b, b = a, a = t; // indexOf to loop over shorter
+    return a.filter(function (e) {
+        return b.indexOf(e) > -1;
+    });
 }
 
 function buildTermSQL(arrIndex, val) {
