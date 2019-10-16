@@ -2197,7 +2197,7 @@ viewSampleResults model =
     if model.doSearch || model.isSearching || model.sampleResults == Nothing then
         div [ style "min-height" "50em" ] [ viewSpinner ]
     else
-        div []
+        div [ style "min-height" "50em" ]
             [ div [ style "border" "1px solid lightgray" ]
                 [ ul [ class "nav nav-tabs", style "width" "100%" ]
                     ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
@@ -2354,7 +2354,7 @@ viewFileResults model =
     if model.isSearching || model.fileResults == Nothing then
         div [ style "min-height" "50em" ] [ viewSpinner ]
     else
-        div []
+        div [ style "min-height" "50em" ]
             [ div [ style "border" "1px solid lightgray" ]
                 [ ul [ class "nav nav-tabs", style "width" "100%" ]
                     (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
