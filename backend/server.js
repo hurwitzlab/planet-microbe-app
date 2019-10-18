@@ -934,70 +934,79 @@ async function agaveGetToken(provider, code) {
 async function search(db, params) {
     console.log("params:", params);
 
-    let limit = 20, offset, sort, columns, result = "sample", map;
-    let gisClause, projectClause, fileFormatClause, fileTypeClause;
     let terms = [];
     let clauses = {};
     let selections = [];
 
-    for (param in params) {
+    let limit = params['limit'] || 20;
+    let limitStr = (limit ? " LIMIT " + limit : "");
+
+    let offset = params['offset'] || 0;
+    let offsetStr = (offset ? " OFFSET " + offset : "");
+
+    let sort = params['sort'] || 1;
+
+    let result = params['result'] || 'sample';
+
+    let map = (params['map'] || 1) == 1;
+
+    let columns;
+    if (params['columns'])
+        columns = params['columns'].split(',');
+
+    let gisClause;
+    if (params['location']) {
+        let val = params['location'];
+        if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // [lat, lng, radius] in meters
+            let bounds = JSON.parse(val);
+            console.log("location:", bounds);
+            selections.push("replace(replace(replace(replace(ST_AsGeoJson(ST_FlipCoordinates(locations::geometry))::json->>'coordinates', '[[', '['), ']]', ']'), '[', '('), ']', ')')"); // ugly af
+            gisClause = "ST_DWithin(ST_MakePoint(" + bounds[1] + "," + bounds[0] + ")::geography, locations, " + bounds[2] + ")";
+        }
+        else if (val) {
+            //TODO error
+            console.log("Error: invalid location query", val);
+        }
+    }
+
+    let projectClause;
+    if (params['project']) {
+        let vals = params['project'].split("|");
+        console.log("project match", vals);
+        projectClause = "LOWER(p.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
+    }
+
+    let fileFormatClause;
+    if (params['fileFormat']) {
+        let vals = params['fileFormat'].split("|");
+        console.log("fileFormat match", vals);
+        fileFormatClause = "LOWER(ff.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
+    }
+
+    let fileTypeClause;
+    if (params['fileType']) {
+        let vals = params['fileType'].split("|");
+        console.log("fileType match", vals);
+        fileTypeClause = "LOWER(ft.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
+    }
+
+    for (param of Object.keys(params).filter(p => p.startsWith("http"))) {
         param = param.replace(/\+/gi, ''); // workaround for Elm uri encoding
         let val = params[param];
 
-        if (param == 'limit')
-            limit = val * 1; // convert to int
-        else if (param == 'offset')
-            offset = val * 1; // convert to int
-        else if (param == 'sort')
-            sort = val * 1; // convert to int
-        else if (param == 'result')
-            result = val;
-        else if (param == 'map')
-            map = val == 1;
-        else if (param == 'columns')
-            columns = val ? val.split(',') : null;
-        else if (param == 'location') {
-            if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // [lat, lng, radius] in meters
-                let bounds = JSON.parse(val);
-                console.log("location:", bounds);
-                selections.push("replace(replace(replace(replace(ST_AsGeoJson(ST_FlipCoordinates(locations::geometry))::json->>'coordinates', '[[', '['), ']]', ']'), '[', '('), ']', ')')"); // ugly af
-                gisClause = "ST_DWithin(ST_MakePoint(" + bounds[1] + "," + bounds[0] + ")::geography, locations, " + bounds[2] + ")";
-            }
-            else if (val) {
-                //TODO error
-                console.log("Error: invalid location query", val);
-            }
+        let term = getTerm(param);
+        if (!term) {
+            console.log("Error: term not found for param '" + param + "'");
+            continue;
         }
-        else if (param == 'project') {
-            let vals = val.split("|");
-            console.log("project match", vals);
-            projectClause = "LOWER(p.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
-        }
-        else if (param == 'fileFormat') {
-            let vals = val.split("|");
-            console.log("fileFormat match", vals);
-            fileFormatClause = "LOWER(ff.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
-        }
-        else if (param == 'fileType') {
-            let vals = val.split("|");
-            console.log("fileType match", vals);
-            fileTypeClause = "LOWER(ft.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
-        }
-        else {
-            let term = getTerm(param);
-            if (!term) {
-                console.log("Error: term not found for param '" + param + "'");
-                continue;
-            }
 
-            if (!term.schemas || term.schemas.length == 0) {
-                console.log("Error: Schema not found for term", param);
-                continue;
-            }
-
-            terms.push(term);
-            console.log("term:", term);
+        if (!term.schemas || term.schemas.length == 0) {
+            console.log("Error: Schema not found for term", param);
+            continue;
         }
+
+        terms.push(term);
+        console.log("term:", term);
     }
 
     let schemas = getSchemasForTerms(terms);
@@ -1059,32 +1068,22 @@ async function search(db, params) {
     console.log("selections:", selections);
     console.log("clauses:", clauses);
 
+    // Build clauses part of query string
     let clauseStr =
         Object.keys(clauses).map(schemaId =>
             "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")"
         )
         .join(" OR ");
 
-    if (gisClause)
-        clauseStr = gisClause + (clauseStr ? " AND (" + clauseStr + ")" : "");
-
-    if (projectClause)
-        clauseStr = projectClause + (clauseStr ? " AND (" + clauseStr + ")": "");
-
-    if (fileFormatClause)
-        clauseStr = fileFormatClause + (clauseStr ? " AND (" + clauseStr + ")": "");
-
-    if (fileTypeClause)
-        clauseStr = fileTypeClause + (clauseStr ? " AND (" + clauseStr + ")": "");
+    [gisClause, projectClause, fileFormatClause, fileTypeClause].forEach(clause => {
+        if (clause)
+            clauseStr = clause + (clauseStr ? " AND (" + clauseStr + ")" : "");
+    });
 
     if (clauseStr)
         clauseStr = "WHERE " + clauseStr;
 
-    if (!limit)
-        limit = 50;
-    let limitStr = (limit ? " LIMIT " + limit : "");
-    let offsetStr = (offset ? " OFFSET " + offset : "");
-
+    // Build query
     let tableStr =
         "FROM sample s \
         JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
