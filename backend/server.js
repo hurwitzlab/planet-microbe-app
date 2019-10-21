@@ -934,8 +934,7 @@ async function agaveGetToken(provider, code) {
 async function search(db, params) {
     console.log("params:", params);
 
-    let terms = [];
-    let clauses = {};
+//    let clauses = {};
     let selections = [];
 
     let limit = params['limit'] || 20;
@@ -950,9 +949,9 @@ async function search(db, params) {
 
     let map = (params['map'] || 1) == 1;
 
-    let columns;
-    if (params['columns'])
-        columns = params['columns'].split(',');
+//    let columns;
+//    if (params['columns'])
+//        columns = params['columns'].split(',');
 
     let gisClause;
     if (params['location']) {
@@ -990,9 +989,17 @@ async function search(db, params) {
         fileTypeClause = "LOWER(ft.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
     }
 
-    for (param of Object.keys(params).filter(p => p.startsWith("http"))) {
+    let orTerms = [], andTerms = [];
+    let terms = {};
+    for (param of Object.keys(params).filter(p => p.startsWith("http") || p.startsWith("|http"))) {
         param = param.replace(/\+/gi, ''); // workaround for Elm uri encoding
         let val = params[param];
+
+        let orFlag = false;
+        if (param.startsWith("|")) {
+            param = param.replace(/^\|/, '');
+            orFlag = true;
+        }
 
         let term = getTerm(param);
         if (!term) {
@@ -1005,24 +1012,62 @@ async function search(db, params) {
             continue;
         }
 
-        terms.push(term);
-        console.log("term:", term);
+        terms[term.id] = val;
+        if (orFlag)
+            orTerms.push(term);
+        else
+            andTerms.push(term);
+        //console.log("term:", term);
     }
 
-    let schemas = getSchemasForTerms(terms);
+//    for (term of terms) {
+//        let selectStr = "";
+//        let val = params[term.id];
+//
+//        for (schemaId in term.schemas) {
+//            for (alias of term.schemas[schemaId]) {
+//                let arrIndex = alias.position;
+//                let [field, clause] = buildTermSQL(arrIndex, val);
+//
+//                selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
+//                if (clause) {
+//                    if (!clauses[schemaId])
+//                        clauses[schemaId] = []
+//                    clauses[schemaId].push(clause);
+//                }
+//            }
+//        }
+//
+//        if (selectStr)
+//            selections.push("CASE" + selectStr + " END");
+//    }
+//    console.log("clauses:", clauses);
+//
+//    let schemas = getSchemasForTerms(terms);
+//    console.log("schemas:", schemas);
+//    let clauses2 = {};
+//    for (schemaId of schemas) {
+//        if (schemaId in clauses)
+//            clauses2[schemaId] = clauses[schemaId];
+//    }
+//    clauses = clauses2;
+
+
+    let schemas = getSchemasForTerms(andTerms.concat(orTerms));
     console.log("schemas:", schemas);
 
-    for (term of terms) {
+    let andClauses = {};
+    for (term of andTerms) {
         let selectStr = "";
         for (schemaId of schemas) {
             let fields = [];
             for (schema of term.schemas[schemaId]) {
-                let [field, clause] = buildTermSQL(schema.position, params[term.id]);
+                let [field, clause] = buildTermSQL(schema.position, terms[term.id]);
 
                 if (clause) {
-                    if (!clauses[schemaId])
-                        clauses[schemaId] = []
-                    clauses[schemaId].push(clause);
+                    if (!andClauses[schemaId])
+                        andClauses[schemaId] = []
+                    andClauses[schemaId].push(clause);
                 }
 
                 fields.push(field);
@@ -1036,42 +1081,71 @@ async function search(db, params) {
             selections.push("CASE" + selectStr + " END");
     }
 
-    if (columns && columns.length > 0) {
-        selections = [];
+    let orClauses = {};
+    for (term of orTerms) {
+        let selectStr = "";
+        for (schemaId of schemas) {
+            let fields = [];
+            for (schema of term.schemas[schemaId]) {
+                let [field, clause] = buildTermSQL(schema.position, terms[term.id]);
 
-        for (param of columns) {
-            let term = getTerm(param);
-            if (!term) {
-                console.log("Error: term not found for column", param);
-                return;
-            }
-            console.log("term:", term);
-
-            let selectStr = "";
-            if (!term.schemas || term.schemas.length == 0)
-                console.log("Error: schema not found for column", param);
-
-            for (schemaId in term.schemas) {
-                for (alias in term.schemas[schemaId]) {
-                    let arrIndex = term.schemas[schemaId][alias];
-                    let [field, clause] = buildTermSQL(arrIndex, "");
-
-                    selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
+                if (clause) {
+                    if (!orClauses[schemaId])
+                        orClauses[schemaId] = []
+                    orClauses[schemaId].push(clause);
                 }
+
+                fields.push(field);
             }
 
-            if (selectStr)
-                selections.push("CASE" + selectStr + " END");
+            let fieldsStr = "ARRAY[" + fields.join(",") + "]";
+            selectStr += " WHEN schema_id=" + schemaId + " THEN " + fieldsStr;
         }
+
+        if (selectStr)
+            selections.push("CASE" + selectStr + " END");
     }
 
+//    if (columns && columns.length > 0) {
+//        selections = [];
+//
+//        for (param of columns) {
+//            let term = getTerm(param);
+//            if (!term) {
+//                console.log("Error: term not found for column", param);
+//                return;
+//            }
+//            console.log("term:", term);
+//
+//            let selectStr = "";
+//            if (!term.schemas || term.schemas.length == 0)
+//                console.log("Error: schema not found for column", param);
+//
+//            for (schemaId in term.schemas) {
+//                for (alias in term.schemas[schemaId]) {
+//                    let arrIndex = term.schemas[schemaId][alias];
+//                    let [field, clause] = buildTermSQL(arrIndex, "");
+//
+//                    selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
+//                }
+//            }
+//
+//            if (selectStr)
+//                selections.push("CASE" + selectStr + " END");
+//        }
+//    }
+
     console.log("selections:", selections);
-    console.log("clauses:", clauses);
+    console.log("andClauses:", andClauses);
+    console.log("orClauses:", orClauses);
 
     // Build clauses part of query string
     let clauseStr =
-        Object.keys(clauses).map(schemaId =>
-            "(schema_id=" + schemaId + " AND " + Object.values(clauses[schemaId]).join(" AND ") + ")"
+        Object.keys(andClauses).concat(Object.keys(orClauses)).filter((v, i, a) => a.indexOf(v) === i).map(schemaId =>
+            "(schema_id=" + schemaId + " AND (" +
+                (andClauses[schemaId] ? Object.values(andClauses[schemaId]).join(" AND ") : "") +
+                (andClauses[schemaId] && orClauses[schemaId] ? " AND " : "") +
+                (orClauses[schemaId] ? "(" + Object.values(orClauses[schemaId]).join(" OR ") + ")" : "") + "))"
         )
         .join(" OR ");
 

@@ -28,7 +28,7 @@ import SortableTable
 import Cart
 import Icon
 import Config exposing (apiBaseUrl, dataCommonsUrl)
---import Debug exposing (toString)
+import Debug exposing (toString)
 
 
 
@@ -601,6 +601,9 @@ update msg model =
 
         SampleSearchCompleted (Ok response) ->
             let
+                _ = Debug.log "SampleSearchCompleted" (toString response)
+            in
+            let
                 sampleResults =
                     case response.results of
                         SampleSearchResults results ->
@@ -619,9 +622,9 @@ update msg model =
             )
 
         SampleSearchCompleted (Err error) ->
---            let
---                _ = Debug.log "SampleSearchCompleted" (toString error)
---            in
+            let
+                _ = Debug.log "SampleSearchCompleted" (toString error)
+            in
             ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
 
         FileSearchCompleted (Ok response) ->
@@ -914,9 +917,9 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
                                 fmtVal =
                                     formatParam val
                             in
-                            [ ( purlDepth, fmtVal )
-                            , ( purlDepthMin, fmtVal )
-                            , ( purlDepthMax, fmtVal )
+                            [ ( "|" ++ purlDepth, fmtVal )
+                            , ( "|" ++ purlDepthMin, fmtVal )
+                            , ( "|" ++ purlDepthMax, fmtVal )
                             ]
                         else
                             []
@@ -1015,7 +1018,7 @@ type alias SampleResult =
     , sampleAccn : String
     , projectId : Int
     , projectName : String
-    , values : List SearchResultValue
+    , values : List (List SearchResultValue)
     }
 
 
@@ -1035,8 +1038,8 @@ type SearchResultValue
     = NoResultValue
     | NumberResultValue Float
     | StringResultValue String
-    | MultipleNumberResultValue (List Float)
-    | MultipleStringResultValue (List String)
+--    | MultipleNumberResultValue (List Float)
+--    | MultipleStringResultValue (List String)
 
 
 --type alias MapResult =
@@ -1110,13 +1113,13 @@ decodeSampleResult =
         |> required "sampleAccn" Decode.string
         |> required "projectId" Decode.int
         |> required "projectName" Decode.string
-        |> required "values" (Decode.list decodeSearchResultValue)
+        |> required "values" (Decode.list (Decode.list decodeSearchResultValue))
 
 
 decodeFileResult : Decoder FileResult
 decodeFileResult =
     Decode.succeed FileResult
-        |> optional "fileId" Decode.int 0 -- optional for case where file table not yet loaded
+        |> required "fileId" Decode.int
         |> optional "fileUrl" Decode.string ""
         |> optional "fileFormat" Decode.string ""
         |> optional "fileType" Decode.string ""
@@ -1131,8 +1134,8 @@ decodeSearchResultValue =
     Decode.oneOf
         [ Decode.map NumberResultValue Decode.float
         , Decode.map StringResultValue Decode.string
-        , Decode.map MultipleNumberResultValue (Decode.list Decode.float)
-        , Decode.map MultipleStringResultValue (Decode.list Decode.string)
+--        , Decode.map MultipleNumberResultValue (Decode.list (Decode.oneOf [ Decode.float, Decode.null ]))
+--        , Decode.map MultipleStringResultValue (Decode.list Decode.string)
         , Decode.map (\a -> NoResultValue) (Decode.null a)
         ]
 
@@ -2108,14 +2111,14 @@ viewSampleResults model =
                 StringResultValue s ->
                     s
 
-                MultipleStringResultValue l ->
-                    String.join ", " l
+--                MultipleStringResultValue l ->
+--                    String.join ", " l
 
                 NumberResultValue n ->
                     String.fromFloat n
 
-                MultipleNumberResultValue l ->
-                    l |> List.map String.fromFloat |> String.join ", "
+--                MultipleNumberResultValue l ->
+--                    l |> List.map String.fromFloat |> String.join ", "
 
                 NoResultValue ->
                     ""
@@ -2125,7 +2128,7 @@ viewSampleResults model =
                 (List.concat --FIXME kludgey
                     [ [ td [] [ a [ Route.href (Route.Project result.projectId) ] [ text result.projectName ] ] ]
                     , [ td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ] ]
-                    , result.values |> List.map (formatVal >> mkTd)
+                    , result.values |> List.map (\a -> List.map (formatVal) a |> String.join ", " |> mkTd)
                     , [ td [ class "text-right", style "min-width" "10em" ]
                         [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
                       ]
