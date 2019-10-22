@@ -934,8 +934,6 @@ async function agaveGetToken(provider, code) {
 async function search(db, params) {
     console.log("params:", params);
 
-    let selections = [];
-
     let limit = params['limit'] || 20;
     let limitStr = (limit ? " LIMIT " + limit : "");
 
@@ -952,13 +950,13 @@ async function search(db, params) {
 //    if (params['columns'])
 //        columns = params['columns'].split(',');
 
-    let gisClause;
+    let gisClause, gisSelect;
     if (params['location']) {
         let val = params['location'];
         if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // [lat, lng, radius] in meters
             let bounds = JSON.parse(val);
             console.log("location:", bounds);
-            selections.push("replace(replace(replace(replace(ST_AsGeoJson(ST_FlipCoordinates(locations::geometry))::json->>'coordinates', '[[', '['), ']]', ']'), '[', '('), ']', ')')"); // ugly af
+            gisSelect = "replace(replace(replace(replace(ST_AsGeoJson(ST_FlipCoordinates(locations::geometry))::json->>'coordinates', '[[', '['), ']]', ']'), '[', '('), ']', ')')"; //FIXME ugly af
             gisClause = "ST_DWithin(ST_MakePoint(" + bounds[1] + "," + bounds[0] + ")::geography, locations, " + bounds[2] + ")";
         }
         else if (val) {
@@ -989,7 +987,7 @@ async function search(db, params) {
     }
 
     let orTerms = [], andTerms = [];
-    let terms = {};
+    let terms = {}, termOrder = [];
     for (param of Object.keys(params).filter(p => p.startsWith("http") || p.startsWith("|http"))) {
         param = param.replace(/\+/gi, ''); // workaround for Elm uri encoding
         let val = params[param];
@@ -1011,6 +1009,7 @@ async function search(db, params) {
             continue;
         }
 
+        termOrder.push(term.id);
         terms[term.id] = val;
         if (orFlag || !val)
             orTerms.push(term);
@@ -1024,6 +1023,8 @@ async function search(db, params) {
 
     let schemas = getSchemasForTerms(andTerms);
     console.log("schemas:", schemas);
+
+    let selections = {};
 
     let andClauses = {};
     for (term of andTerms) {
@@ -1047,7 +1048,7 @@ async function search(db, params) {
         }
 
         if (selectStr)
-            selections.push("CASE" + selectStr + " END");
+            selections[term.id] = "CASE" + selectStr + " END";
     }
 
     let orClauses = {};
@@ -1083,7 +1084,7 @@ async function search(db, params) {
         }
 
         if (selectStr)
-            selections.push("CASE" + selectStr + " END");
+            selections[term.id] = "CASE" + selectStr + " END";
     }
 
 
@@ -1163,8 +1164,10 @@ async function search(db, params) {
             tableStr +
             clauseStr + groupByStr + ") AS foo";
 
+        let selections2 = termOrder.map(tid => selections[tid]).filter(s => typeof s != "undefined");
+
         let queryStr =
-            "SELECT " + ["schema_id", "s.sample_id", "p.project_id", "p.name", "s.accn"].concat(selections).join(",") + " " +
+            "SELECT " + ["schema_id", "s.sample_id", "p.project_id", "p.name", "s.accn"].concat(selections2).join(",") + " " +
             tableStr +
             clauseStr + groupByStr + sortStr + offsetStr + limitStr;
 
