@@ -1024,6 +1024,7 @@ type alias SampleResult =
 
 type SearchResultValues
     = NoResultValues
+    | SingleResultValue SearchResultValue
     | MultipleResultValues (List SearchResultValue)
 
 
@@ -1122,7 +1123,8 @@ decodeSampleResult =
 decodeSearchResultValues : Decoder SearchResultValues
 decodeSearchResultValues =
     Decode.oneOf
-        [ Decode.map MultipleResultValues (Decode.list decodeSearchResultValue)
+        [ Decode.map SingleResultValue decodeSearchResultValue
+        , Decode.map MultipleResultValues (Decode.list decodeSearchResultValue)
         , Decode.map (\a -> NoResultValues) (Decode.null a)
         ]
 
@@ -2117,6 +2119,9 @@ viewSampleResults model =
 
         formatVals vals =
             case vals of
+                SingleResultValue v ->
+                    [ v ]
+
                 MultipleResultValues l ->
                     l
 

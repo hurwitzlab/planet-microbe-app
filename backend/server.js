@@ -930,11 +930,10 @@ async function agaveGetToken(provider, code) {
     return(response);
 }
 
-// TODO refactor/simplify
+// TODO refactor/simplify this ugly af code
 async function search(db, params) {
     console.log("params:", params);
 
-//    let clauses = {};
     let selections = [];
 
     let limit = params['limit'] || 20;
@@ -1013,38 +1012,17 @@ async function search(db, params) {
         }
 
         terms[term.id] = val;
-        if (orFlag)
+        if (orFlag || !val)
             orTerms.push(term);
         else
             andTerms.push(term);
         //console.log("term:", term);
     }
 
-//    for (term of terms) {
-//        let selectStr = "";
-//        let val = params[term.id];
-//
-//        for (schemaId in term.schemas) {
-//            for (alias of term.schemas[schemaId]) {
-//                let arrIndex = alias.position;
-//                let [field, clause] = buildTermSQL(arrIndex, val);
-//
-//                selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
-//                if (clause) {
-//                    if (!clauses[schemaId])
-//                        clauses[schemaId] = []
-//                    clauses[schemaId].push(clause);
-//                }
-//            }
-//        }
-//
-//        if (selectStr)
-//            selections.push("CASE" + selectStr + " END");
-//    }
-//    console.log("clauses:", clauses);
-//
+    console.log("andTerms:", andTerms.map(t => t.id).join(","));
+    console.log("orTerms:", orTerms.map(t => t.id).join(","));
 
-    let schemas = getSchemasForTerms(andTerms.concat(orTerms));
+    let schemas = getSchemasForTerms(andTerms);
     console.log("schemas:", schemas);
 
     let andClauses = {};
@@ -1075,8 +1053,19 @@ async function search(db, params) {
     let orClauses = {};
     for (term of orTerms) {
         let selectStr = "";
-        for (schemaId in term.schemas) {
+
+        let schemas2 = [];
+        if (andTerms.length == 0)
+            schemas2 = Object.keys(term.schemas);
+        else
+            schemas2 = schemas;
+
+        for (schemaId of schemas2) {
             let fields = [];
+            if (!(schemaId in term.schemas) || term.schemas[schemaId].length == 0) {
+                console.log("!!!! Skipping", schemaId, "for", term.id);
+                continue;
+            }
             for (schema of term.schemas[schemaId]) {
                 let [field, clause] = buildTermSQL(schema.position, terms[term.id]);
 
@@ -1096,6 +1085,7 @@ async function search(db, params) {
         if (selectStr)
             selections.push("CASE" + selectStr + " END");
     }
+
 
 //    if (columns && columns.length > 0) {
 //        selections = [];
@@ -1424,12 +1414,12 @@ function loadOntology(type, path, index) {
 //}
 
 function getSchemasForTerms(terms) {
-    let schemas;
+    let schemas = [];
     for (term of terms) {
         if (!term.schemas || term.schemas.length == 0)
             continue;
 
-        if (!schemas)
+        if (schemas.length == 0)
             schemas = Object.keys(term.schemas);
         else
             schemas = intersect(schemas, Object.keys(term.schemas));
