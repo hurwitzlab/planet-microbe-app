@@ -1018,8 +1018,19 @@ type alias SampleResult =
     , sampleAccn : String
     , projectId : Int
     , projectName : String
-    , values : List (List SearchResultValue)
+    , values : List SearchResultValues
     }
+
+
+type SearchResultValues
+    = NoResultValues
+    | MultipleResultValues (List SearchResultValue)
+
+
+type SearchResultValue
+    = NoResultValue
+    | NumberResultValue Float
+    | StringResultValue String
 
 
 type alias FileResult =
@@ -1032,14 +1043,6 @@ type alias FileResult =
     , projectId : Int
     , projectName : String
     }
-
-
-type SearchResultValue
-    = NoResultValue
-    | NumberResultValue Float
-    | StringResultValue String
---    | MultipleNumberResultValue (List Float)
---    | MultipleStringResultValue (List String)
 
 
 --type alias MapResult =
@@ -1113,7 +1116,24 @@ decodeSampleResult =
         |> required "sampleAccn" Decode.string
         |> required "projectId" Decode.int
         |> required "projectName" Decode.string
-        |> required "values" (Decode.list (Decode.list decodeSearchResultValue))
+        |> required "values" (Decode.list decodeSearchResultValues)
+
+
+decodeSearchResultValues : Decoder SearchResultValues
+decodeSearchResultValues =
+    Decode.oneOf
+        [ Decode.map MultipleResultValues (Decode.list decodeSearchResultValue)
+        , Decode.map (\a -> NoResultValues) (Decode.null a)
+        ]
+
+
+decodeSearchResultValue : Decoder SearchResultValue
+decodeSearchResultValue =
+    Decode.oneOf
+        [ Decode.map NumberResultValue Decode.float
+        , Decode.map StringResultValue Decode.string
+        , Decode.map (\a -> NoResultValue) (Decode.null a)
+        ]
 
 
 decodeFileResult : Decoder FileResult
@@ -1127,17 +1147,6 @@ decodeFileResult =
         |> required "sampleAccn" Decode.string
         |> required "projectId" Decode.int
         |> required "projectName" Decode.string
-
-
-decodeSearchResultValue : Decoder SearchResultValue
-decodeSearchResultValue =
-    Decode.oneOf
-        [ Decode.map NumberResultValue Decode.float
-        , Decode.map StringResultValue Decode.string
---        , Decode.map MultipleNumberResultValue (Decode.list (Decode.oneOf [ Decode.float, Decode.null ]))
---        , Decode.map MultipleStringResultValue (Decode.list Decode.string)
-        , Decode.map (\a -> NoResultValue) (Decode.null a)
-        ]
 
 
 --decodeMapResult : Decoder MapResult
@@ -2106,6 +2115,14 @@ viewSampleResults model =
         mkTd label =
             td [ style "max-width" maxColWidth ] [ text label ]
 
+        formatVals vals =
+            case vals of
+                MultipleResultValues l ->
+                    l
+
+                NoResultValues ->
+                    []
+
         formatVal val =
             case val of
                 StringResultValue s ->
@@ -2128,7 +2145,7 @@ viewSampleResults model =
                 (List.concat --FIXME kludgey
                     [ [ td [] [ a [ Route.href (Route.Project result.projectId) ] [ text result.projectName ] ] ]
                     , [ td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ] ]
-                    , result.values |> List.map (\a -> List.map (formatVal) a |> String.join ", " |> mkTd)
+                    , result.values |> List.map formatVals |> List.map (\a -> List.map (formatVal) a |> String.join ", " |> mkTd)
                     , [ td [ class "text-right", style "min-width" "10em" ]
                         [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
                       ]

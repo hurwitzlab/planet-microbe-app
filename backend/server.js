@@ -1043,15 +1043,6 @@ async function search(db, params) {
 //    }
 //    console.log("clauses:", clauses);
 //
-//    let schemas = getSchemasForTerms(terms);
-//    console.log("schemas:", schemas);
-//    let clauses2 = {};
-//    for (schemaId of schemas) {
-//        if (schemaId in clauses)
-//            clauses2[schemaId] = clauses[schemaId];
-//    }
-//    clauses = clauses2;
-
 
     let schemas = getSchemasForTerms(andTerms.concat(orTerms));
     console.log("schemas:", schemas);
@@ -1084,7 +1075,7 @@ async function search(db, params) {
     let orClauses = {};
     for (term of orTerms) {
         let selectStr = "";
-        for (schemaId of schemas) {
+        for (schemaId in term.schemas) {
             let fields = [];
             for (schema of term.schemas[schemaId]) {
                 let [field, clause] = buildTermSQL(schema.position, terms[term.id]);
