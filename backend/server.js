@@ -1165,6 +1165,8 @@ async function search(db, params) {
             clauseStr + groupByStr + ") AS foo";
 
         let selections2 = termOrder.map(tid => selections[tid]).filter(s => typeof s != "undefined");
+        if (gisSelect)
+            selections2.unshift(gisSelect);
 
         let queryStr =
             "SELECT " + ["schema_id", "s.sample_id", "p.project_id", "p.name", "s.accn"].concat(selections2).join(",") + " " +
