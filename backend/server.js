@@ -1536,11 +1536,13 @@ function buildTermSQL(arrIndex, val) {
             console.log("Error: string literal query not supported for type", term.type);
         }
     }
-    else if (bounds = val.match(/^\[(\d{4}\-\d{2}\-\d{2})\,(\d{4}\-\d{2}\-\d{2})\]$/)) { // date/time range query
+    else if (bounds = val.match(/^\[(\d{4}\-\d{2}\-\d{2})?\,(\d{4}\-\d{2}\-\d{2})?\]$/)) { // date/time range query
         if (term.type == "datetime" || term.type == "date") {
-            console.log("datetime range query");
+            console.log("datetime range query:", bounds);
             field = "datetime_vals[" + arrIndex + "]";
-            clause = field + ">=timestamp'" + bounds[1] + "' AND " + field + "<=timestamp'" + bounds[2] + "'";
+            clause = (bounds[1] ? field + ">=timestamp'" + bounds[1] + "'" : '') +
+                (bounds[1] && bounds[2] ? " AND " : '') +
+                (bounds[2] ? field + "<=timestamp'" + bounds[2] + "'" : '');
         }
         else {
             //TODO error

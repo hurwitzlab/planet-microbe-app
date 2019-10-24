@@ -601,9 +601,6 @@ update msg model =
 
         SampleSearchCompleted (Ok response) ->
             let
-                _ = Debug.log "SampleSearchCompleted" (toString response)
-            in
-            let
                 sampleResults =
                     case response.results of
                         SampleSearchResults results ->
@@ -710,7 +707,7 @@ update msg model =
                                     val
                     in
                     ({ model
-                        | doSearch = True
+                        | doSearch = newDate /= Nothing
                         , selectedVals = Dict.insert id newDateVal model.selectedVals
                         , startDatePickers = Dict.insert id newDatePicker model.startDatePickers
                     }
@@ -755,7 +752,7 @@ update msg model =
                                     val
                     in
                     ({ model
-                        | doSearch = True
+                        | doSearch = newDate /= Nothing
                         , selectedVals = Dict.insert id newDateVal model.selectedVals
                         , endDatePickers = Dict.insert id newDatePicker model.endDatePickers
                     }
@@ -807,7 +804,7 @@ validParam val =
             defined dt --TODO check for valid date format
 
         DateTimeRangeValue dt1 dt2 ->
-            defined dt1 && defined dt2 --TODO check for valid date format
+            defined dt1 || defined dt2 --TODO check for valid date format
 
         NoValue ->
             True
@@ -935,9 +932,9 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
                                 fmtVal =
                                     formatParam val
                             in
-                            [ ( purlDateTimeISO, fmtVal )
-                            , ( purlDateTimeISOStart, fmtVal )
-                            , ( purlDateTimeISOEnd, fmtVal )
+                            [ ( "|" ++ purlDateTimeISO, fmtVal )
+                            , ( "|" ++ purlDateTimeISOStart, fmtVal )
+                            , ( "|" ++ purlDateTimeISOEnd, fmtVal )
                             ]
                         else
                             []
