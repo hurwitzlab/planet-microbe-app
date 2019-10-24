@@ -25,6 +25,7 @@ import Page exposing (viewBlank, viewSpinner, viewDialog)
 import Sample exposing (SearchTerm, PURL, annotationsToHide)
 import File exposing (FileFormat, FileType)
 import SortableTable
+import BarChart
 import Cart
 import Icon
 import Config exposing (apiBaseUrl, dataCommonsUrl)
@@ -115,6 +116,7 @@ type alias Model =
     , sampleResults : Maybe (List SampleResult)
     , fileResults : Maybe (List FileResult)
     , mapResults : Value --List MapResult
+    , summaryResults : Maybe (List SummaryResult)
     , sampleResultCount : Int
     , fileResultCount : Int
     , sampleTableState : SortableTable.State
@@ -165,6 +167,7 @@ init session =
         , sampleResults = Nothing
         , fileResults = Nothing
         , mapResults = Encode.object []
+        , summaryResults = Nothing
         , sampleResultCount = 0
         , fileResultCount = 0
         , sampleTableState = SortableTable.initialState
@@ -612,6 +615,7 @@ update msg model =
             ( { model
                 | sampleResultCount = response.count
                 , sampleResults = sampleResults
+                , summaryResults = Just response.summary
                 , mapResults = response.map
                 , isSearching = False
               }
@@ -1000,6 +1004,7 @@ getProjectCounts =
 type alias SearchResponse =
     { count : Int
     , results : SearchResults
+    , summary : List SummaryResult
     , map: Value --List MapResult
     }
 
@@ -1052,6 +1057,13 @@ type alias FileResult =
 --    }
 
 
+type alias SummaryResult =
+    { projectId : Int
+    , projectName : String
+    , sampleCount : Int
+    }
+
+
 type alias Sample =
     { sampleName : String
     , projectName : String
@@ -1095,6 +1107,7 @@ decodeSearchResponse =
     Decode.succeed SearchResponse
         |> required "count" Decode.int
         |> required "results" decodeSearchResults
+        |> required "summary" (Decode.list decodeSummaryResult)
         |> optional "map" Decode.value null --(Decode.list decodeMapResult) []
 
 
@@ -1167,6 +1180,14 @@ decodeFileResult =
 --        , ("radius", Encode.float result.radius)
 --        , ("count", Encode.int result.count)
 --        ]
+
+
+decodeSummaryResult : Decoder SummaryResult
+decodeSummaryResult =
+    Decode.succeed SummaryResult
+        |> required "project_id" Decode.int
+        |> required "name" Decode.string
+        |> required "count" Decode.int
 
 
 decodeSample : Decoder Sample
@@ -2000,10 +2021,45 @@ viewPanel id title unit removable nodes =
 --TODO combine viewSampleResults/viewFileResults and pass columns as input
 viewResults : Model -> Html Msg
 viewResults model =
-    if model.resultTab == "Samples" then
-        viewSampleResults model
-    else
-        viewFileResults model
+    case model.resultTab of
+        "Samples" ->
+            viewSampleResults model
+
+        "Files" ->
+            viewFileResults model
+
+        _ ->
+            viewSummary model
+
+
+viewSummary : Model -> Html Msg
+viewSummary model =
+    case model.summaryResults of
+        Nothing ->
+            text "None"
+
+        Just results ->
+            let
+                defaultConfig =
+                    BarChart.defaultConfig
+
+                config =
+                    { defaultConfig | title = Just "Num Samples by Project" }
+
+                data =
+                    results |> List.map (\r -> (r.projectName, toFloat r.sampleCount))
+            in
+            div [ style "border" "1px solid lightgray" ]
+                [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
+--                     ++ [ li [ class "nav-item ml-auto" ]
+--                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+--                        ]
+                    )
+                , div []
+                    [ BarChart.view config data
+                    ]
+                ]
 
 
 viewSampleResults : Model -> Html Msg
@@ -2222,7 +2278,7 @@ viewSampleResults model =
         div [ style "min-height" "50em" ]
             [ div [ style "border" "1px solid lightgray" ]
                 [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
+                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
 --                     ++ [ li [ class "nav-item ml-auto" ]
 --                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
 --                        ]
@@ -2379,7 +2435,7 @@ viewFileResults model =
         div [ style "min-height" "50em" ]
             [ div [ style "border" "1px solid lightgray" ]
                 [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                    (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Samples", "Files" ] )
+                    (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
 --                          , li [ class "nav-item ml-auto" ] --TODO
 --                              [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
                 , pageInfo

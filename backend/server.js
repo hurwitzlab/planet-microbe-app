@@ -1151,7 +1151,7 @@ async function search(db, params) {
         LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
         LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id ";
 
-    let results = [], count = 0, clusters = [];
+    let results = [], count = 0, summary = [], clusters = [];
 
     if (result == "sample") {
         let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
@@ -1163,6 +1163,11 @@ async function search(db, params) {
             "SELECT COUNT(foo) FROM (SELECT s.sample_id " +
             tableStr +
             clauseStr + groupByStr + ") AS foo";
+
+        let summaryQueryStr =
+            "SELECT DISTINCT(p.project_id),p.name,COUNT(pts.sample_ID)::int " +
+            "FROM project p JOIN project_to_sample pts ON pts.project_id=p.project_id JOIN sample s ON pts.sample_id=s.sample_id " +
+            clauseStr + " GROUP BY p.project_id ORDER BY p.name";
 
         let selections2 = termOrder.map(tid => selections[tid]).filter(s => typeof s != "undefined");
         if (gisSelect)
@@ -1179,6 +1184,12 @@ async function search(db, params) {
             rowMode: 'array'
         });
         count = count.rows[0][0]*1;
+
+        summary = await query({
+            text: summaryQueryStr,
+            values: [],
+            //rowMode: 'array'
+        });
 
         results = await query({
             text: queryStr,
@@ -1259,6 +1270,7 @@ async function search(db, params) {
 
     return {
         count: count,
+        summary: summary.rows || [],
         results: results,
         map: (clusters ? clusters.rows : {})
     };
