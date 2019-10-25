@@ -4,19 +4,19 @@
   "description": "",
   "main": "server.js",
   "dependencies": {
-    "cors": "^2.8.4",
-    "express": "^4.16.3",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
     "morgan": "^1.9.1",
-    "pg": "^7.7.1",
-    "promise": "^8.0.1",
+    "pg": "^7.12.1",
+    "promise": "^8.0.3",
     "request": "^2.88.0",
     "request-promise": "^4.2.4",
-    "sendmail": "^1.4.1",
-    "shortid": "^2.2.14",
+    "sendmail": "^1.6.1",
+    "shortid": "^2.2.15",
     "string-similarity": "^3.0.0"
   },
   "devDependencies": {
-    "nodemon": "^1.18.3"
+    "nodemon": "^1.19.4"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
