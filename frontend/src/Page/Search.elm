@@ -2044,20 +2044,24 @@ viewSummary model =
                     BarChart.defaultConfig
 
                 config =
-                    { defaultConfig | title = Just "Num Samples by Project" }
+                    { defaultConfig
+                        | title = Just "Num Samples by Project"
+                        , width = 400
+                        , height = 400
+                    }
 
                 data =
                     results |> List.map (\r -> (r.projectName, toFloat r.sampleCount))
             in
-            div [ style "border" "1px solid lightgray" ]
-                [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
---                     ++ [ li [ class "nav-item ml-auto" ]
---                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
---                        ]
-                    )
-                , div []
-                    [ BarChart.view config data
+            div [ style "min-height" "50em" ]
+                [ div [ style "border" "1px solid lightgray" ]
+                    [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                        ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
+    --                     ++ [ li [ class "nav-item ml-auto" ]
+    --                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+    --                        ]
+                        )
+                    , div [ style "margin" "1em"] [ BarChart.view config data ]
                     ]
                 ]
 
