@@ -2,7 +2,7 @@ module Page.Search exposing (Model, Msg(..), init, subscriptions, toSession, upd
 
 import Session exposing (Session)
 import Html exposing (..)
-import Html.Attributes exposing (..)
+import Html.Attributes exposing (class, classList, style, href, disabled, type_, value, placeholder, target, checked, attribute)
 import Html.Events exposing (onClick, onInput, onCheck)
 import Http
 import HttpBuilder
