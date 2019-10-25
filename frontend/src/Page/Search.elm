@@ -572,10 +572,10 @@ update msg model =
                 Ok queryParams ->
                     let
                         ( result, sortPos, cmd ) =
-                            if model.resultTab == "Samples" then
-                                ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
-                            else
+                            if model.resultTab == "Files" then
                                 ( "file", model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir), FileSearchCompleted )
+                            else
+                                ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
 
                         allParams =
                             queryParams ++
