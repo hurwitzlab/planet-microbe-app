@@ -92,7 +92,7 @@ view config model =
             config.padding
 
         chartHeight =
-            config.height - 2 * config.padding - (toFloat maxLabelLen) * 2
+            config.height - 2 * config.padding - (toFloat maxLabelLen) * 1.5
     in
     svg [ width config.width, height config.height] --[ viewBox 0 0 config.width config.height ]
         [ style [] [ text """
@@ -104,7 +104,7 @@ view config model =
           """ ]
         , case config.title of
             Just title ->
-                text_ [ textAnchor AnchorMiddle, TypedSvg.Attributes.x (Percent 50), y config.padding ] [ text title ]
+                text_ [ textAnchor AnchorMiddle, TypedSvg.Attributes.x (Percent 50), y (config.padding - 5) ] [ text title ]
 
             Nothing ->
                 g [] []
