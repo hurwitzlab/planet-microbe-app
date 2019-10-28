@@ -11,7 +11,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (usLocale)
-import Date exposing (Date, day, month, weekday, year)
+import Date exposing (Date)
 import DatePicker exposing (DatePicker, DateEvent(..))
 import Time exposing (Weekday(..))
 import Task
@@ -22,7 +22,7 @@ import GMap
 import Dict exposing (Dict)
 import Route
 import Page exposing (viewBlank, viewSpinner, viewDialog)
-import Sample exposing (SearchTerm, PURL, annotationsToHide)
+import Sample exposing (SearchTerm, PURL)
 import File exposing (FileFormat, FileType)
 import SortableTable
 import BarChart
@@ -2032,6 +2032,10 @@ viewResults model =
             viewSummary model
 
 
+defaultBarChartConfig =
+    BarChart.defaultConfig
+
+
 viewSummary : Model -> Html Msg
 viewSummary model =
     case model.summaryResults of
@@ -2040,11 +2044,8 @@ viewSummary model =
 
         Just results ->
             let
-                defaultConfig =
-                    BarChart.defaultConfig
-
                 config =
-                    { defaultConfig
+                    { defaultBarChartConfig
                         | title = Just "Num Samples by Project"
                         , width = 400
                         , height = 400
@@ -2062,8 +2063,25 @@ viewSummary model =
     --                        ]
                         )
                     , div [ style "margin" "1em"] [ BarChart.view config data ]
+                    , div [] (model.selectedTerms |> Dict.toList |> List.map Tuple.second |> List.map viewSearchTermSummaryChart)
                     ]
                 ]
+
+
+viewSearchTermSummaryChart : SearchTerm -> Html Msg
+viewSearchTermSummaryChart term =
+    let
+        config =
+            { defaultBarChartConfig
+                | title = Just ("Num Samples by " ++ (String.Extra.toTitleCase term.label))
+                , width = 400
+                , height = 400
+            }
+
+        data =
+            term.distribution |> List.map (\(a, b) -> (a, toFloat b))
+    in
+    BarChart.view config data
 
 
 viewSampleResults : Model -> Html Msg

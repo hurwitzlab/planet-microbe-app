@@ -7,7 +7,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onMouseEnter, onMouseLeave)
 import Page
 import Route
-import Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation, annotationsToHide)
+import Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation)
 import SamplingEvent exposing (SamplingEvent)
 import Experiment exposing (Experiment)
 import LatLng

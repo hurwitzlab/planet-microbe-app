@@ -1,4 +1,4 @@
-module Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation, annotationsToHide, fetch, fetchAll, fetchSome, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
+module Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation, fetch, fetchAll, fetchSome, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
 
 {-| The interface to the Sample data structure.
 -}
@@ -53,10 +53,13 @@ type alias SearchTerm =
     , sourceUrl : String
     , alias_ : String
     , aliases : List Alias
+    , annotations : List Annotation
+    -- Only for type == "number"
     , min : Float
     , max : Float
+    , distribution : List (String, Int)
+    -- Only for type == "string"
     , values : Dict String Int --FIXME change to List (String, Int)
-    , annotations : List Annotation
     }
 
 
@@ -72,11 +75,6 @@ type alias Annotation =
     , label : String
     , value : String
     }
-
-
-annotationsToHide =
-    [ "http://purl.obolibrary.org/obo/IAO_0000116" -- editor's note
-    ]
 
 
 
@@ -124,10 +122,11 @@ searchTermDecoder =
         |> optional "sourceUrl" Decode.string ""
         |> optional "alias" Decode.string ""
         |> optional "aliases" (Decode.list aliasDecoder) []
+        |> optional "annotations" (Decode.list annotationDecoder) []
         |> optional "min" Decode.float 0
         |> optional "max" Decode.float 0
+        |> optional "distribution" (Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int))) []
         |> optional "values" (Decode.dict Decode.int) Dict.empty
-        |> optional "annotations" (Decode.list annotationDecoder) []
 
 
 aliasDecoder : Decoder Alias

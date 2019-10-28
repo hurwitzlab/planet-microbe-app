@@ -173,24 +173,46 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
 //        });
     }
     else if (term.type == "number") { // numeric
-        let queries = [].concat.apply([], Object.values(term.schemas)).map(schema => {
-            return {
-                text: "SELECT MIN(number_vals[$1]),MAX(number_vals[$1]) FROM sample WHERE schema_id=$2",
-                values: [schema.position, schema.schemaId*1],
-                rowMode: 'array'
-            };
-        });
+//        let queries = [].concat.apply([], Object.values(term.schemas)).map(schema => {
+//            return {
+//                text: "SELECT MIN(number_vals[$1]),MAX(number_vals[$1]) FROM sample WHERE schema_id=$2",
+//                values: [schema.position, schema.schemaId*1],
+//                rowMode: 'array'
+//            };
+//        });
+//
+//        let min, max;
+//        let results = await batchQuery(queries); // FIXME would a single query be faster?
+//        results.forEach(vals => {
+//            vals.rows.forEach(row => {
+//                if (typeof row[0] !== "undefined" && typeof row[1] !== "undefined") {
+//                    min = (typeof min === "undefined" ? row[0] : Math.min(min, row[0]));
+//                    max = (typeof max === "undefined" ? row[1] : Math.max(max, row[1]));
+//                }
+//            });
+//        });
 
-        let min, max;
-        let results = await batchQuery(queries); // FIXME would a single query be faster?
-        results.forEach(vals => {
-            vals.rows.forEach(row => {
-                if (typeof row[0] !== "undefined" && typeof row[1] !== "undefined") {
-                    min = (typeof min === "undefined" ? row[0] : Math.min(min, row[0]));
-                    max = (typeof max === "undefined" ? row[1] : Math.max(max, row[1]));
-                }
-            });
+        let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => "WHEN schema_id=" + schema.schemaId + " THEN number_vals[" + schema.position + "]");
+        let caseStr = "CASE " + cases.join(" ") + " END";
+        let rangeResult = await query({ text: "SELECT MIN(" + caseStr + "),MAX(" + caseStr + ") FROM sample", rowMode: "array" });
+        let [min, max] = rangeResult.rows[0];
+        let range = max - min;
+        let binLen = range/10;
+        let binResult = await query("SELECT width_bucket(" + caseStr + "," + min + "," + (max+1) + ",10) AS bucket,count(*)::int FROM sample GROUP BY bucket ORDER BY bucket");
+        console.log(binResult.rows);
+        let bins = [];
+        binResult.rows.forEach(bin => {
+            if (bin.bucket == null)
+                bins[0] = ["None", bin.count];
+            else {
+                let label = ((min + (bin.bucket-1)*binLen).toFixed(2))+ " - " + ((min + bin.bucket*binLen).toFixed(2));
+                bins[bin.bucket] = [label, bin.count];
+            }
         });
+        for (i = 0; i < 10; i++) {
+            if (!bins[i])
+                bins[i] = ["", 0];
+        }
 
         res.json({
             id: term.id,
@@ -198,9 +220,10 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
             definition: term.definition,
             unitLabel: term.unitLabel,
             type: term.type,
-            aliases: aliases,
             min: min,
             max: max,
+            distribution: bins,
+            aliases: aliases,
             annotations: annotations
         });
 // TODO
@@ -1025,6 +1048,7 @@ async function search(db, params) {
     console.log("schemas:", schemas);
 
     let selections = {};
+    let clauses = {};
 
     let andClauses = {};
     for (term of andTerms) {
@@ -1038,6 +1062,10 @@ async function search(db, params) {
                     if (!andClauses[schemaId])
                         andClauses[schemaId] = []
                     andClauses[schemaId].push(clause);
+
+                    if (!clauses[term.id])
+                        clauses[term.id] = [];
+                    clauses[term.id].push(clause);
                 }
 
                 fields.push(field);
@@ -1074,6 +1102,10 @@ async function search(db, params) {
                     if (!orClauses[schemaId])
                         orClauses[schemaId] = []
                     orClauses[schemaId].push(clause);
+
+                    if (!clauses[term.id])
+                        clauses[term.id] = [];
+                    clauses[term.id].push(clause);
                 }
 
                 fields.push(field);
@@ -1120,6 +1152,7 @@ async function search(db, params) {
     console.log("selections:", selections);
     console.log("andClauses:", andClauses);
     console.log("orClauses:", orClauses);
+    console.log("clauses:", clauses);
 
     // Build clauses part of query string
     let clauseStr =
@@ -1165,7 +1198,7 @@ async function search(db, params) {
             clauseStr + groupByStr + ") AS foo";
 
         let summaryQueryStr =
-            "SELECT DISTINCT(p.project_id),p.name,COUNT(pts.sample_ID)::int " +
+            "SELECT DISTINCT(p.project_id),p.name,COUNT(pts.sample_id)::int " +
             "FROM project p JOIN project_to_sample pts ON pts.project_id=p.project_id JOIN sample s ON pts.sample_id=s.sample_id " +
             clauseStr + " GROUP BY p.project_id ORDER BY p.name";
 
@@ -1263,6 +1296,28 @@ async function search(db, params) {
                 fileUrl: r[5]
             }
         })
+    }
+    else if (result == "summary") {
+        let projectSummaryQueryStr =
+            "SELECT DISTINCT(p.project_id),p.name,COUNT(pts.sample_id)::int " +
+            "FROM project p JOIN project_to_sample pts ON pts.project_id=p.project_id JOIN sample s ON pts.sample_id=s.sample_id " +
+            clauseStr + " GROUP BY p.project_id ORDER BY p.name";
+
+        for (termId in terms) {
+            let select = selections[termId];
+
+            let termSummaryQueryStr =
+                "SELECT DISTINCT(" + select + "),COUNT(s.sample_id)::int " +
+                "FROM sample s " +
+                clauseStr + " GROUP BY s.schema_id,s.string_vals";
+
+            summary = await query({
+                text: termSummaryQueryStr,
+                values: [],
+                //rowMode: 'array'
+            });
+            console.log(summary.rows);
+        }
     }
     else {
         console.log("Error: invalid result specifier:", result);
