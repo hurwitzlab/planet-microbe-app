@@ -144,16 +144,20 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
     }
 
     if (term.type == "string") {
-        let uniqueVals = {};
-        for (let schema of [].concat.apply([], Object.values(term.schemas))) {
-            let vals = await query({ text: "SELECT string_vals[$1],count(string_vals[$1]) FROM sample WHERE schema_id=$2 GROUP BY string_vals[$1]", values: [schema.position,schema.schemaId*1], rowMode: 'array'});
-            vals.rows.forEach(row => {
-                let val = row[0];
-                if (!uniqueVals[val])
-                    uniqueVals[val] = 0;
-                uniqueVals[val] += 1*row[1];
-            });
-        }
+//        let uniqueVals = {};
+//        for (let schema of [].concat.apply([], Object.values(term.schemas))) {
+//            let vals = await query({ text: "SELECT string_vals[$1],count(string_vals[$1])::int FROM sample WHERE schema_id=$2 GROUP BY string_vals[$1]", values: [schema.position,schema.schemaId*1], rowMode: 'array'});
+//            vals.rows.forEach(row => {
+//                let val = row[0];
+//                if (!uniqueVals[val])
+//                    uniqueVals[val] = 0;
+//                uniqueVals[val] += 1*row[1];
+//            });
+//        }
+
+        let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => "WHEN schema_id=" + schema.schemaId + " THEN string_vals[" + schema.position + "]");
+        let caseStr = "CASE " + cases.join(" ") + " END";
+        let result = await query({ text: "SELECT COALESCE(LOWER(" + caseStr + "),'none') AS val,count(*)::int FROM sample GROUP BY val ORDER BY val", rowMode: 'array' });
 
         res.json({
             id: term.id,
@@ -161,8 +165,8 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
             definition: term.definition,
             unitLabel: term.unitLabel,
             type: term.type,
+            distribution: result.rows,
             aliases: aliases,
-            values: uniqueVals,
             annotations: annotations
         });
 // TODO
@@ -172,33 +176,14 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
 //            res.send(err);
 //        });
     }
-    else if (term.type == "number") { // numeric
-//        let queries = [].concat.apply([], Object.values(term.schemas)).map(schema => {
-//            return {
-//                text: "SELECT MIN(number_vals[$1]),MAX(number_vals[$1]) FROM sample WHERE schema_id=$2",
-//                values: [schema.position, schema.schemaId*1],
-//                rowMode: 'array'
-//            };
-//        });
-//
-//        let min, max;
-//        let results = await batchQuery(queries); // FIXME would a single query be faster?
-//        results.forEach(vals => {
-//            vals.rows.forEach(row => {
-//                if (typeof row[0] !== "undefined" && typeof row[1] !== "undefined") {
-//                    min = (typeof min === "undefined" ? row[0] : Math.min(min, row[0]));
-//                    max = (typeof max === "undefined" ? row[1] : Math.max(max, row[1]));
-//                }
-//            });
-//        });
-
+    else if (term.type == "number") {
         let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => "WHEN schema_id=" + schema.schemaId + " THEN number_vals[" + schema.position + "]");
         let caseStr = "CASE " + cases.join(" ") + " END";
         let rangeResult = await query({ text: "SELECT MIN(" + caseStr + "),MAX(" + caseStr + ") FROM sample", rowMode: "array" });
         let [min, max] = rangeResult.rows[0];
         let range = max - min;
         let binLen = range/10;
-        let binResult = await query("SELECT width_bucket(" + caseStr + "," + min + "," + (max+1) + ",10) AS bucket,count(*)::int FROM sample GROUP BY bucket ORDER BY bucket");
+        let binResult = await query("SELECT WIDTH_BUCKET(" + caseStr + "," + min + "," + (max+1) + ",10) AS bucket,count(*)::int FROM sample GROUP BY bucket ORDER BY bucket");
         console.log(binResult.rows);
         let bins = [];
         binResult.rows.forEach(bin => {

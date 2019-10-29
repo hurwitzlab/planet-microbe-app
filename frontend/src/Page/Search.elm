@@ -318,9 +318,9 @@ update msg model =
             ( { model | doSearch = True, selectedParams = selectedParams, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
 
         GetSearchTermCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSearchTermCompleted" (toString error)
---            in
+            let
+                _ = Debug.log "GetSearchTermCompleted" (toString error)
+            in
             ( model, Cmd.none )
 
         ClearFilters ->
@@ -1490,7 +1490,7 @@ viewAddedFiltersPanel model params terms vals  =
                             in
                             case term.type_ of
                                 "string" ->
-                                    if Dict.size term.values >= minNumPanelOptionsForSearchBar then
+                                    if List.length term.distribution >= minNumPanelOptionsForSearchBar then
                                         viewSearchFilterPanel term termVal
                                     else
                                         viewStringFilterPanel term termVal
@@ -1511,7 +1511,7 @@ viewSearchFilterPanel : SearchTerm -> FilterValue -> Html Msg
 viewSearchFilterPanel term val =
     let
         numValues =
-            Dict.size term.values
+            List.length term.distribution
 
         val2 =
             case val of
@@ -1636,10 +1636,10 @@ viewStringFilterPanel : SearchTerm -> FilterValue -> Html Msg
 viewStringFilterPanel term val =
     let
         numOptions =
-            Dict.size term.values
+            List.length term.distribution
 
         numSelected =
-            Dict.toList term.values |> List.filter (\a -> isStringFilterSelected (Tuple.first a) val) |> List.length
+            term.distribution |> List.filter (\a -> isStringFilterSelected (Tuple.first a) val) |> List.length
 
         sortByCount a b =
             case compare (Tuple.second a) (Tuple.second b) of
@@ -1659,7 +1659,7 @@ viewStringFilterPanel term val =
                     sortByCount a b
 
         truncatedOptions =
-            Dict.toList term.values |> List.sortWith sortBySelected |> List.take (Basics.max maxNumPanelOptions numSelected)
+            term.distribution |> List.sortWith sortBySelected |> List.take (Basics.max maxNumPanelOptions numSelected)
     in
     viewTermPanel term
         [ div []
@@ -1716,7 +1716,7 @@ viewStringFilterDialog term val =
                 LT -> GT
 
         options =
-            Dict.toList term.values |> List.sortWith sortByName
+            term.distribution --|> List.sortWith sortByName
     in
     viewDialog (String.Extra.toTitleCase term.label)
         [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions term val options) ]

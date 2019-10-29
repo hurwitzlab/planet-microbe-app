@@ -54,12 +54,10 @@ type alias SearchTerm =
     , alias_ : String
     , aliases : List Alias
     , annotations : List Annotation
-    -- Only for type == "number"
+    , distribution : List (String, Int)
+    -- Only for type "number"
     , min : Float
     , max : Float
-    , distribution : List (String, Int)
-    -- Only for type == "string"
-    , values : Dict String Int --FIXME change to List (String, Int)
     }
 
 
@@ -123,10 +121,9 @@ searchTermDecoder =
         |> optional "alias" Decode.string ""
         |> optional "aliases" (Decode.list aliasDecoder) []
         |> optional "annotations" (Decode.list annotationDecoder) []
+        |> optional "distribution" (Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int))) []
         |> optional "min" Decode.float 0
         |> optional "max" Decode.float 0
-        |> optional "distribution" (Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int))) []
-        |> optional "values" (Decode.dict Decode.int) Dict.empty
 
 
 aliasDecoder : Decoder Alias
