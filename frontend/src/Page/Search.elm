@@ -107,6 +107,7 @@ type alias Model =
     , fileTypeVals : List String
     , showAddFilterDialog : Bool
     , stringFilterDialogTerm : Maybe SearchTerm
+    , chartFilterDialogTerm : Maybe SearchTerm
     , paramSearchInputVal : String
     , dialogSearchInputVal : String
     , showParamSearchDropdown : Bool
@@ -158,6 +159,7 @@ init session =
         , fileTypeVals = []
         , showAddFilterDialog = False
         , stringFilterDialogTerm = Nothing
+        , chartFilterDialogTerm = Nothing
         , paramSearchInputVal = ""
         , dialogSearchInputVal = ""
         , showParamSearchDropdown = False
@@ -198,7 +200,7 @@ init session =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ Time.every 1000 InputTimerTick -- milliseconds
+        [ Time.every 750 InputTimerTick -- milliseconds
         , GMap.getLocation UpdateLocationFromMap
         , GMap.mapLoaded MapLoaded
         ]
@@ -222,6 +224,8 @@ type Msg
     | ClearFilters
     | AddFilter PURL
     | RemoveFilter PURL
+    | OpenFilterChartDialog PURL
+    | CloseFilterChartDialog
     | SetParamSearchInput String
     | ShowParamSearchDropdown
     | OpenAddFilterDialog
@@ -373,6 +377,16 @@ update msg model =
               }
             , Cmd.none
             )
+
+        OpenFilterChartDialog id ->
+            let
+                maybeTerm =
+                    Dict.get id model.selectedTerms
+            in
+            ( { model | chartFilterDialogTerm = maybeTerm }, Cmd.none )
+
+        CloseFilterChartDialog ->
+            ( { model | chartFilterDialogTerm = Nothing }, Cmd.none )
 
         SetParamSearchInput val ->
             ( { model | paramSearchInputVal = val }, Cmd.none )
@@ -1236,10 +1250,16 @@ view model =
             text ""
         , case model.stringFilterDialogTerm of
             Nothing ->
-                text ""
+                viewBlank
 
             Just term ->
                 viewStringFilterDialog term (Dict.get term.id model.selectedVals |> Maybe.withDefault NoValue)
+        , case model.chartFilterDialogTerm of
+            Nothing ->
+                viewBlank
+
+            Just term ->
+                viewSearchTermSummaryDialog term
         ]
 
 
@@ -1395,7 +1415,7 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
         show =
             searchVal /= "" || showDropdown
     in
-    viewPanel "" "Add Filter" "" False
+    viewPanel "" "Add Filter" "" False False
         [ div [ class "input-group input-group-sm", style "position" "relative" ]
             [ input [ type_ "text", class "form-control", placeholder "Search parameters", value searchVal, onInput SetParamSearchInput ] []
             , div [ class "input-group-append" ]
@@ -1553,7 +1573,7 @@ viewProjectPanel counts selectedVals =
         numMore =
             0 --numOptions - maxNumPanelOptions
     in
-    viewPanel "" "Project" "" False
+    viewPanel "" "Project" "" False True
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
@@ -1588,7 +1608,7 @@ viewFileFormatPanel counts selectedVals =
         numMore =
             numOptions - maxNumPanelOptions
     in
-    viewPanel "" "Format" "" False
+    viewPanel "" "Format" "" False False
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
@@ -1623,7 +1643,7 @@ viewFileTypePanel counts selectedVals =
         numMore =
             numOptions - maxNumPanelOptions
     in
-    viewPanel "" "Type" "" False
+    viewPanel "" "Type" "" False False
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
@@ -1954,11 +1974,11 @@ viewLocationFilterInput val =
 
 viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
 viewTermPanel term nodes =
-    viewPanel term.id term.label term.unitLabel True nodes
+    viewPanel term.id term.label term.unitLabel True True nodes
 
 
-viewPanel : PURL -> String -> String -> Bool -> List (Html Msg) -> Html Msg
-viewPanel id title unit removable nodes =
+viewPanel : PURL -> String -> String -> Bool -> Bool -> List (Html Msg) -> Html Msg
+viewPanel id title unit removable showChart nodes =
     let
         header =
             h6 [ style "color" "darkblue"]
@@ -1971,8 +1991,13 @@ viewPanel id title unit removable nodes =
                   else
                     viewBlank
                 , if removable then
-                    span [ class "float-right", style "cursor" "pointer", onClick (RemoveFilter id) ]
+                    span [ class "float-right ml-2", style "cursor" "pointer", onClick (RemoveFilter id) ]
                         [ text (String.fromChar (Char.fromCode 10005)) ]
+                  else
+                    viewBlank
+                , if showChart then
+                    span [ class "float-right", style "cursor" "pointer", onClick (OpenFilterChartDialog id) ]
+                        [ Icon.barChart ]
                   else
                     viewBlank
                 ]
@@ -2082,6 +2107,18 @@ viewSearchTermSummaryChart term =
             term.distribution |> List.map (\(a, b) -> (a, toFloat b))
     in
     BarChart.view config data
+
+
+viewSearchTermSummaryDialog : SearchTerm -> Html Msg
+viewSearchTermSummaryDialog term =
+    viewDialog (String.Extra.toTitleCase term.label)
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
+            [ viewSearchTermSummaryChart term ]
+        ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseFilterChartDialog ]
+            [ text "Close" ]
+        ]
+        CloseFilterChartDialog
 
 
 viewSampleResults : Model -> Html Msg
