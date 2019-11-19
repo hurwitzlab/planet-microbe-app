@@ -1317,9 +1317,11 @@ async function search(db, params) {
 }
 
 function getTerm(nameOrId) {
-    for (term of Object.values(rdfTermIndex)) {
-        if ((term.id && (nameOrId === term.id || term.id.endsWith(nameOrId))) || (term.label && (nameOrId === term.label || term.label.includes(nameOrId)))) {
-            return term;
+    if (nameOrId) {
+        for (term of Object.values(rdfTermIndex)) {
+            if ((term.id && (nameOrId === term.id || term.id.endsWith(nameOrId))) || (term.label && (nameOrId === term.label || term.label.includes(nameOrId)))) {
+                return term;
+            }
         }
     }
 
