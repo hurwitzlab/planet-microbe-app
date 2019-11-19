@@ -1,17 +1,12 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewDialog, viewJobStatus)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewToggleText, viewDialog, viewJobStatus)
 
---import Api exposing (Cred)
---import Avatar
 import Browser exposing (Document)
 import Html exposing (Html, a, button, h1, h2, h5, div, span, img, i, li, nav, p, text, ul, small, footer)
-import Html.Attributes exposing (id, class, classList, src, style, title, type_, attribute, tabindex)
+import Html.Attributes exposing (id, class, classList, src, href, style, title, type_, attribute, tabindex)
 import Html.Events exposing (onClick)
 import Icon
---import Profile
 import Route exposing (Route)
 import Session exposing (Session)
---import Username exposing (Username)
---import Viewer exposing (Viewer)
 import Cart
 import Config
 
@@ -254,6 +249,21 @@ viewSpinnerCentered =
             [ span [ class "sr-only" ] [ text "Loading..." ]
             ]
         ]
+
+
+viewToggleText : String -> Bool -> msg -> Html msg
+viewToggleText s expanded toggleMsg =
+    let
+        maxLength = 200
+    in
+    if String.length s < maxLength || expanded then
+        text s
+    else
+        span []
+            [ String.slice 0 maxLength s |> text
+            , text "... "
+            , a [ href "", onClick toggleMsg ] [ text "more" ]
+            ]
 
 
 -- TODO move into module.  This is our own Boostrap modal since elm-dialog has not yet been ported to Elm 0.19

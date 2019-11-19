@@ -11,6 +11,7 @@ import Json.Decode.Pipeline exposing (optional, required)
 --import Page.Error as Error exposing (PageLoadError)
 import Task exposing (Task)
 import String.Extra
+import Dict exposing (Dict)
 --import Debug exposing (toString)
 import Project exposing (Project)
 import Sample exposing (Sample)
@@ -24,6 +25,7 @@ type alias Model =
     { session : Session
     , projects : Maybe (List Project)
     , samples : Maybe (List Sample)
+    , projectDescriptionStates : Dict Int Bool
     }
 
 
@@ -32,6 +34,7 @@ init session =
     ( { session = session
       , projects = Nothing
       , samples = Nothing
+      , projectDescriptionStates = Dict.empty
       }
       , Cmd.batch
         [ Project.fetchAll |> Http.toTask |> Task.attempt GetProjectsCompleted
@@ -52,6 +55,7 @@ toSession model =
 type Msg
     = GetProjectsCompleted (Result Http.Error (List Project))
     | GetSamplesCompleted (Result Http.Error (List Sample))
+    | ToggleProjectDescription Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -74,6 +78,19 @@ update msg model =
 --                _ = Debug.log "GetSamplesCompleted" (toString error)
 --            in
             ( model, Cmd.none )
+
+        ToggleProjectDescription id ->
+            let
+                val =
+                    if Dict.get id model.projectDescriptionStates == Just True then
+                        False
+                    else
+                        True
+
+                projectDescriptionStates =
+                    Dict.insert id val model.projectDescriptionStates
+            in
+            ( { model | projectDescriptionStates = projectDescriptionStates }, Cmd.none )
 
 
 
@@ -100,7 +117,7 @@ view model =
                 ]
             ]
         , div [ class "pt-2" ]
-            [ viewProjects model.projects
+            [ viewProjects model.projects model.projectDescriptionStates
             ]
         , div [ class "pt-4" ]
             [ Page.viewTitle1 "Samples" False
@@ -117,14 +134,16 @@ view model =
         ]
 
 
-viewProjects : Maybe (List Project) -> Html Msg
-viewProjects maybeProjects =
+viewProjects : Maybe (List Project) -> Dict Int Bool -> Html Msg
+viewProjects maybeProjects descriptionStates =
     let
+
+
         mkRow project =
             tr []
                 [ td [ style "white-space" "nowrap" ]
                     [ a [ Route.href (Route.Project project.id) ] [ text project.name ] ]
-                , td [] [ text project.description ]
+                , td [] [ Page.viewToggleText project.description (Dict.get project.id descriptionStates |> Maybe.withDefault False) (ToggleProjectDescription project.id) ]
                 , td [] [ text (String.Extra.toSentenceCase project.type_) ]
                 , td [] [ text (String.fromInt project.sampleCount) ]
                 ]
