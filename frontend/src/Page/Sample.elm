@@ -440,7 +440,7 @@ viewMetadata maybeMetadata  =
                     ]
                 , tbody []
                     (List.Extra.zip metadata.terms metadata.values
-                        |> List.sortBy (Tuple.first >> .label >> String.toLower)
+                        |> List.sortBy (Tuple.first >> .label >> String.toLower >> (\s -> if s == "" then "~" else s)) -- hack to sort blank last
                         |> List.map mkRow
                     )
                 ]
