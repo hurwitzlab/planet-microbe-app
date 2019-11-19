@@ -29,7 +29,7 @@ import BarChart
 import Cart
 import Icon
 import Config exposing (apiBaseUrl, dataCommonsUrl)
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -322,9 +322,9 @@ update msg model =
             ( { model | doSearch = True, selectedParams = selectedParams, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
 
         GetSearchTermCompleted (Err error) -> --TODO
-            let
-                _ = Debug.log "GetSearchTermCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "GetSearchTermCompleted" (toString error)
+--            in
             ( model, Cmd.none )
 
         ClearFilters ->
@@ -637,9 +637,9 @@ update msg model =
             )
 
         SampleSearchCompleted (Err error) ->
-            let
-                _ = Debug.log "SampleSearchCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "SampleSearchCompleted" (toString error)
+--            in
             ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
 
         FileSearchCompleted (Ok response) ->
