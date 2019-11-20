@@ -1267,7 +1267,7 @@ viewSearchPanel : Model -> Html Msg
 viewSearchPanel model =
     div [ style "border" "1px solid lightgray", style "width" "25.5vw" ]
         [ ul [ class "nav nav-tabs" ]
-            ( (List.map (\lbl -> viewTab lbl (lbl == model.searchTab) SetSearchTab) [ "Samples", "Files" ]) ++
+            ( (List.map (\lbl -> viewTab lbl (lbl == model.searchTab) SetSearchTab) [ "Samples" ]) ++ --, "Files" ]) ++
               [ (li [ class "nav-item ml-auto" ]
                 [ a [ class "small nav-link", href "", style "font-weight" "bold", onClick ClearFilters ]
                     [ text "Reset" ]
@@ -2043,18 +2043,111 @@ viewPanel id title unit removable showChart nodes =
 --        ]
 
 
---TODO combine viewSampleResults/viewFileResults and pass columns as input
 viewResults : Model -> Html Msg
 viewResults model =
-    case model.resultTab of
-        "Samples" ->
-            viewSampleResults model
+    let
+        (content, count) =
+            case model.resultTab of
+                "Samples" ->
+                    ( viewSampleResults model
+                    , model.sampleResultCount
+                    )
 
-        "Files" ->
-            viewFileResults model
+                "Files" ->
+                    ( viewFileResults model
+                    , model.fileResultCount
+                    )
 
-        _ ->
-            viewSummary model
+                _ ->
+                    ( viewSummary model
+                    , model.sampleResultCount
+                    )
+    in
+    div [ style "min-height" "50em" ]
+        [ if model.doSearch || model.isSearching then
+            viewSpinner
+          else
+            div [ style "border" "1px solid lightgray" ]
+                [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples" ] ) --, "Files" ] )
+--                     ++ [ li [ class "nav-item ml-auto" ]
+--                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+--                        ]
+                    )
+                , if model.errorMsg /= Nothing then
+                    div []
+                        [ p [] [ text "An error occurred:" ]
+                        , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
+                        ]
+                  else if count > 0 then
+                    div []
+                        [ viewPageSummary model.pageNum model.pageSize count
+                        , content
+                        , viewPageControls model.pageNum model.pageSize count
+                        ]
+                  else
+                    h1 [ class "text-center mt-5", style "min-height" "5.5em" ] [ text "No results" ]
+                ]
+        ]
+
+
+viewPageSummary : Int -> Int -> Int -> Html Msg
+viewPageSummary curPageNum pageSize resultCount =
+    div [ class "small ml-1", style "color" "dimgray" ]
+        [ text "Showing "
+        , curPageNum * pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
+        , text " - "
+        , curPageNum * pageSize + pageSize |> Basics.max 1 |> Basics.min resultCount |> String.fromInt |> text
+        , text " of "
+        , resultCount |> toFloat |> format myLocale |> text
+        , text " sample"
+        , (if resultCount /= 1 then "s" else "") |> text
+        ]
+
+
+viewPageControls : Int -> Int -> Int -> Html Msg
+viewPageControls curPageNum pageSize resultCount =
+    let
+        sizeOption size =
+            a [ class "dropdown-item", href "", onClick (SetPageSize size) ] [ text (String.fromInt size) ]
+
+        pageOption label num =
+            let
+                dis =
+                    num < 0 -- previous
+                        || num == curPageNum -- current
+                        || num > lastPageNum -- next
+            in
+            li [ classList [ ("page-item", True), ("disabled", dis) ] ]
+                [ a [ class "page-link", href "", onClick (SetPageNum num) ] [ text label ] ]
+
+        lastPageNum =
+            (toFloat resultCount) / (toFloat pageSize) |> floor
+    in
+    div []
+        [ div [ class "float-left" ]
+            [ text "Show "
+            , div [ class "dropup", style "display" "inline" ]
+                [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (String.fromInt pageSize) ]
+                , div [ class "dropdown-menu" ]
+                    (List.map sizeOption [20, 40, 60, 80, 100])
+                ]
+            , text " results"
+        ]
+        , nav [ class "float-right" ]
+            [ ul [ class "pagination" ]
+                --FIXME code below is a little kludgey
+                [ pageOption "First" 0
+                , pageOption "Previous" (curPageNum - 1)
+                , pageOption (String.fromInt (curPageNum + 1)) curPageNum
+                , if curPageNum + 1 > lastPageNum then text "" else pageOption (String.fromInt (curPageNum + 2)) (curPageNum + 1)
+                , if curPageNum + 2 > lastPageNum then text "" else pageOption (String.fromInt (curPageNum + 3)) (curPageNum + 2)
+                , if curPageNum + 3 > lastPageNum then text "" else pageOption "..." (curPageNum + 3)
+                , pageOption "Next" (curPageNum + 1)
+                , pageOption "Last" lastPageNum
+                ]
+            ]
+        ]
 
 
 defaultBarChartConfig =
@@ -2079,18 +2172,10 @@ viewSummary model =
                 data =
                     results |> List.map (\r -> (r.projectName, toFloat r.sampleCount))
             in
-            div [ style "min-height" "50em" ]
-                [ div [ style "border" "1px solid lightgray" ]
-                    [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                        ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
-    --                     ++ [ li [ class "nav-item ml-auto" ]
-    --                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
-    --                        ]
-                        )
-                    , div [ style "margin" "1em"] [ BarChart.view config data ]
-                    , div [] (model.selectedTerms |> Dict.toList |> List.map Tuple.second |> List.map viewSearchTermSummaryChart)
-                    ]
-                ]
+            div [ style "margin" "1em" ]
+                ((BarChart.view config data)
+                    :: (model.selectedTerms |> Dict.toList |> List.map Tuple.second |> List.map viewSearchTermSummaryChart)
+                )
 
 
 viewSearchTermSummaryChart : SearchTerm -> Html Msg
@@ -2131,16 +2216,10 @@ viewSampleResults model =
                 pos =
                     index + 1
 
-                dirSymbol =
-                    if model.sampleTableState.sortDir == SortableTable.ASC then
-                        String.fromChar (Char.fromCode 9650)
-                    else
-                        String.fromChar (Char.fromCode 9660)
-
                 lbl =
                     String.Extra.toTitleCase
                         (if pos == abs model.sampleTableState.sortCol then
-                            label ++ " " ++ dirSymbol
+                            label ++ " " ++ (viewUpDownArrow model.sampleTableState.sortDir)
                         else
                             label
                         )
@@ -2268,101 +2347,13 @@ viewSampleResults model =
                       ]
                     ]
                 )
-
-        count =
-            model.sampleResults |> Maybe.withDefault [] |> List.length
-
-        pageInfo =
-            div [ class "small ml-1", style "color" "dimgray" ]
-                (if model.sampleResultCount > 0 then
-                    [ text "Showing "
-                    , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
-                    , text " - "
-                    , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.sampleResultCount |> String.fromInt |> text
-                    , text " of "
-                    , model.sampleResultCount |> toFloat |> format myLocale |> text
-                    , text " sample"
-                    , (if model.sampleResultCount /= 1 then "s" else "") |> text
-                    ]
-                 else
-                    [ text "No results" ]
-                 )
-
-        lastPageNum =
-            toFloat(model.sampleResultCount) / toFloat(model.pageSize) |> floor
-
-        pageControls =
-            let
-                sizeOption size =
-                    a [ class "dropdown-item", href "", onClick (SetPageSize size) ] [ text (String.fromInt size) ]
-
-                pageOption label num =
-                    let
-                        dis =
-                            num < 0 -- previous
-                                || num == model.pageNum -- current
-                                || num > lastPageNum -- next
-                    in
-                    li [ classList [ ("page-item", True), ("disabled", dis) ] ]
-                        [ a [ class "page-link", href "", onClick (SetPageNum num) ] [ text label ] ]
-            in
-            div [ style "padding" "0.5em" ]
-                [ div [ class "float-left" ]
-                    [ text "Show "
-                    , div [ class "dropup", style "display" "inline" ]
-                        [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (String.fromInt model.pageSize) ]
-                        , div [ class "dropdown-menu" ]
-                            (List.map sizeOption [20, 40, 60, 80, 100])
-                        ]
-                    , text " results"
-                ]
-                , nav [ class "float-right" ]
-                    [ ul [ class "pagination" ]
-                        --FIXME code below is a little kludgey
-                        [ pageOption "First" 0
-                        , pageOption "Previous" (model.pageNum - 1)
-                        , pageOption (String.fromInt (model.pageNum + 1)) model.pageNum
-                        , if model.pageNum + 1 > lastPageNum then text "" else pageOption (String.fromInt (model.pageNum + 2)) (model.pageNum + 1)
-                        , if model.pageNum + 2 > lastPageNum then text "" else pageOption (String.fromInt (model.pageNum + 3)) (model.pageNum + 2)
-                        , if model.pageNum + 3 > lastPageNum then text "" else pageOption "..." (model.pageNum + 3)
-                        , pageOption "Next" (model.pageNum + 1)
-                        , pageOption "Last" lastPageNum
-                        ]
-                    ]
-                ]
     in
-    if model.doSearch || model.isSearching || model.sampleResults == Nothing then
-        div [ style "min-height" "50em" ] [ viewSpinner ]
-    else
-        div [ style "min-height" "50em" ]
-            [ div [ style "border" "1px solid lightgray" ]
-                [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
---                     ++ [ li [ class "nav-item ml-auto" ]
---                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
---                        ]
-                    )
-                , pageInfo
-                , if model.errorMsg /= Nothing then
-                    div []
-                        [ p [] [ text "An error occurred:" ]
-                        , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
-                        ]
-                  else if model.sampleResultCount > 0 then
-                    SortableTable.view
-                        { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
-                        model.sampleTableState
-                        columns
-                        (model.sampleResults |> Maybe.withDefault [] |> List.map mkRow)
-                        []
-                  else
-                    viewBlank
-                ]
-            , if count > 0 then
-                pageControls
-              else
-                viewBlank
-            ]
+    SortableTable.view
+        { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
+        model.sampleTableState
+        columns
+        (model.sampleResults |> Maybe.withDefault [] |> List.map mkRow)
+        []
 
 
 viewFileResults : Model -> Html Msg
@@ -2375,16 +2366,10 @@ viewFileResults model =
                 pos =
                     index + 1
 
-                dirSymbol =
-                    if model.fileTableState.sortDir == SortableTable.ASC then
-                        String.fromChar (Char.fromCode 9650)
-                    else
-                        String.fromChar (Char.fromCode 9660)
-
                 lbl =
                     String.Extra.toTitleCase
                         (if pos == abs model.fileTableState.sortCol then
-                            label ++ " " ++ dirSymbol
+                            label ++ " " ++ (viewUpDownArrow model.fileTableState.sortDir )
                         else
                             label
                         )
@@ -2425,105 +2410,21 @@ viewFileResults model =
                 , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text result.fileUrl ] ]
 --                , td [] [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
                 ]
-
-        count =
-            model.fileResults |> Maybe.withDefault [] |> List.length
-
-        pageInfo =
-            div [ class "small ml-1", style "color" "dimgray" ]
-                (if model.fileResultCount > 0 then
-                    [ text "Showing "
-                    , model.pageNum * model.pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
-                    , text " - "
-                    , model.pageNum * model.pageSize + model.pageSize |> Basics.max 1 |> Basics.min model.fileResultCount |> String.fromInt |> text
-                    , text " of "
-                    , model.fileResultCount |> toFloat |> format myLocale |> text
-                    , text " file"
-                    , (if model.fileResultCount /= 1 then "s" else "") |> text
-                    ]
-                 else
-                    [ text "No results" ]
-                )
-
-        lastPageNum =
-            toFloat(model.fileResultCount) / toFloat(model.pageSize) |> floor
-
-        pageControls =
-            let
-                sizeOption size =
-                    a [ class "dropdown-item", href "", onClick (SetPageSize size) ] [ text (String.fromInt size) ]
-
-                pageOption label num =
-                    let
-                        dis =
-                            num < 0 -- previous
-                                || num == model.pageNum -- current
-                                || num > lastPageNum -- next
-                    in
-                    li [ classList [ ("page-item", True), ("disabled", dis) ] ]
-                        [ a [ class "page-link", href "", onClick (SetPageNum num) ] [ text label ] ]
-            in
-            div [ style "padding" "0.5em" ]
-                [ div [ class "float-left" ]
-                    [ text "Show "
-                    , div [ class "dropup", style "display" "inline" ]
-                        [ button [ class "btn btn-secondary dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ] [ text (String.fromInt model.pageSize) ]
-                        , div [ class "dropdown-menu" ]
-                            (List.map sizeOption [20, 40, 60, 80, 100])
-                        ]
-                    , text " results"
-                ]
-                , nav [ class "float-right" ]
-                    [ ul [ class "pagination" ]
-                        --FIXME code below is a little kludgey
-                        [ pageOption "First" 0
-                        , pageOption "Previous" (model.pageNum - 1)
-                        , pageOption (String.fromInt (model.pageNum + 1)) model.pageNum
-                        , if model.pageNum + 1 > lastPageNum then text "" else pageOption (String.fromInt (model.pageNum + 2)) (model.pageNum + 1)
-                        , if model.pageNum + 2 > lastPageNum then text "" else pageOption (String.fromInt (model.pageNum + 3)) (model.pageNum + 2)
-                        , if model.pageNum + 3 > lastPageNum then text "" else pageOption "..." (model.pageNum + 3)
-                        , pageOption "Next" (model.pageNum + 1)
-                        , pageOption "Last" lastPageNum
-                        ]
-                    ]
-                ]
     in
-    if model.isSearching || model.fileResults == Nothing then
-        div [ style "min-height" "50em" ] [ viewSpinner ]
+    SortableTable.view
+        { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
+        model.fileTableState
+        columns
+        (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
+        []
+
+
+viewUpDownArrow : SortableTable.Direction -> String
+viewUpDownArrow sortDir =
+    if sortDir == SortableTable.ASC then
+        String.fromChar (Char.fromCode 9650)
     else
-        div [ style "min-height" "50em" ]
-            [ div [ style "border" "1px solid lightgray" ]
-                [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                    (List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
---                          , li [ class "nav-item ml-auto" ] --TODO
---                              [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
-                , pageInfo
-                , if model.errorMsg /= Nothing then
-                    div []
-                        [ p [] [ text "An error occurred:" ]
-                        , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
-                        ]
-                  else if model.fileResultCount > 0 then
---                    table [ class "table table-sm table-striped", style "font-size" "0.85em" ]
---                        [ thead []
---                            [ tr [] columns ]
---                        , tbody []
---                            (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
---                        ]
-                    SortableTable.view
-                        { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
-                        model.fileTableState
-                        columns
-                        (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
-                        []
-                  else
-                    viewBlank
-                ]
-            , if count > 0 then
-                pageControls
-              else
-                viewBlank
-            ]
+        String.fromChar (Char.fromCode 9660)
 
 
 viewMap : Bool -> Bool -> Html Msg
