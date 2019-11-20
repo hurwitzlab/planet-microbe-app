@@ -1104,7 +1104,7 @@ async function search(db, params) {
             selections[term.id] = "CASE" + selectStr + " END";
     }
 
-
+//TODO column selection
 //    if (columns && columns.length > 0) {
 //        selections = [];
 //
@@ -1173,30 +1173,34 @@ async function search(db, params) {
     let results = [], count = 0, summary = [], clusters = [];
 
     if (result == "sample") {
-        let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-        let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+3) + " " + sortDir : "");
-
         let groupByStr = " GROUP BY s.sample_id,p.project_id ";
 
+        // Build total count query
         let countQueryStr =
             "SELECT COUNT(foo) FROM (SELECT s.sample_id " +
             tableStr +
             clauseStr + groupByStr + ") AS foo";
 
+        // Build summary query (for charts)
         let summaryQueryStr =
             "SELECT DISTINCT(p.project_id),p.name,COUNT(pts.sample_id)::int " +
             "FROM project p JOIN project_to_sample pts ON pts.project_id=p.project_id JOIN sample s ON pts.sample_id=s.sample_id " +
             clauseStr + " GROUP BY p.project_id ORDER BY p.name";
 
+        // Build sample query
         let selections2 = termOrder.map(tid => selections[tid]).filter(s => typeof s != "undefined");
         if (gisSelect)
             selections2.unshift(gisSelect);
 
-        let queryStr =
+        let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
+        let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort) + 3) + " " + sortDir : "");
+
+        let sampleQueryStr =
             "SELECT " + ["schema_id", "s.sample_id", "p.project_id", "p.name", "s.accn"].concat(selections2).join(",") + " " +
             tableStr +
             clauseStr + groupByStr + sortStr + offsetStr + limitStr;
 
+        // Execute queries and format results //TODO make queries run in parallel
         console.log("Count Query:");
         count = await query({
             text: countQueryStr,
@@ -1214,7 +1218,7 @@ async function search(db, params) {
 
         console.log("Sample Query:");
         results = await query({
-            text: queryStr,
+            text: sampleQueryStr,
             values: [],
             rowMode: 'array'
         });
@@ -1228,13 +1232,9 @@ async function search(db, params) {
                 sampleAccn: r[4],
                 values: r.slice(5).map(v => typeof v == "undefined" ? "" : v ) // kludge to convert null to empty string
             }
-        })
+        });
 
-        //let locationClusterQuery = "SELECT ST_NumGeometries(gc) AS count, ST_AsGeoJSON(gc) AS collection, ST_AsGeoJSON(ST_Centroid(gc)) AS centroid, ST_AsGeoJSON(ST_MinimumBoundingCircle(gc)) AS circle, sqrt(ST_Area(ST_MinimumBoundingCircle(gc)) / pi()) AS radius " +
-        //    "FROM (SELECT unnest(ST_ClusterWithin(locations::geometry, 100)) gc FROM sample " + clauseStr + ") f;"
-        //let locationClusterQuery = "SELECT ST_AsGeoJSON(ST_Union(ST_GeometryN(locations::geometry, 1))) AS points " +
-        //    "FROM sample JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id JOIN project ON project.project_id=project_to_sample.project_id " +
-        //    clauseStr;
+        // Build and execute location query (for map)
         let locationClusterQuery =
             "SELECT s.sample_id,s.accn as sample_accn,p.name AS project_name,ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude, ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude " +
             tableStr +
