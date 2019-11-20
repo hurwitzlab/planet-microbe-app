@@ -1161,13 +1161,14 @@ async function search(db, params) {
     let tableStr =
         "FROM sample s \
         JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
-        JOIN project p ON p.project_id=pts.project_id \
-        LEFT JOIN experiment e ON e.sample_id=s.sample_id \
-        LEFT JOIN run r ON r.experiment_id=e.experiment_id \
-        LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id \
-        LEFT JOIN file f ON f.file_id=rtf.file_id \
-        LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
-        LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id ";
+        JOIN project p ON p.project_id=pts.project_id ";// \
+// Temporarily removed until Tara SRA files are finished loading. Move to into file query block when uncommented.
+//        LEFT JOIN experiment e ON e.sample_id=s.sample_id \
+//        LEFT JOIN run r ON r.experiment_id=e.experiment_id \
+//        LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id \
+//        LEFT JOIN file f ON f.file_id=rtf.file_id \
+//        LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
+//        LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id ";
 
     let results = [], count = 0, summary = [], clusters = [];
 
@@ -1196,6 +1197,7 @@ async function search(db, params) {
             tableStr +
             clauseStr + groupByStr + sortStr + offsetStr + limitStr;
 
+        console.log("Count Query:");
         count = await query({
             text: countQueryStr,
             values: [],
@@ -1203,12 +1205,14 @@ async function search(db, params) {
         });
         count = count.rows[0][0]*1;
 
+        console.log("Summary Query:");
         summary = await query({
             text: summaryQueryStr,
             values: [],
             //rowMode: 'array'
         });
 
+        console.log("Sample Query:");
         results = await query({
             text: queryStr,
             values: [],
@@ -1239,49 +1243,50 @@ async function search(db, params) {
         //if (map)
             clusters = await query(locationClusterQuery);
     }
-    else if (result == "file") {
-        let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-        let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+1) + " " + sortDir : "");
-
-        let fileClause = " AND f.file_id IS NOT NULL ";
-        let groupByStr = " GROUP BY f.file_id,ff.file_format_id,ft.file_type_id,s.sample_id,p.project_id ";
-
-        let countQueryStr =
-            "SELECT COUNT(foo) FROM (SELECT f.file_id " +
-            tableStr +
-            clauseStr + fileClause + groupByStr + ") AS foo";
-
-        let queryStr =
-            "SELECT f.file_id,p.name,s.accn,ff.name,ft.name,f.url,s.sample_id,p.project_id " + // FIXME order of fields should match sample query above in order for sorting to work
-            tableStr +
-            clauseStr + fileClause + groupByStr + sortStr + offsetStr + limitStr;
-
-        count = await query({
-            text: countQueryStr,
-            values: [],
-            rowMode: 'array'
-        });
-        count = count.rows[0][0]*1;
-
-        results = await query({
-            text: queryStr,
-            values: [],
-            rowMode: 'array'
-        });
-
-        results = results.rows.map(r => {
-            return {
-                fileId: r[0],
-                sampleId: r[6],
-                projectId: r[7],
-                projectName: r[1],
-                sampleAccn: r[2],
-                fileFormat: r[3],
-                fileType: r[4],
-                fileUrl: r[5]
-            }
-        })
-    }
+// Temporarily removed until Tara SRA files are finished loading
+//    else if (result == "file") {
+//        let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
+//        let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+1) + " " + sortDir : "");
+//
+//        let fileClause = " AND f.file_id IS NOT NULL ";
+//        let groupByStr = " GROUP BY f.file_id,ff.file_format_id,ft.file_type_id,s.sample_id,p.project_id ";
+//
+//        let countQueryStr =
+//            "SELECT COUNT(foo) FROM (SELECT f.file_id " +
+//            tableStr +
+//            clauseStr + fileClause + groupByStr + ") AS foo";
+//
+//        let queryStr =
+//            "SELECT f.file_id,p.name,s.accn,ff.name,ft.name,f.url,s.sample_id,p.project_id " + // FIXME order of fields should match sample query above in order for sorting to work
+//            tableStr +
+//            clauseStr + fileClause + groupByStr + sortStr + offsetStr + limitStr;
+//
+//        count = await query({
+//            text: countQueryStr,
+//            values: [],
+//            rowMode: 'array'
+//        });
+//        count = count.rows[0][0]*1;
+//
+//        results = await query({
+//            text: queryStr,
+//            values: [],
+//            rowMode: 'array'
+//        });
+//
+//        results = results.rows.map(r => {
+//            return {
+//                fileId: r[0],
+//                sampleId: r[6],
+//                projectId: r[7],
+//                projectName: r[1],
+//                sampleAccn: r[2],
+//                fileFormat: r[3],
+//                fileType: r[4],
+//                fileUrl: r[5]
+//            }
+//        })
+//    }
     else if (result == "summary") {
         let projectSummaryQueryStr =
             "SELECT DISTINCT(p.project_id),p.name,COUNT(pts.sample_id)::int " +
@@ -1548,7 +1553,7 @@ function buildTermSQL(arrIndex, val) {
             console.log("Error: numeric offset query not supported for type", term.type);
         }
     }
-    else if (val.match(/^\~(\w+)(\|\w+)*/)) { // partial string match on one or more values
+    else if (val.match(/^\~(\w+)(\|\w+)*/)) { // partial string match on one or more values (case-insensitive)
         if (term.type == "string") {
             let vals = val.substr(1).split("|");
             console.log("partial string match on multiple values", vals);
@@ -1574,14 +1579,14 @@ function buildTermSQL(arrIndex, val) {
             console.log("Error: datetime exact query not supported for type", term.type);
         }
     }
-    else if (val.match(/^(\w+)(\|\w+)*/)) { // literal string match on one or more values
+    else if (val.match(/^(\w+)(\|\w+)*/)) { // literal string match on one or more values (case-insensitive)
         if (term.type == "string") {
             let vals = val.split("|");
             console.log("literal string match", vals);
             field = "string_vals[" + arrIndex + "]";
             clause = field + "=" + "'" + val + "'";
             if (vals.length == 1)
-                clause = field + "=" + "'" + val + "'"; // may not be necessary if equivalent to IN()
+                clause = "LOWER(" + field + ") =" + "'" + val.toLowerCase() + "'"; // may not be necessary if equivalent to IN()
             else
                 clause = "LOWER(" + field + ") IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
         }
