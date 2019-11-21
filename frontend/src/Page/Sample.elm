@@ -323,7 +323,7 @@ viewSample sample samplingEvents =
                 [ table [ class "table table-borderless table-sm" ]
                     [ tbody []
                         [ tr []
-                            [ th [ class "w-25" ] [ text "Accession" ]
+                            [ th [ class "w-25" ] [ text "Accession", span [ class "align-baseline ml-2"] [ Icon.externalLink ] ]
                             , td [class "w-50"] [  a [ href ("https://www.ncbi.nlm.nih.gov/biosample/?term=" ++ sample.accn), target "_blank" ] [ text sample.accn ] ]
                             ]
                         , tr []
