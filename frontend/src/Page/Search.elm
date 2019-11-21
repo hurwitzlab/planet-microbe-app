@@ -29,7 +29,7 @@ import BarChart
 import Cart
 import Icon
 import Config exposing (apiBaseUrl, dataCommonsUrl)
---import Debug exposing (toString)
+import Debug exposing (toString)
 
 
 
@@ -117,7 +117,7 @@ type alias Model =
     , sampleResults : Maybe (List SampleResult)
     , fileResults : Maybe (List FileResult)
     , mapResults : Value --List MapResult
-    , summaryResults : Maybe (List SummaryResult)
+    , summaryResults : Maybe (List (List (String, Int)))
     , sampleResultCount : Int
     , fileResultCount : Int
     , sampleTableState : SortableTable.State
@@ -637,9 +637,9 @@ update msg model =
             )
 
         SampleSearchCompleted (Err error) ->
---            let
---                _ = Debug.log "SampleSearchCompleted" (toString error)
---            in
+            let
+                _ = Debug.log "SampleSearchCompleted" (toString error)
+            in
             ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
 
         FileSearchCompleted (Ok response) ->
@@ -1018,7 +1018,7 @@ getProjectCounts =
 type alias SearchResponse =
     { count : Int
     , results : SearchResults
-    , summary : List SummaryResult
+    , summary : List (List (String, Int)) --List SummaryResult
     , map: Value --List MapResult
     }
 
@@ -1071,11 +1071,11 @@ type alias FileResult =
 --    }
 
 
-type alias SummaryResult =
-    { projectId : Int
-    , projectName : String
-    , sampleCount : Int
-    }
+--type alias SummaryResult =
+--    { projectId : Int
+--    , projectName : String
+--    , sampleCount : Int
+--    }
 
 
 type alias Sample =
@@ -1121,7 +1121,7 @@ decodeSearchResponse =
     Decode.succeed SearchResponse
         |> required "count" Decode.int
         |> required "results" decodeSearchResults
-        |> required "summary" (Decode.list decodeSummaryResult)
+        |> required "summary" (Decode.list (Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int)))) --(Decode.list decodeSummaryResult)
         |> optional "map" Decode.value null --(Decode.list decodeMapResult) []
 
 
@@ -1196,12 +1196,12 @@ decodeFileResult =
 --        ]
 
 
-decodeSummaryResult : Decoder SummaryResult
-decodeSummaryResult =
-    Decode.succeed SummaryResult
-        |> required "project_id" Decode.int
-        |> required "name" Decode.string
-        |> required "count" Decode.int
+--decodeSummaryResult : Decoder SummaryResult
+--decodeSummaryResult =
+--    Decode.succeed SummaryResult
+--        |> required "project_id" Decode.int
+--        |> required "name" Decode.string
+--        |> required "count" Decode.int
 
 
 decodeSample : Decoder Sample
@@ -2162,43 +2162,42 @@ viewSummary model =
 
         Just results ->
             let
-                config =
-                    { defaultBarChartConfig
-                        | title = Just "Num Samples by Project"
-                        , width = 400
-                        , height = 400
-                    }
+                projectData =
+                    List.head results |> Maybe.withDefault [] --results |> List.map (\r -> (r.projectName, r.sampleCount))
 
-                data =
-                    results |> List.map (\r -> (r.projectName, toFloat r.sampleCount))
+                termResults =
+                    List.tail results |> Maybe.withDefault []
+
+                termLabels =
+                    model.selectedParams |> List.map (\id -> Dict.get id model.selectedTerms |> Maybe.map .label |> Maybe.withDefault "")
             in
             div [ style "margin" "1em" ]
-                ((BarChart.view config data)
-                    :: (model.selectedTerms |> Dict.toList |> List.map Tuple.second |> List.map viewSearchTermSummaryChart)
+                (
+--                    (BarChart.view config data) ::
+--                    (model.selectedTerms |> Dict.toList |> List.map Tuple.second |> List.map viewSearchTermSummaryChart)
+                    (viewSearchTermSummaryChart "project" projectData) ::
+                        (List.Extra.zip termLabels termResults |> List.map (\(label, data) -> viewSearchTermSummaryChart label data))
                 )
 
 
-viewSearchTermSummaryChart : SearchTerm -> Html Msg
-viewSearchTermSummaryChart term =
+viewSearchTermSummaryChart : String -> List (String, Int) -> Html Msg
+viewSearchTermSummaryChart label data =
     let
         config =
             { defaultBarChartConfig
-                | title = Just ("Num Samples by " ++ (String.Extra.toTitleCase term.label))
+                | title = Just ("Num Samples by " ++ (String.Extra.toTitleCase label))
                 , width = 400
                 , height = 400
             }
-
-        data =
-            term.distribution |> List.map (\(a, b) -> (a, toFloat b))
     in
-    BarChart.view config data
+    BarChart.view config (List.map (Tuple.mapSecond toFloat) data)
 
 
 viewSearchTermSummaryDialog : SearchTerm -> Html Msg
 viewSearchTermSummaryDialog term =
     viewDialog (String.Extra.toTitleCase term.label)
         [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
-            [ viewSearchTermSummaryChart term ]
+            [ viewSearchTermSummaryChart term.label term.distribution ]
         ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseFilterChartDialog ]
             [ text "Close" ]

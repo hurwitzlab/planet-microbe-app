@@ -177,27 +177,30 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
 //        });
     }
     else if (term.type == "number") {
-        let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => "WHEN schema_id=" + schema.schemaId + " THEN number_vals[" + schema.position + "]");
+        let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
         let caseStr = "CASE " + cases.join(" ") + " END";
-        let rangeResult = await query({ text: "SELECT MIN(" + caseStr + "),MAX(" + caseStr + ") FROM sample", rowMode: "array" });
+        let rangeResult = await query({ text: `SELECT MIN(${caseStr}),MAX(${caseStr}) FROM sample`, rowMode: "array" });
         let [min, max] = rangeResult.rows[0];
         let range = max - min;
         let binLen = range/10;
-        let binResult = await query("SELECT WIDTH_BUCKET(" + caseStr + "," + min + "," + (max+1) + ",10) AS bucket,count(*)::int FROM sample GROUP BY bucket ORDER BY bucket");
-        console.log(binResult.rows);
-        let bins = [];
-        binResult.rows.forEach(bin => {
-            if (bin.bucket == null)
-                bins[0] = ["None", bin.count];
-            else {
-                let label = ((min + (bin.bucket-1)*binLen).toFixed(2))+ " - " + ((min + bin.bucket*binLen).toFixed(2));
-                bins[bin.bucket] = [label, bin.count];
-            }
+
+        let binResult = await query({
+            text:
+                `SELECT label, count FROM
+                    (WITH min_max AS (
+                        SELECT
+                            MIN(${caseStr}) AS min_val,
+                            MAX(${caseStr}) AS max_val
+                        FROM sample
+                    )
+                    SELECT
+                        REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None') AS label,
+                        WIDTH_BUCKET(${caseStr},min_val,max_val,10) AS bucket,COUNT(*)::int
+                    FROM sample, min_max
+                    GROUP BY bucket
+                    ORDER BY bucket) AS foo`,
+            rowMode: 'array'
         });
-        for (i = 0; i < 10; i++) {
-            if (!bins[i])
-                bins[i] = ["", 0];
-        }
 
         res.json({
             id: term.id,
@@ -207,7 +210,7 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
             type: term.type,
             min: min,
             max: max,
-            distribution: bins,
+            distribution: binResult.rows,
             aliases: aliases,
             annotations: annotations
         });
@@ -996,6 +999,7 @@ async function search(db, params) {
 
     let orTerms = [], andTerms = [];
     let terms = {}, termOrder = [];
+    let termsById = {};
     for (param of Object.keys(params).filter(p => p.startsWith("http") || p.startsWith("|http"))) {
         param = param.replace(/\+/gi, ''); // workaround for Elm uri encoding
         let val = params[param];
@@ -1019,6 +1023,7 @@ async function search(db, params) {
 
         termOrder.push(term.id);
         terms[term.id] = val;
+        termsById[term.id] = term;
         if (orFlag || !val)
             orTerms.push(term);
         else
@@ -1170,7 +1175,7 @@ async function search(db, params) {
 //        LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
 //        LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id ";
 
-    let results = [], count = 0, summary = [], clusters = [];
+    let results = [], count = 0, summaries = [], clusters = [];
 
     if (result == "sample") {
         let groupByStr = " GROUP BY s.sample_id,p.project_id ";
@@ -1181,11 +1186,48 @@ async function search(db, params) {
             tableStr +
             clauseStr + groupByStr + ") AS foo";
 
-        // Build summary query (for charts)
-        let summaryQueryStr =
-            "SELECT DISTINCT(p.project_id),p.name,COUNT(pts.sample_id)::int " +
+        // Build summary queries (for charts)
+        let projectSummaryQueryStr =
+            "SELECT p.name,COUNT(pts.sample_id)::int " +
             "FROM project p JOIN project_to_sample pts ON pts.project_id=p.project_id JOIN sample s ON pts.sample_id=s.sample_id " +
             clauseStr + " GROUP BY p.project_id ORDER BY p.name";
+
+        let summaryQueryStrs = [ projectSummaryQueryStr ];
+        for (termId of termOrder) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
+            let term = termsById[termId];
+            let queryStr = "";
+            if (term.type == 'string') {
+                let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => "WHEN schema_id=" + schema.schemaId + " THEN string_vals[" + schema.position + "]");
+                let caseStr = "CASE " + cases.join(" ") + " END";
+                queryStr = "SELECT COALESCE(LOWER(" + caseStr + "),'none') AS val,count(*)::int " + tableStr + clauseStr + " GROUP BY val ORDER BY val ";
+            }
+            else if (term.type == 'number') {
+                let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
+                let caseStr = "CASE " + cases.join(" ") + " END";
+
+                queryStr =
+                    `SELECT label, count FROM
+                        (WITH min_max AS (
+                            SELECT
+                                MIN(${caseStr}) AS min_val,
+                                MAX(${caseStr}) AS max_val
+                            FROM sample
+                        )
+                        SELECT
+                            REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None') AS label,
+                            WIDTH_BUCKET(${caseStr},min_val,max_val,10) AS bucket,COUNT(*)::int
+                        ${tableStr}, min_max
+                        ${clauseStr}
+                        GROUP BY bucket
+                        ORDER BY bucket) AS foo`;
+            }
+//            else if (term.type == 'datetime') {
+//                let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => "WHEN schema_id=" + schema.schemaId + " THEN datetime_vals[" + schema.position + "]");
+//                let caseStr = "CASE " + cases.join(" ") + " END";
+//                queryStr = "SELECT COALESCE(" + caseStr + ") AS val,count(*)::int " + tableStr + clauseStr + " GROUP BY val ORDER BY val ";
+//            }
+            summaryQueryStrs.push(queryStr);
+        }
 
         // Build sample query
         let selections2 = termOrder.map(tid => selections[tid]).filter(s => typeof s != "undefined");
@@ -1204,22 +1246,22 @@ async function search(db, params) {
         console.log("Count Query:");
         count = await query({
             text: countQueryStr,
-            values: [],
             rowMode: 'array'
         });
         count = count.rows[0][0]*1;
 
-        console.log("Summary Query:");
-        summary = await query({
-            text: summaryQueryStr,
-            values: [],
-            //rowMode: 'array'
-        });
+        console.log("Summary Queries:");
+        summaries = await Promise.all(summaryQueryStrs.map(s =>
+            query({
+                text: s,
+                rowMode: 'array'
+            })
+        ));
+        summaries = summaries.map(res => res.rows || []);
 
         console.log("Sample Query:");
         results = await query({
             text: sampleQueryStr,
-            values: [],
             rowMode: 'array'
         });
 
@@ -1287,35 +1329,13 @@ async function search(db, params) {
 //            }
 //        })
 //    }
-    else if (result == "summary") {
-        let projectSummaryQueryStr =
-            "SELECT DISTINCT(p.project_id),p.name,COUNT(pts.sample_id)::int " +
-            "FROM project p JOIN project_to_sample pts ON pts.project_id=p.project_id JOIN sample s ON pts.sample_id=s.sample_id " +
-            clauseStr + " GROUP BY p.project_id ORDER BY p.name";
-
-        for (termId in terms) {
-            let select = selections[termId];
-
-            let termSummaryQueryStr =
-                "SELECT DISTINCT(" + select + "),COUNT(s.sample_id)::int " +
-                "FROM sample s " +
-                clauseStr + " GROUP BY s.schema_id,s.string_vals";
-
-            summary = await query({
-                text: termSummaryQueryStr,
-                values: [],
-                //rowMode: 'array'
-            });
-            console.log(summary.rows);
-        }
-    }
     else {
         console.log("Error: invalid result specifier:", result);
     }
 
     return {
         count: count,
-        summary: summary.rows || [],
+        summary: summaries,
         results: results,
         map: (clusters ? clusters.rows : {})
     };
