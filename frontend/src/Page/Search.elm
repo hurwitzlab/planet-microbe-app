@@ -29,7 +29,7 @@ import BarChart
 import Cart
 import Icon
 import Config exposing (apiBaseUrl, dataCommonsUrl)
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -637,9 +637,9 @@ update msg model =
             )
 
         SampleSearchCompleted (Err error) ->
-            let
-                _ = Debug.log "SampleSearchCompleted" (toString error)
-            in
+--            let
+--                _ = Debug.log "SampleSearchCompleted" (toString error)
+--            in
             ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
 
         FileSearchCompleted (Ok response) ->
@@ -2150,10 +2150,6 @@ viewPageControls curPageNum pageSize resultCount =
         ]
 
 
-defaultBarChartConfig =
-    BarChart.defaultConfig
-
-
 viewSummary : Model -> Html Msg
 viewSummary model =
     case model.summaryResults of
@@ -2173,8 +2169,6 @@ viewSummary model =
             in
             div [ style "margin" "1em" ]
                 (
---                    (BarChart.view config data) ::
---                    (model.selectedTerms |> Dict.toList |> List.map Tuple.second |> List.map viewSearchTermSummaryChart)
                     (viewSearchTermSummaryChart "project" projectData) ::
                         (List.Extra.zip termLabels termResults |> List.map (\(label, data) -> viewSearchTermSummaryChart label data))
                 )
@@ -2183,6 +2177,9 @@ viewSummary model =
 viewSearchTermSummaryChart : String -> List (String, Int) -> Html Msg
 viewSearchTermSummaryChart label data =
     let
+        defaultBarChartConfig =
+            BarChart.defaultConfig
+
         config =
             { defaultBarChartConfig
                 | title = Just ("Num Samples by " ++ (String.Extra.toTitleCase label))
