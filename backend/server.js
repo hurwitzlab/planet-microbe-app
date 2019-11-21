@@ -41,9 +41,6 @@ var db;
     await db.connect();
 
     rdfTermIndex = await generateTermIndex(db, config.ontologies);
-    //console.log("term index:", JSON.stringify(rdfTermIndex, null, 4));
-//    schemaIndex = await generateSchemaIndex(db);
-//    console.log("schema index:", JSON.stringify(schemaIndex, null, 4));
 
     app.listen(config.serverPort, () => console.log('Server listening on port', config.serverPort));
 })();
@@ -144,20 +141,9 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
     }
 
     if (term.type == "string") {
-//        let uniqueVals = {};
-//        for (let schema of [].concat.apply([], Object.values(term.schemas))) {
-//            let vals = await query({ text: "SELECT string_vals[$1],count(string_vals[$1])::int FROM sample WHERE schema_id=$2 GROUP BY string_vals[$1]", values: [schema.position,schema.schemaId*1], rowMode: 'array'});
-//            vals.rows.forEach(row => {
-//                let val = row[0];
-//                if (!uniqueVals[val])
-//                    uniqueVals[val] = 0;
-//                uniqueVals[val] += 1*row[1];
-//            });
-//        }
-
-        let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => "WHEN schema_id=" + schema.schemaId + " THEN string_vals[" + schema.position + "]");
+        let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
         let caseStr = "CASE " + cases.join(" ") + " END";
-        let result = await query({ text: "SELECT COALESCE(LOWER(" + caseStr + "),'none') AS val,count(*)::int FROM sample GROUP BY val ORDER BY val", rowMode: 'array' });
+        let result = await query({ text: `SELECT COALESCE(LOWER(${caseStr}),'none') AS val,COUNT(*)::int FROM sample GROUP BY val ORDER BY val`, rowMode: 'array' });
 
         res.json({
             id: term.id,
@@ -282,12 +268,12 @@ app.get('/search', async (req, res) => {
 });
 
 app.get('/projects', async (req, res) => {
-    let result = await query({
-        text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type, \
-                (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count \
-            FROM project p \
-            JOIN project_type pt ON p.project_type_id=pt.project_type_id"
-    });
+    let result = await query(
+        `SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type,
+            (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count
+        FROM project p
+        JOIN project_type pt ON p.project_type_id=pt.project_type_id`
+    );
     result.rows.forEach(row => row.sample_count *= 1); // convert count to int
     res.json(result.rows);
 //    .catch(err => {
@@ -299,15 +285,17 @@ app.get('/projects', async (req, res) => {
 app.get('/projects/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format, \
-            (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count \
-            FROM project p \
-            JOIN project_type pt ON p.project_type_id=pt.project_type_id \
-            LEFT JOIN project_to_file ptf ON ptf.project_id=p.project_id \
-            LEFT JOIN file f ON f.file_id=ptf.file_id \
-            LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
-            LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id \
-            WHERE p.project_id=$1",
+        text:
+            `SELECT
+                p.project_id,p.name,p.accn,p.description,pt.name AS type,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format,
+                (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count
+            FROM project p
+            JOIN project_type pt ON p.project_type_id=pt.project_type_id
+            LEFT JOIN project_to_file ptf ON ptf.project_id=p.project_id
+            LEFT JOIN file f ON f.file_id=ptf.file_id
+            LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
+            LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
+            WHERE p.project_id=$1`,
         values: [id]
     });
 
@@ -333,14 +321,15 @@ app.get('/projects/:id(\\d+)', async (req, res) => {
 app.get('/projects/:id(\\d+)/campaigns', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT c.campaign_id,c.campaign_type,c.name,c.description,c.deployment,c.start_location,c.end_location,c.start_time,c.end_time,c.urls \
-            FROM project_to_sample pts \
-            JOIN sample s ON s.sample_id=pts.sample_id \
-            JOIN sample_to_sampling_event stse ON stse.sample_id=s.sample_id \
-            JOIN sampling_event se ON se.sampling_event_id=stse.sampling_event_id \
-            JOIN campaign c ON c.campaign_id=se.campaign_id \
-            WHERE pts.project_id=$1 \
-            GROUP BY c.campaign_id",
+        text:
+            `SELECT c.campaign_id,c.campaign_type,c.name,c.description,c.deployment,c.start_location,c.end_location,c.start_time,c.end_time,c.urls
+            FROM project_to_sample pts
+            JOIN sample s ON s.sample_id=pts.sample_id
+            JOIN sample_to_sampling_event stse ON stse.sample_id=s.sample_id
+            JOIN sampling_event se ON se.sampling_event_id=stse.sampling_event_id
+            JOIN campaign c ON c.campaign_id=se.campaign_id
+            WHERE pts.project_id=$1
+            GROUP BY c.campaign_id`,
         values: [id]
     });
     res.json(result.rows);
@@ -349,13 +338,14 @@ app.get('/projects/:id(\\d+)/campaigns', async (req, res) => {
 app.get('/projects/:id(\\d+)/sampling_events', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations)::json->'coordinates' AS locations,se.start_time,se.end_time \
-            FROM project_to_sample pts \
-            JOIN sample s ON s.sample_id=pts.sample_id \
-            JOIN sample_to_sampling_event stse ON stse.sample_id=s.sample_id \
-            JOIN sampling_event se ON se.sampling_event_id=stse.sampling_event_id \
-            WHERE pts.project_id=$1 \
-            GROUP BY se.sampling_event_id",
+        text:
+            `SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations)::json->'coordinates' AS locations,se.start_time,se.end_time
+            FROM project_to_sample pts
+            JOIN sample s ON s.sample_id=pts.sample_id
+            JOIN sample_to_sampling_event stse ON stse.sample_id=s.sample_id
+            JOIN sampling_event se ON se.sampling_event_id=stse.sampling_event_id
+            WHERE pts.project_id=$1
+            GROUP BY se.sampling_event_id`,
         values: [id]
     });
 
@@ -365,10 +355,11 @@ app.get('/projects/:id(\\d+)/sampling_events', async (req, res) => {
 app.get('/projects/:id(\\d+)/samples', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations \
-            FROM sample s \
-            JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
-            WHERE pts.project_id=$1",
+        text:
+            `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations
+            FROM sample s
+            JOIN project_to_sample pts ON pts.sample_id=s.sample_id
+            WHERE pts.project_id=$1`,
         values: [id]
     });
 
@@ -381,21 +372,21 @@ app.post('/samples', async (req, res) => {
     console.log("ids:", ids);
 
     if (ids) {
-        result = await query({
-            text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name \
-                FROM sample s \
-                JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
-                JOIN project p ON p.project_id=pts.project_id \
-                WHERE s.sample_id IN (" + ids + ")",
-        });
+        result = await query(
+            `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name
+            FROM sample s
+            JOIN project_to_sample pts ON pts.sample_id=s.sample_id
+            JOIN project p ON p.project_id=pts.project_id
+            WHERE s.sample_id IN (${ids})`
+        );
     }
     else {
-        result = await query({
-            text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name \
-                FROM sample s \
-                JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
-                JOIN project p ON p.project_id=pts.project_id"
-        });
+        result = await query(
+            `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name
+            FROM sample s
+            JOIN project_to_sample pts ON pts.sample_id=s.sample_id
+            JOIN project p ON p.project_id=pts.project_id`
+        );
     }
 
     res.json(result.rows);
@@ -405,11 +396,12 @@ app.get('/samples/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
 
     let result = await query({
-        text: "SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name \
-            FROM sample s \
-            JOIN project_to_sample pts ON pts.sample_id=s.sample_id \
-            JOIN project p ON p.project_id=pts.project_id \
-            WHERE s.sample_id=$1",
+        text:
+            `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name
+            FROM sample s
+            JOIN project_to_sample pts ON pts.sample_id=s.sample_id
+            JOIN project p ON p.project_id=pts.project_id
+            WHERE s.sample_id=$1`,
         values: [id]
     });
 
@@ -419,12 +411,13 @@ app.get('/samples/:id(\\d+)', async (req, res) => {
 app.get('/samples/:id(\\d+)/sampling_events', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT se.sampling_event_id,se.sampling_event_type,se.name,c.campaign_id,c.campaign_type,c.name AS campaign_name \
-            FROM sample s \
-            JOIN sample_to_sampling_event stse ON stse.sample_id=s.sample_id \
-            JOIN sampling_event se ON se.sampling_event_id=stse.sampling_event_id \
-            LEFT JOIN campaign c ON c.campaign_id=se.campaign_id \
-            WHERE s.sample_id=$1",
+        text:
+            `SELECT se.sampling_event_id,se.sampling_event_type,se.name,c.campaign_id,c.campaign_type,c.name AS campaign_name
+            FROM sample s
+            JOIN sample_to_sampling_event stse ON stse.sample_id=s.sample_id
+            JOIN sampling_event se ON se.sampling_event_id=stse.sampling_event_id
+            LEFT JOIN campaign c ON c.campaign_id=se.campaign_id
+            WHERE s.sample_id=$1`,
         values: [id]
     });
 
@@ -434,9 +427,10 @@ app.get('/samples/:id(\\d+)/sampling_events', async (req, res) => {
 app.get('/samples/:id(\\d+)/experiments', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT e.experiment_id,e.name,e.accn \
-            FROM experiment e \
-            WHERE e.sample_id=$1",
+        text:
+            `SELECT e.experiment_id,e.name,e.accn
+            FROM experiment e
+            WHERE e.sample_id=$1`,
         values: [id]
     });
 
@@ -452,65 +446,68 @@ app.post('/samples/files', async (req, res) => {
 
     let result;
     if (ids)
-        result = await query({
-            text: "SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format \
-                FROM experiment e \
-                LEFT JOIN run r ON (r.experiment_id=e.experiment_id) \
-                LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id \
-                LEFT JOIN file f ON f.file_id=rtf.file_id \
-                LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
-                LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id \
-                WHERE e.sample_id IN (" + ids + ")",
-        });
+        result = await query(
+            `SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
+            FROM experiment e
+            LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+            LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id
+            LEFT JOIN file f ON f.file_id=rtf.file_id
+            LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
+            LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
+            WHERE e.sample_id IN (${ids})`
+        );
     else
-        result = await query({
-            text: "SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format \
-                FROM experiment e \
-                LEFT JOIN run r ON (r.experiment_id=e.experiment_id) \
-                JOIN run_to_file rtf ON rtf.run_id=r.run_id \
-                JOIN file f ON f.file_id=rtf.file_id \
-                LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
-                LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id"
-        });
+        result = await query(
+            `SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
+            FROM experiment e
+            LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+            JOIN run_to_file rtf ON rtf.run_id=r.run_id
+            JOIN file f ON f.file_id=rtf.file_id
+            LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
+            LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id`
+        );
 
     res.json(result.rows);
 });
 
 app.get('/samples/files/formats', async (req, res) => {
-    let result = await query({
-        text: "SELECT ff.file_format_id,ff.name,ff.description,ff.extensions,count(f.file_id) as file_count \
-            FROM experiment e \
-            LEFT JOIN run r ON (r.experiment_id=e.experiment_id) \
-            JOIN run_to_file rtf ON rtf.run_id=r.run_id \
-            JOIN file f ON f.file_id=rtf.file_id \
-            LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id \
-            GROUP BY ff.file_format_id"
-    });
+    let result = await query(
+        `SELECT ff.file_format_id,ff.name,ff.description,ff.extensions,COUNT(f.file_id)::int AS file_count
+        FROM experiment e
+        LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+        JOIN run_to_file rtf ON rtf.run_id=r.run_id
+        JOIN file f ON f.file_id=rtf.file_id
+        LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
+        GROUP BY ff.file_format_id`
+    );
 
-    res.json(result.rows.map(row => { row.file_count *= 1; return row })); // convert to int
+//    res.json(result.rows.map(row => { row.file_count *= 1; return row })); // convert to int
+    res.json(result.rows);
 });
 
 app.get('/samples/files/types', async (req, res) => {
-    let result = await query({
-        text: "SELECT ft.file_type_id,ft.name,ft.description,count(f.file_id) as file_count \
-            FROM experiment e \
-            LEFT JOIN run r ON (r.experiment_id=e.experiment_id) \
-            JOIN run_to_file rtf ON rtf.run_id=r.run_id \
-            JOIN file f ON f.file_id=rtf.file_id \
-            LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
-            GROUP BY ft.file_type_id"
-    });
+    let result = await query(
+        `SELECT ft.file_type_id,ft.name,ft.description,COUNT(f.file_id)::int as file_count
+        FROM experiment e
+        LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+        JOIN run_to_file rtf ON rtf.run_id=r.run_id
+        JOIN file f ON f.file_id=rtf.file_id
+        LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
+        GROUP BY ft.file_type_id`
+    );
 
-    res.json(result.rows.map(row => { row.file_count *= 1; return row })); // convert to int
+//    res.json(result.rows.map(row => { row.file_count *= 1; return row })); // convert to int
+    res.json(result.rows);
 });
 
 app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
     let id = req.params.id;
     let result = await query({
-        text: "SELECT s.schema_id,schema.fields->'fields' AS fields,s.number_vals,s.string_vals,s.datetime_vals \
-            FROM sample s \
-            JOIN schema ON schema.schema_id=s.schema_id \
-            WHERE s.sample_id=$1",
+        text:
+            `SELECT s.schema_id,schema.fields->'fields' AS fields,s.number_vals,s.string_vals,s.datetime_vals
+            FROM sample s
+            JOIN schema ON schema.schema_id=s.schema_id
+            WHERE s.sample_id=$1`,
         values: [id]
     });
 
@@ -1182,29 +1179,26 @@ async function search(db, params) {
 
         // Build total count query
         let countQueryStr =
-            "SELECT COUNT(foo) FROM (SELECT s.sample_id " +
-            tableStr +
-            clauseStr + groupByStr + ") AS foo";
+            `SELECT COUNT(foo) FROM (SELECT s.sample_id ${tableStr} ${clauseStr} ${groupByStr}) AS foo`;
 
         // Build summary queries (for charts)
         let projectSummaryQueryStr =
-            "SELECT p.name,COUNT(pts.sample_id)::int " +
-            "FROM project p JOIN project_to_sample pts ON pts.project_id=p.project_id JOIN sample s ON pts.sample_id=s.sample_id " +
-            clauseStr + " GROUP BY p.project_id ORDER BY p.name";
+            `SELECT p.name,COUNT(pts.sample_id)::int
+            FROM project p JOIN project_to_sample pts ON pts.project_id=p.project_id JOIN sample s ON pts.sample_id=s.sample_id
+            ${clauseStr} GROUP BY p.project_id ORDER BY p.name`;
 
         let summaryQueryStrs = [ projectSummaryQueryStr ];
         for (termId of termOrder) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
             let term = termsById[termId];
             let queryStr = "";
             if (term.type == 'string') {
-                let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => "WHEN schema_id=" + schema.schemaId + " THEN string_vals[" + schema.position + "]");
+                let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
                 let caseStr = "CASE " + cases.join(" ") + " END";
-                queryStr = "SELECT COALESCE(LOWER(" + caseStr + "),'none') AS val,count(*)::int " + tableStr + clauseStr + " GROUP BY val ORDER BY val ";
+                queryStr = `SELECT COALESCE(LOWER(${caseStr}),'none') AS val,count(*)::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
             }
             else if (term.type == 'number') {
                 let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
                 let caseStr = "CASE " + cases.join(" ") + " END";
-
                 queryStr =
                     `SELECT label, count FROM
                         (WITH min_max AS (
@@ -1278,9 +1272,13 @@ async function search(db, params) {
 
         // Build and execute location query (for map)
         let locationClusterQuery =
-            "SELECT s.sample_id,s.accn as sample_accn,p.name AS project_name,ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude, ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude " +
-            tableStr +
-            clauseStr + groupByStr;
+            `SELECT
+                s.sample_id,s.accn as sample_accn,p.name AS project_name,
+                ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude,
+                ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude
+            ${tableStr}
+            ${clauseStr}
+            ${groupByStr}`;
 
         //if (map)
             clusters = await query(locationClusterQuery);
