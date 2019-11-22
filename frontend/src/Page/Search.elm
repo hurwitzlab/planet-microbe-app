@@ -2183,9 +2183,21 @@ viewSearchTermSummaryChart label data =
         defaultBarChartConfig =
             BarChart.defaultConfig
 
+        maxTitleLen =
+            50
+
+        title =
+            "Num Samples by " ++ (String.Extra.toTitleCase label)
+
+        truncTitle =
+            if String.length title < maxTitleLen then
+                title
+            else
+                (String.slice 0 maxTitleLen title) ++ "... "
+
         config =
             { defaultBarChartConfig
-                | title = Just ("Num Samples by " ++ (String.Extra.toTitleCase label))
+                | title = Just truncTitle
                 , width = 400
                 , height = 400
             }
