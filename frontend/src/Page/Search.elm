@@ -592,8 +592,9 @@ update msg model =
                                 ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
 
                         allParams =
+                            ("summary", String.join "," model.selectedParams) ::
                             queryParams ++
-                                (generateControlParams result [] sortPos model.pageSize (model.pageSize * newPageNum) model.showMap)
+                            (generateControlParams result [] sortPos model.pageSize (model.pageSize * newPageNum) model.showMap)
 
                         searchReq =
                             searchRequest allParams

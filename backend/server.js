@@ -959,6 +959,10 @@ async function search(db, params) {
 //    if (params['columns'])
 //        columns = params['columns'].split(',');
 
+    let summaryColumns = [];
+    if (params['summary'])
+        summaryColumns = params['summary'].split(',');
+
     let gisClause, gisSelect;
     if (params['location']) {
         let val = params['location'];
@@ -1189,7 +1193,7 @@ async function search(db, params) {
             ${clauseStr} GROUP BY p.project_id ORDER BY p.name`;
 
         let summaryQueryStrs = [ projectSummaryQueryStr ];
-        for (termId of termOrder) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
+        for (termId of summaryColumns) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
             let term = termsById[termId];
             let queryStr = "";
             if (term.type == 'string') {
