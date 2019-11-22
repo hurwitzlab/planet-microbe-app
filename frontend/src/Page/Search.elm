@@ -2159,18 +2159,20 @@ viewSummary model =
         Just results ->
             let
                 projectData =
-                    List.head results |> Maybe.withDefault [] --results |> List.map (\r -> (r.projectName, r.sampleCount))
+                    List.head results |> Maybe.withDefault []
 
                 termResults =
                     List.tail results |> Maybe.withDefault []
 
                 termLabels =
-                    model.selectedParams |> List.map (\id -> Dict.get id model.selectedTerms |> Maybe.map .label |> Maybe.withDefault "")
+                    model.selectedParams
+                        |> List.filterMap (\id -> Dict.get id model.selectedTerms |> Maybe.map .label)
             in
             div [ style "margin" "1em" ]
-                (
-                    (viewSearchTermSummaryChart "project" projectData) ::
-                        (List.Extra.zip termLabels termResults |> List.map (\(label, data) -> viewSearchTermSummaryChart label data))
+                (viewSearchTermSummaryChart "project" projectData ::
+                    (List.Extra.zip termLabels termResults
+                        |> List.map (\(label, data) -> viewSearchTermSummaryChart label data)
+                    )
                 )
 
 
