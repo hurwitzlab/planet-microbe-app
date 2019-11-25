@@ -269,7 +269,7 @@ app.get('/search', async (req, res) => {
 
 app.get('/projects', async (req, res) => {
     let result = await query(
-        `SELECT p.project_id,p.name,p.accn,p.description,pt.name AS type,
+        `SELECT p.project_id,p.name,p.accn,p.description,p.datapackageUrl,p.url,pt.name AS type,
             (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count
         FROM project p
         JOIN project_type pt ON p.project_type_id=pt.project_type_id`
@@ -287,7 +287,7 @@ app.get('/projects/:id(\\d+)', async (req, res) => {
     let result = await query({
         text:
             `SELECT
-                p.project_id,p.name,p.accn,p.description,pt.name AS type,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format,
+                p.project_id,p.name,p.accn,p.description,p.datapackageUrl,p.url,pt.name AS type,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format,
                 (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count
             FROM project p
             JOIN project_type pt ON p.project_type_id=pt.project_type_id
