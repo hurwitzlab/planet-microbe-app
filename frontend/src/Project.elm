@@ -42,7 +42,7 @@ projectDecoder =
         |> required "description" Decode.string
         |> required "type" Decode.string
         |> required "sample_count" Decode.int
-        |> required "datapackageUrl" Decode.string
+        |> required "datapackage_url" Decode.string
         |> required "url" Decode.string
         |> optional "files" (Decode.list fileDecoder) []
 
