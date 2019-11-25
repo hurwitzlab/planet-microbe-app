@@ -23,6 +23,8 @@ type alias Project  =
     , description : String
     , type_ : String
     , sampleCount : Int
+    , datapackageUrl : String
+    , url : String
     , files : List File
     }
 
@@ -40,6 +42,8 @@ projectDecoder =
         |> required "description" Decode.string
         |> required "type" Decode.string
         |> required "sample_count" Decode.int
+        |> required "datapackageUrl" Decode.string
+        |> required "url" Decode.string
         |> optional "files" (Decode.list fileDecoder) []
 
 
