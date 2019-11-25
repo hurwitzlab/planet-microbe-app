@@ -4,6 +4,7 @@ import Session exposing (Session)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Page
+import Icon
 import Project exposing (Project)
 import Sample exposing (Sample)
 import Campaign exposing (Campaign)
@@ -195,12 +196,12 @@ viewProject project =
                 , td [] [ text (String.Extra.toSentenceCase project.type_) ]
                 ]
             , tr []
-                [ th [] [ text "URL" ]
-                , td [] [ a [ href project.url ] [ text project.url ] ]
+                [ th [] [ text "URL ", Icon.externalLink ]
+                , td [] [ a [ href project.url, target "_blank" ] [ text project.url ] ]
                 ]
             , tr []
-                [ th [] [ text "Data Package" ]
-                , td [] [ a [ href project.datapackageUrl ] [ text project.datapackageUrl ] ]
+                [ th [] [ text "Data Package ", Icon.externalLink ]
+                , td [] [ a [ href project.datapackageUrl, target "_blank" ] [ text project.datapackageUrl ] ]
                 ]
             , tr []
                 [ th [] [ text "Files" ]
