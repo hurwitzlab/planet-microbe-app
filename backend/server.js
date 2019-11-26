@@ -165,7 +165,9 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
     else if (term.type == "number") {
         let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
         let caseStr = "CASE " + cases.join(" ") + " END";
-        let rangeResult = await query({ text: `SELECT MIN(${caseStr}),MAX(${caseStr}) FROM sample`, rowMode: "array" });
+        let clauses = [].concat.apply([], Object.values(term.schemas)).map(schema => `(schema_id=${schema.schemaId} AND number_vals[${schema.position}] != 'NaN')`);
+        let clauseStr = clauses.join(' OR ');
+        let rangeResult = await query({ text: `SELECT MIN(${caseStr}),MAX(${caseStr}) FROM sample WHERE ${clauseStr}`, rowMode: "array" });
         let [min, max] = rangeResult.rows[0];
         let range = max - min;
         let binLen = range/10;
@@ -178,10 +180,11 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
                             MIN(${caseStr}) AS min_val,
                             MAX(${caseStr}) AS max_val
                         FROM sample
+                        WHERE ${clauseStr}
                     )
                     SELECT
-                        REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None') AS label,
-                        WIDTH_BUCKET(${caseStr},min_val,max_val,10) AS bucket,COUNT(*)::int
+                        REGEXP_REPLACE(REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None'),'NaN - NaN','Below Detection Limit') AS label,
+                        WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val,10) AS bucket,COUNT(*)::int
                     FROM sample, min_max
                     GROUP BY bucket
                     ORDER BY bucket) AS foo`,
@@ -544,6 +547,8 @@ app.get('/samples/:id(\\d+)/metadata', async (req, res) => {
         let val = "";
         if (field.type == "number")
             val = row.number_vals[i];
+            if (isNaN(val)) // below detection limit values are stored as NaN in DB
+                val = "Below Detection Limit"
         else if (field.type == "string")
             val = row.string_vals[i];
         else if (field.type == "datetime" || field.type == "date")
@@ -1204,6 +1209,9 @@ async function search(db, params) {
             else if (term.type == 'number') {
                 let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
                 let caseStr = "CASE " + cases.join(" ") + " END";
+                let subClauses = [].concat.apply([], Object.values(term.schemas)).map(schema => `(schema_id=${schema.schemaId} AND number_vals[${schema.position}] != 'NaN')`);
+                let subClauseStr = subClauses.join(' OR ');
+
                 queryStr =
                     `SELECT label, count FROM
                         (WITH min_max AS (
@@ -1211,15 +1219,17 @@ async function search(db, params) {
                                 MIN(${caseStr}) AS min_val,
                                 MAX(${caseStr}) AS max_val
                             FROM sample
+                            WHERE ${subClauseStr}
                         )
                         SELECT
-                            REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None') AS label,
-                            WIDTH_BUCKET(${caseStr},min_val,max_val,10) AS bucket,COUNT(*)::int
+                            REGEXP_REPLACE(REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None'),'NaN - NaN','Below Detection Limit') AS label,
+                            WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val,10) AS bucket,COUNT(*)::int
                         ${tableStr}, min_max
                         ${clauseStr}
                         GROUP BY bucket
                         ORDER BY bucket) AS foo`;
             }
+//TODO
 //            else if (term.type == 'datetime') {
 //                let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => "WHEN schema_id=" + schema.schemaId + " THEN datetime_vals[" + schema.position + "]");
 //                let caseStr = "CASE " + cases.join(" ") + " END";
@@ -1271,7 +1281,14 @@ async function search(db, params) {
                 projectId: r[2],
                 projectName: r[3],
                 sampleAccn: r[4],
-                values: r.slice(5).map(v => typeof v == "undefined" ? "" : v ) // kludge to convert null to empty string
+                values: r.slice(5).map(v => {
+                    if (typeof v == "undefined")
+                        return "" // kludge to convert null to empty string
+                    else if (typeof v[0] == "number" && isNaN(v[0]))
+                        return "Below Detection Limit" // kludge to convert NaN to "Below Detection Limit"
+                    else
+                        return v
+                })
             }
         });
 
