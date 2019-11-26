@@ -600,16 +600,21 @@ update msg model =
                             searchRequest allParams
                     in
                     if allParams == model.previousSearchParams then
-                        ( model, Cmd.none )
+                        ( { model
+                            | doSearch = False
+                            , isSearching = False
+                            }
+                        , Cmd.none
+                        )
                     else
-                    ( { model
-                        | doSearch = False
-                        , isSearching = True
-                        , pageNum = newPageNum
-                        , previousSearchParams = allParams
-                      }
-                    , searchReq |> Http.toTask |> Task.attempt cmd
-                    )
+                        ( { model
+                            | doSearch = False
+                            , isSearching = True
+                            , pageNum = newPageNum
+                            , previousSearchParams = allParams
+                          }
+                        , searchReq |> Http.toTask |> Task.attempt cmd
+                        )
 
                 Err error ->
 --                    let
