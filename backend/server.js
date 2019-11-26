@@ -1284,7 +1284,7 @@ async function search(db, params) {
                 values: r.slice(5).map(v => {
                     if (typeof v == "undefined")
                         return "" // kludge to convert null to empty string
-                    else if (typeof v[0] == "number" && isNaN(v[0]))
+                    else if (Array.isArray(v) && typeof v[0] == "number" && isNaN(v[0]))
                         return "Below Detection Limit" // kludge to convert NaN to "Below Detection Limit"
                     else
                         return v
