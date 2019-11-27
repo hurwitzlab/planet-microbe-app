@@ -199,7 +199,7 @@ viewRuns maybeRuns =
                     [ if run.files /= [] then
                         fileTable run.files
                      else
-                        text "None"
+                        text "Not Available"
                     ]
                 ]
 
@@ -225,7 +225,7 @@ viewRuns maybeRuns =
     in
     case maybeRuns |> Maybe.withDefault [] of
         [] ->
-            text "Not Available"
+            text "None"
 
         runs ->
             table [ class "table" ]
