@@ -21,9 +21,9 @@
             "path": "ontologies/pmo.json"
         },
         {
-            "name": "PMO OWL",
-            "type": "term_owl",
-            "path": "ontologies/pmo_owl.json"
+            "name": "ENVO",
+            "type": "term",
+            "path": "ontologies/envo_import.json"
         },
         {
             "name": "UO",

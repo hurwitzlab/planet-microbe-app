@@ -115,7 +115,6 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
 	    id = id.replace(/^http:\//, '');
 
     let term = getTerm(id);
- 
     if (!term) {
         res.status(404).json({ error: "Term not found" });
         return;
@@ -123,8 +122,15 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
     console.log("term:", term);
 
     let aliases = [];
-    if (term.schemas)
-        aliases = [].concat.apply([], Object.values(term.schemas)).map(schema => { return { name: schema.name, sourceName: schema.sourceName, sourceUrl: schema.sourceUrl } });
+    if (term.schemas) // TODO move into function
+        aliases = [].concat.apply([],
+            Object.values(term.schemas)).map(schema => {
+                return {
+                    name: schema.name,
+                    sourceName: schema.sourceName,
+                    sourceUrl: schema.sourceUrl
+                }
+            });
 
     let annotations = [];
     if (term.annotations) { // TODO move into function
@@ -144,6 +150,13 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
         let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
         let caseStr = "CASE " + cases.join(" ") + " END";
         let result = await query({ text: `SELECT COALESCE(LOWER(${caseStr}),'none') AS val,COUNT(*)::int FROM sample GROUP BY val ORDER BY val`, rowMode: 'array' });
+        for (row of result.rows) { //TODO move into function
+            if (row[0].startsWith("http://")) {
+                let term2 = getTerm(row[0]);
+                if (term2 && term2.label)
+                    row[0] = term2.label;
+            }
+        }
 
         res.json({
             id: term.id,
@@ -1267,6 +1280,16 @@ async function search(db, params) {
             })
         ));
         summaries = summaries.map(res => res.rows || []);
+        for (summary of summaries) {
+            for (row of summary) { //TODO move into function (dup'ed elsewhere)
+                console.log(row);
+                if (row[0].startsWith("http://")) {
+                    let term2 = getTerm(row[0]);
+                    if (term2 && term2.label)
+                        row[0] = term2.label;
+                }
+            }
+        }
 
         console.log("Sample Query:");
         results = await query({
@@ -1281,13 +1304,26 @@ async function search(db, params) {
                 projectId: r[2],
                 projectName: r[3],
                 sampleAccn: r[4],
-                values: r.slice(5).map(v => {
-                    if (typeof v == "undefined")
-                        return "" // kludge to convert null to empty string
-                    else if (Array.isArray(v) && typeof v[0] == "number" && isNaN(v[0]))
-                        return "Below Detection Limit" // kludge to convert NaN to "Below Detection Limit"
+                values: r.slice(5).map(val => { //TODO move into function
+                    if (typeof val == "undefined")
+                        return ""; // kludge to convert null to empty string
+                    else if (Array.isArray(val)) {
+                        return val.map(v => {
+                            if (typeof v == "number" && isNaN(v))
+                                return "Below Detection Limit" // kludge to convert NaN to "Below Detection Limit"
+                            else if (v.startsWith("http://")) { //TODO move into funtion (dup'ed elsewhere)
+                                let term = getTerm(v);
+                                if (!term)
+                                    return v;
+                                else
+                                    return term.label;
+                            }
+                            else
+                                return v;
+                        });
+                    }
                     else
-                        return v
+                        return val;
                 })
             }
         });
@@ -1363,10 +1399,16 @@ async function search(db, params) {
 
 function getTerm(nameOrId) {
     if (nameOrId) {
+        if (nameOrId in rdfTermIndex)
+            return rdfTermIndex[nameOrId];
+
+        nameOrId = nameOrId.toLowerCase();
         for (term of Object.values(rdfTermIndex)) {
-            if ((term.id && (nameOrId === term.id || term.id.endsWith(nameOrId))) || (term.label && (nameOrId === term.label || term.label.includes(nameOrId)))) {
+            let id = term.id ? term.id.toLowerCase() : '';
+            let label = term.label ? term.label.toLowerCase() : '';
+
+            if (nameOrId === id || id.endsWith(nameOrId) || nameOrId === label || label.includes(nameOrId))
                 return term;
-            }
         }
     }
 
@@ -1393,10 +1435,12 @@ async function generateTermIndex(db, ontologyDescriptors) {
             let purl = field.rdfType;
             let unitPurl = field['pm:unitRdfType'];
             if (!purl || ('pm:searchable' in field && !field['pm:searchable']))
-                continue; // skip this field if no PURL value (not in term catalog) or not searchable
+                continue; // skip this field if no PURL or not searchable
 
-            if (!(purl in index))
+            if (!(purl in index)) {
+                console.log("WARNING: missing", purl, "in index (not defined in an ontology)");
                 index[purl] = {};
+            }
             else { // Check type consistency
                 if (index[purl].type && index[purl].type != field.type)
                     console.log("WARNING: type mismatch for", purl, index[purl].type, field.type);
@@ -1454,26 +1498,27 @@ function loadOntology(type, path, index) {
                 });
             });
         }
-        else if (type == "term_owl") { // pmo_owl.json
-            ontology.classAttribute.forEach(node => {
-                let label = "<unknown>";
-                if (node["label"]) {
-                    if (node["label"]["en"])
-                        label = node["label"]["en"];
-                    else if (node["label"]["undefined"])
-                        label = node["label"]["undefined"];
-                }
-
-                if (!(node.iri in index))
-                    index[node.iri] = {};
-                index[node.iri] = Object.assign(index[node.iri],
-                    {
-                        id: node.iri,
-                        label: label,
-                    }
-                );
-            });
-        }
+// Removed 11/27/19 -- no longer needed, pmo.json has all term definitions
+//        else if (type == "term_owl") { // pmo_owl.json
+//            ontology.classAttribute.forEach(node => {
+//                let label = "<unknown>";
+//                if (node["label"]) {
+//                    if (node["label"]["en"])
+//                        label = node["label"]["en"];
+//                    else if (node["label"]["undefined"])
+//                        label = node["label"]["undefined"];
+//                }
+//
+//                if (!(node.iri in index))
+//                    index[node.iri] = {};
+//                index[node.iri] = Object.assign(index[node.iri],
+//                    {
+//                        id: node.iri,
+//                        label: label,
+//                    }
+//                );
+//            });
+//        }
         else {
             throw("Error: unsupported ontology type");
         }
