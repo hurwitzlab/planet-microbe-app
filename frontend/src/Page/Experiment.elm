@@ -225,7 +225,7 @@ viewRuns maybeRuns =
     in
     case maybeRuns |> Maybe.withDefault [] of
         [] ->
-            text "None"
+            text "Not Available"
 
         runs ->
             table [ class "table" ]
