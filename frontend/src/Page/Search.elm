@@ -1990,7 +1990,11 @@ viewPanel id title unit removable showChart nodes =
             h6 [ style "color" "darkblue"]
                 [ text (String.fromChar (Char.fromCode 9660))
                 , text " "
-                , text (String.Extra.toTitleCase title)
+                , if id /= "" then
+                    a [ href id, target "_blank" ]
+                        [ text (String.Extra.toTitleCase title) ]
+                  else
+                    text (String.Extra.toTitleCase title)
                 , text " "
                 , if unit /= "" then
                     small [ style "margin-left" "5px" ] [ text ("[" ++ unit ++ "]") ]
