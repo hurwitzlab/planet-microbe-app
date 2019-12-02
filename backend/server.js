@@ -1282,7 +1282,6 @@ async function search(db, params) {
         summaries = summaries.map(res => res.rows || []);
         for (summary of summaries) {
             for (row of summary) { //TODO move into function (dup'ed elsewhere)
-                console.log(row);
                 if (row[0].startsWith("http://")) {
                     let term2 = getTerm(row[0]);
                     if (term2 && term2.label)
@@ -1311,7 +1310,7 @@ async function search(db, params) {
                         return val.map(v => {
                             if (typeof v == "number" && isNaN(v))
                                 return "Below Detection Limit" // kludge to convert NaN to "Below Detection Limit"
-                            else if (v.startsWith("http://")) { //TODO move into funtion (dup'ed elsewhere)
+                            else if (typeof v == "string" && v.startsWith("http://")) { //TODO move into funtion (dup'ed elsewhere)
                                 let term = getTerm(v);
                                 if (!term)
                                     return v;
