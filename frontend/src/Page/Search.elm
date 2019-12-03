@@ -644,7 +644,7 @@ update msg model =
 --            let
 --                _ = Debug.log "SampleSearchCompleted" (toString error)
 --            in
-            ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
+            ( { model | errorMsg = Just (errorToString error), isSearching = False }, Cmd.none )
 
         FileSearchCompleted (Ok response) ->
             let
@@ -797,6 +797,31 @@ update msg model =
                 Cart.store newCart
                 ]
             )
+
+
+parseError : String -> Maybe String
+parseError =
+    Decode.decodeString (Decode.field "error" Decode.string) >> Result.toMaybe
+
+
+errorToString : Http.Error -> String
+errorToString err =
+    case err of
+        Http.Timeout ->
+            "Timeout exceeded"
+
+        Http.NetworkError ->
+            "Network error"
+
+        Http.BadStatus resp ->
+            parseError resp.body
+                |> Maybe.withDefault (String.fromInt resp.status.code ++ " " ++ resp.status.message)
+
+        Http.BadPayload text resp ->
+            "Unexpected response: " ++ text
+
+        Http.BadUrl url ->
+            "Malformed url: " ++ url
 
 
 defined : String -> Bool
@@ -1021,7 +1046,8 @@ type alias SearchResponse =
     { count : Int
     , results : SearchResults
     , summary : List (List (String, Int)) --List SummaryResult
-    , map: Value --List MapResult
+    , map : Value --List MapResult
+    , error : Maybe String
     }
 
 
@@ -1125,6 +1151,7 @@ decodeSearchResponse =
         |> required "results" decodeSearchResults
         |> required "summary" (Decode.list (Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int)))) --(Decode.list decodeSummaryResult)
         |> optional "map" Decode.value null --(Decode.list decodeMapResult) []
+        |> optional "error" (Decode.nullable Decode.string) Nothing
 
 
 decodeSearchResults : Decoder SearchResults
@@ -2051,7 +2078,7 @@ viewResults model =
 --                        ]
                     )
                 , if model.errorMsg /= Nothing then
-                    div []
+                    div [ class "alert alert-danger m-3" ]
                         [ p [] [ text "An error occurred:" ]
                         , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
                         ]

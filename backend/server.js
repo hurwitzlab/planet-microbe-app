@@ -281,12 +281,14 @@ function getLabelForValue(val) {
 }
 
 app.get('/search', async (req, res) => {
-    let results = await search(db, req.query);
-    res.json(results);
-//    .catch(err => {
-//        console.log(err);
-//        res.send(err);
-//    });
+    try {
+        let results = await search(db, req.query);
+        res.json(results);
+    }
+    catch(err) {
+        console.log(err);
+        res.status(500).json({ error: err });
+    }
 });
 
 app.get('/projects', async (req, res) => {
