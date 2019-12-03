@@ -1661,7 +1661,9 @@ viewStringFilterPanel term val =
             List.length term.distribution
 
         numSelected =
-            term.distribution |> List.filter (\a -> isStringFilterSelected (Tuple.first a) val) |> List.length
+            term.distribution
+                |> List.filter (\a -> isStringFilterSelected (Tuple.first a) val)
+                |> List.length
 
         sortByCount a b =
             case compare (Tuple.second a) (Tuple.second b) of
@@ -1681,7 +1683,9 @@ viewStringFilterPanel term val =
                     sortByCount a b
 
         truncatedOptions =
-            term.distribution |> List.sortWith sortBySelected |> List.take (Basics.max maxNumPanelOptions numSelected)
+            term.distribution
+                |> List.sortWith sortBySelected
+                |> List.take (Basics.max maxNumPanelOptions numSelected)
     in
     viewTermPanel term
         [ div []
@@ -1698,16 +1702,24 @@ viewStringFilterOptions : SearchTerm -> FilterValue -> List (String, Int) -> Lis
 viewStringFilterOptions term val options =
     let
         viewRow (name, count) =
+            let
+                -- Translate purl to label (for Biome and Env Material terms)
+                purlToLabel s =
+                    Dict.get s term.purlLabels |> Maybe.withDefault s
+            in
             -- Using table layout to fix issue with wrapping rows
             table [ style "width" "100%" ]
                 [ tr []
                     [ td []
                         [ div [ class "form-check form-check-inline" ]
                             [ input [ class "form-check-input", type_ "checkbox", checked (isStringFilterSelected name val), onCheck (SetStringFilterValue term.id name) ] []
-                            , label [ class "form-check-label" ] [ name |> String.Extra.toSentenceCase |> text]
+                            , label [ class "form-check-label" ] [ name |> purlToLabel |> String.Extra.toSentenceCase |> text]
                             ]
                         ]
-                    , td [ style "max-width" "3em" ] [ div [ class "badge badge-secondary float-right align-top" ] [ count |> toFloat |> format myLocale |> text ] ]
+                    , td [ style "max-width" "3em" ]
+                        [ div [ class "badge badge-secondary float-right align-top" ]
+                            [ count |> toFloat |> format myLocale |> text ]
+                        ]
                     ]
                 ]
     in
@@ -1732,13 +1744,18 @@ viewStringFilterDialog : SearchTerm -> FilterValue -> Html Msg
 viewStringFilterDialog term val =
     let
         sortByName a b =
-            case compare (String.toLower (Tuple.first b)) (String.toLower (Tuple.first a)) of
+            let
+                -- Translate purl to label (for Biome and Env Material terms)
+                purlToLabel s =
+                    Dict.get s term.purlLabels |> Maybe.withDefault s
+            in
+            case compare (String.toLower (Tuple.first b |> purlToLabel)) (String.toLower (Tuple.first a |> purlToLabel)) of
                 GT -> LT
                 EQ -> EQ
                 LT -> GT
 
         options =
-            term.distribution --|> List.sortWith sortByName
+            term.distribution |> List.sortWith sortByName
     in
     viewDialog (String.Extra.toTitleCase term.label)
         [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions term val options) ]
@@ -2160,14 +2177,23 @@ viewSearchTermSummaryChart label data =
                 , height = 400
             }
     in
-    BarChart.view config (List.map (Tuple.mapSecond toFloat) data)
+    BarChart.view config
+        (data
+            |> List.map (Tuple.mapSecond toFloat)
+            |> List.sortWith (\t1 t2 -> compare (Tuple.first t1) (Tuple.first t2))
+        )
 
 
 viewSearchTermSummaryDialog : SearchTerm -> Html Msg
 viewSearchTermSummaryDialog term =
+    let
+        -- Translate purl to label (for Biome and Env Material terms)
+        purlToLabel s =
+            Dict.get s term.purlLabels |> Maybe.withDefault s
+    in
     viewDialog (String.Extra.toTitleCase term.label)
         [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
-            [ viewSearchTermSummaryChart term.label term.distribution ]
+            [ viewSearchTermSummaryChart term.label (term.distribution |> List.map (Tuple.mapFirst purlToLabel)) ]
         ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseFilterChartDialog ]
             [ text "Close" ]
@@ -2310,7 +2336,9 @@ viewSampleResults model =
                 (List.concat --FIXME kludgey
                     [ [ td [] [ a [ Route.href (Route.Project result.projectId) ] [ text result.projectName ] ] ]
                     , [ td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ] ]
-                    , result.values |> List.map formatVals |> List.map (\a -> List.map (formatVal) a |> String.join ", " |> mkTd)
+                    , result.values
+                        |> List.map formatVals
+                        |> List.map (\a -> List.map (formatVal) a |> String.join ", " |> mkTd)
                     , [ td [ class "text-right", style "min-width" "10em" ]
                         [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
                       ]

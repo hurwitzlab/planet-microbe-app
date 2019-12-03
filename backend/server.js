@@ -150,11 +150,16 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
         let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
         let caseStr = "CASE " + cases.join(" ") + " END";
         let result = await query({ text: `SELECT COALESCE(LOWER(${caseStr}),'none') AS val,COUNT(*)::int FROM sample GROUP BY val ORDER BY val`, rowMode: 'array' });
+
+        // Convert purl values to labels
+        let purlLabels = {};
         for (row of result.rows) { //TODO move into function
-            if (row[0].startsWith("http://")) {
-                let term2 = getTerm(row[0]);
-                if (term2 && term2.label)
-                    row[0] = term2.label;
+            let val = row[0];
+            if (val && val.startsWith("http://")) { // is this a purl?
+                let term2 = getTerm(val);
+                if (term2 && term2.label) {
+                    purlLabels[val] = term2.label;
+                }
             }
         }
 
@@ -166,7 +171,8 @@ app.get('/searchTerms/:id(*)', async (req, res) => {
             type: term.type,
             distribution: result.rows,
             aliases: aliases,
-            annotations: annotations
+            annotations: annotations,
+            purlLabels: purlLabels
         });
 // TODO
 //        })
@@ -1282,7 +1288,7 @@ async function search(db, params) {
         summaries = summaries.map(res => res.rows || []);
         for (summary of summaries) {
             for (row of summary) { //TODO move into function (dup'ed elsewhere)
-                if (row[0].startsWith("http://")) {
+                if (row[0].startsWith("http://")) { // is this a purl?
                     let term2 = getTerm(row[0]);
                     if (term2 && term2.label)
                         row[0] = term2.label;
@@ -1310,7 +1316,7 @@ async function search(db, params) {
                         return val.map(v => {
                             if (typeof v == "number" && isNaN(v))
                                 return "Below Detection Limit" // kludge to convert NaN to "Below Detection Limit"
-                            else if (typeof v == "string" && v.startsWith("http://")) { //TODO move into funtion (dup'ed elsewhere)
+                            else if (typeof v == "string" && v.startsWith("http://")) { // is this a purl? //TODO move into funtion (dup'ed elsewhere)
                                 let term = getTerm(v);
                                 if (!term)
                                     return v;

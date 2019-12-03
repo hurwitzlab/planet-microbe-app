@@ -58,6 +58,8 @@ type alias SearchTerm =
     -- Only for type "number"
     , min : Float
     , max : Float
+    -- Only for type "string"
+    , purlLabels : Dict String String
     }
 
 
@@ -124,6 +126,7 @@ searchTermDecoder =
         |> optional "distribution" (Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int))) []
         |> optional "min" Decode.float 0
         |> optional "max" Decode.float 0
+        |> optional "purlLabels" (Decode.dict Decode.string) Dict.empty
 
 
 aliasDecoder : Decoder Alias
