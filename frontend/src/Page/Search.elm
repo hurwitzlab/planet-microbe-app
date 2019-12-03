@@ -427,8 +427,6 @@ update msg model =
 
         SetStringFilterValue id val enable ->
             let
---                _ = Debug.log "SetStringFilterValue" (toString (id, val, enable))
-
                 newVal =
                     case Dict.get id model.selectedVals of
                         Nothing -> -- Error
@@ -905,15 +903,13 @@ formatLocationParam val = --TODO use encoder instead
 -- TODO refactor/simplify
 generateQueryParams : LocationFilterValue -> List String -> List String -> List String -> List PURL -> Dict PURL FilterValue -> Result String (List (String, String))
 generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params vals =
-    let
-        list values =
-            String.join "|" values
-    in
-    --FIXME refactor section below
     if locationVal == NoLocationValue && projectVals == [] && Dict.isEmpty vals then
         Ok []
-    else --else if vals |> Dict.toList |> List.map Tuple.second |> List.all validParam then
+    else
         let
+            pipeJoin values =
+                String.join "|" values
+
             userParams =
                 params -- maintain filter order
                     |> List.map (\id ->
@@ -965,19 +961,19 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
 
             projectParam =
                 if projectVals /= [] then
-                    [ ("project", list projectVals) ]
+                    [ ("project", pipeJoin projectVals) ]
                 else
                     []
 
             fileFormatParam =
                 if fileFormatVals /= [] then
-                    [ ("fileFormat", list fileFormatVals) ]
+                    [ ("fileFormat", pipeJoin fileFormatVals) ]
                 else
                     []
 
             fileTypeParam =
                 if fileTypeVals /= [] then
-                    [ ("fileType", list fileTypeVals) ]
+                    [ ("fileType", pipeJoin fileTypeVals) ]
                 else
                     []
         in
@@ -1835,14 +1831,6 @@ viewDateTimeFilterPanel model term val =
 viewDateTimeFilterInput : Model -> PURL -> FilterValue -> List (Html Msg)
 viewDateTimeFilterInput model id val =
     let
---        singleInput dt =
---            [ input [ type_ "text", class "form-control", placeholder "value", value dt, onInput (\p -> SetFilterValue id (DateTimeValue p)) ] [] ]
---
---        rangeInput dt1 dt2 =
---            [ input [ type_ "text", class "form-control", placeholder "start", value dt1, onInput (\p -> SetFilterValue id (DateTimeRangeValue p dt2)) ] []
---            , input [ type_ "text", class "form-control", placeholder "end", value dt2, onInput (\p -> SetFilterValue id (DateTimeRangeValue dt1 p)) ] []
---            ]
-
         startDatePicker =
             Dict.get id model.startDatePickers
 
@@ -1942,10 +1930,6 @@ viewDateTimeFilterFormatOptions id val =
                 [ label |> String.Extra.toSentenceCase |> text ]
 
         options =
---            [ a [ class "dropdown-item", href "#" ] [ text "Time YY-MM-DD HH:MM:SS" ]
---            , a [ class "dropdown-item", href "#" ] [ text "Day YY-MM-DD" ]
---            , a [ class "dropdown-item", href "#" ] [ text "Year YYYY" ]
---            ]
             [ ("Point (YYYY-MM-DD)", DateTimeValue "")
             , ("Range (YYYY-MM-DD to YYYY-MM-DD)", DateTimeRangeValue "" "")
             ]
@@ -2016,41 +2000,6 @@ viewPanel id title unit removable showChart nodes =
         [ div [ class "card-body" ]
             (header :: nodes)
         ]
-
-
---viewSearchSummary : Model -> Html Msg
---viewSearchSummary model =
---    let
---        format param =
---            case Dict.get param model.selectedVals |> Maybe.withDefault Nothing of
---                Nothing ->
---                    "<error>"
---
---                Just (StringValue s) ->
---                    param ++ " = " ++ s
---
---                Just (MultipleStringValues list) ->
---                    String.join "," list
---
---                Just (NumberValue (min, max)) ->
---                    param ++ " between [" ++ (String.fromInt min) ++ "," ++ (String.fromInt max) ++ "]"
---
---        searchStr =
---            model.selectedParams |> List.map format |> String.join " AND "
---
---        content =
---            if model.selectedParams == [] then
---                div []
---                    [ text "Begin by selecting filters on the left or try the "
---                    , a [ class "alert-link", href "#" ] [ text "Advanced Search" ]
---                    ]
---            else
---                text searchStr
---    in
---    div [ class "card" ]
---        [ div [ class "card-body" ]
---            [ content ]
---        ]
 
 
 viewResults : Model -> Html Msg
