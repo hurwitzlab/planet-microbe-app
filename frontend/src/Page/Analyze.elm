@@ -6,6 +6,7 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
 import Page
 import Route exposing (Route)
+import Error
 import Http
 import Task exposing (Task)
 import App exposing (App)
@@ -31,7 +32,7 @@ type Jobs
     = Unavailable
     | Loading
     | Loaded (List Job)
-    | LoadError
+    | LoadError Http.Error
 
 
 init : Session -> Maybe String -> ( Model, Cmd Msg )
@@ -98,7 +99,7 @@ update msg model =
 --            let
 --                _ = Debug.log "GetJobsCompleted" (toString error)
 --            in
-            ( { model | jobs = LoadError } , Cmd.none )
+            ( { model | jobs = LoadError error } , Cmd.none )
 
         SetTab label ->
             ( { model | tab = label }, Cmd.none )
@@ -132,6 +133,14 @@ view model =
                 Loaded jobs  ->
                     ( List.length jobs
                     , jobs |> filterJob model.query |> viewJobs
+                    )
+
+                LoadError error ->
+                    ( 0
+                    , div [ class "alert alert-danger m-4" ]
+                        [ p [] [ text "An error occurred:" ]
+                        , p [] [ error |> Error.toString |> text ]
+                        ]
                     )
 
                 _ ->

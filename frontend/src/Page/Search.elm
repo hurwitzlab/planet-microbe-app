@@ -21,6 +21,7 @@ import Set
 import GMap
 import Dict exposing (Dict)
 import Route
+import Error
 import Page exposing (viewBlank, viewSpinner, viewDialog)
 import Sample exposing (SearchTerm, PURL)
 import File exposing (FileFormat, FileType)
@@ -644,7 +645,7 @@ update msg model =
 --            let
 --                _ = Debug.log "SampleSearchCompleted" (toString error)
 --            in
-            ( { model | errorMsg = Just (errorToString error), isSearching = False }, Cmd.none )
+            ( { model | errorMsg = Just (Error.toString error), isSearching = False }, Cmd.none )
 
         FileSearchCompleted (Ok response) ->
             let
@@ -797,31 +798,6 @@ update msg model =
                 Cart.store newCart
                 ]
             )
-
-
-parseError : String -> Maybe String
-parseError =
-    Decode.decodeString (Decode.field "error" Decode.string) >> Result.toMaybe
-
-
-errorToString : Http.Error -> String
-errorToString err =
-    case err of
-        Http.Timeout ->
-            "Timeout exceeded"
-
-        Http.NetworkError ->
-            "Network error"
-
-        Http.BadStatus resp ->
-            parseError resp.body
-                |> Maybe.withDefault (String.fromInt resp.status.code ++ " " ++ resp.status.message)
-
-        Http.BadPayload text resp ->
-            "Unexpected response: " ++ text
-
-        Http.BadUrl url ->
-            "Malformed url: " ++ url
 
 
 defined : String -> Bool
