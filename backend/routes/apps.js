@@ -4,6 +4,7 @@ const express = require('express');
 const router  = express.Router();
 const config = require('../config.json');
 const db = require('../db.js')(config);
+const requireAuth = require('../util.js').requireAuth;
 
 router.get('/apps', async (req, res) => {
     let result = await db.query("SELECT app_id,name,provider,is_active,is_maintenance FROM app WHERE is_active=TRUE");
@@ -20,8 +21,10 @@ router.get('/apps/:id(\\d+)', async (req, res) => {
         text: "SELECT app_id,name,provider,is_active,is_maintenance FROM app WHERE app_id=$1",
         values: [id]
     });
-
-    res.json(result.rows[0]);
+    if (result.rowCount == 0)
+        res.status(404);
+    else
+        res.json(result.rows[0]);
 });
 
 router.get('/apps/:name([\\w\\.\\-\\_]+)', async (req, res) => {

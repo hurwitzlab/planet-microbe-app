@@ -830,7 +830,7 @@ function buildTermSQL(arrIndex, term, val) {
 }
 
 async function batchQuery(queryObjArray) {
-  const promises = queryObjArray.map(obj => query(obj));
+  const promises = queryObjArray.map(obj => db.query(obj));
   return await Promise.all(promises);
 }
 

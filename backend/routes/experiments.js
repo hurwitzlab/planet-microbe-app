@@ -2,10 +2,12 @@
 
 const express = require('express');
 const router  = express.Router();
+const config = require('../config.json');
+const db = require('../db.js')(config);
 
 router.get('/experiments/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
-    let result = await query({
+    let result = await db.query({
         text:
             `SELECT e.experiment_id,e.name,e.accn,l.name AS library_name,l.strategy AS library_strategy, l.source AS library_source, l.selection AS library_selection, l.protocol AS library_protocol, l.layout AS library_layout, l.length AS library_length,s.sample_id,s.accn AS sample_accn,p.project_id,p.name AS project_name
             FROM experiment e
@@ -22,7 +24,7 @@ router.get('/experiments/:id(\\d+)', async (req, res) => {
 
 router.get('/experiments/:id(\\d+)/runs', async (req, res) => {
     let id = req.params.id;
-    let result = await query({
+    let result = await db.query({
         text:
             `SELECT r.run_id,r.accn,r.total_spots,r.total_bases,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
             FROM run r

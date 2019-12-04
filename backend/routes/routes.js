@@ -29,11 +29,6 @@ module.exports = function(app) {
         res.status(404).send("Unknown route: " + req.path);
     });
 
-    function requireAuth(req) {
-        if (!req || !req.auth || !req.auth.validToken || !req.auth.user)
-            throw(ERR_UNAUTHORIZED);
-    }
-
     function errorHandler(error, req, res, next) {
         console.log("ERROR ".padEnd(80, "!"));
         console.log(error.stack);
@@ -55,7 +50,7 @@ module.exports = function(app) {
         };
 
         if (token) {
-    //        try {
+            try {
                 let response = await getAgaveProfile(token);
                 if (!response || response.status != "success") {
                     console.log('validateAgaveToken: !!!! Bad profile status: ' + response.status);
@@ -94,11 +89,13 @@ module.exports = function(app) {
                     if (user)
                         req.auth.user = user;
                 }
-    //        }
-    //        catch( error => {
-    //            console.log("validateAgaveToken: !!!!", error.message);
-    //        })
-    //        .finally(next);
+            }
+            catch(error) {
+                console.log("validateAgaveToken: !!!!", error.message);
+            }
+            finally {
+                next;
+            }
         }
 
         next();
@@ -114,25 +111,5 @@ module.exports = function(app) {
             },
             json: true
         });
-    }
-
-    async function agaveGetToken(provider, code) {
-        let url = config.oauthProviders[provider].tokenUrl;
-        let options = {
-            method: "POST",
-            uri: url,
-            form: {
-                grant_type: "authorization_code",
-                client_id: config.oauthProviders.agave.clientId,
-                client_secret: config.oauthProviders.agave.clientSecret,
-                redirect_uri: config.oauthProviders.agave.redirectUrl,
-                code: code
-            }
-        };
-
-        console.log(provider, ": sending authorization POST", url);
-        let response = await requestp(options);
-        console.log(response);
-        return(response);
     }
 }
