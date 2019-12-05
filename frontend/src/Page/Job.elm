@@ -664,12 +664,12 @@ viewOutputs model =
                                 div [ class "row" ]
                                     [ div [ style "width" "70%", style "min-height" "20em" ]
                                         [ FileBrowser.view fileBrowser |> Html.map FileBrowserMsg ]
-                                    , div [ class "ml-4", style "width" "25%" ]
-                                        [ br [] []
-                                        , case FileBrowser.getSelected fileBrowser of
+                                    , div [ class "ml-4 pt-2", style "width" "25%" ]
+                                        [ case FileBrowser.getSelected fileBrowser of
                                             [] ->
                                                 p []
-                                                    [ text "Here are the output files from the job."
+                                                    [ br [] []
+                                                    , text "Here are the output files from the job."
                                                     , br [] []
                                                     , br [] []
                                                     , text "Click to select a file or directory."
