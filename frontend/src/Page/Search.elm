@@ -1950,7 +1950,7 @@ viewDateTimeFilterFormatOptions id val =
                 [ label |> String.Extra.toSentenceCase |> text ]
 
         options =
-            [ ("Point (YYYY-MM-DD)", DateTimeValue "")
+            [ ("Exact (YYYY-MM-DD)", DateTimeValue "")
             , ("Range (YYYY-MM-DD to YYYY-MM-DD)", DateTimeRangeValue "" "")
             ]
     in
