@@ -12,7 +12,6 @@ import Task exposing (Task)
 import App exposing (App)
 import Agave exposing (Job)
 import PlanB
---import Debug exposing (toString)
 
 
 
@@ -88,7 +87,7 @@ update msg model =
 
         GetAppsCompleted (Err error) -> --TODO
 --            let
---                _ = Debug.log "GetAppsCompleted" (toString error)
+--                _ = Debug.log "GetAppsCompleted" (Error.toString error)
 --            in
             ( model, Cmd.none )
 
@@ -97,9 +96,9 @@ update msg model =
 
         GetJobsCompleted (Err error) -> --TODO
 --            let
---                _ = Debug.log "GetJobsCompleted" (toString error)
+--                _ = Debug.log "GetJobsCompleted" (Error.toString error)
 --            in
-            ( { model | jobs = LoadError error } , Cmd.none )
+            ( { model | jobs = LoadError error }, Cmd.none )
 
         SetTab label ->
             ( { model | tab = label }, Cmd.none )
@@ -135,17 +134,9 @@ view model =
                     , jobs |> filterJob model.query |> viewJobs
                     )
 
-                LoadError error ->
-                    ( 0
-                    , div [ class "alert alert-danger m-4" ]
-                        [ p [] [ text "An error occurred:" ]
-                        , p [] [ error |> Error.toString |> text ]
-                        ]
-                    )
-
                 _ ->
                     ( 0
-                    , div [ class "mt-2 ml-3" ]
+                    , div [ class "mt-2 ml-3 alert alert-secondary" ]
                         [ a [ Route.href Route.Login ] [ text "Sign-in" ]
                         , text " to see your jobs"
                         ]
