@@ -651,7 +651,7 @@ viewEvent event =
 
 viewOutputs : Model -> Html Msg
 viewOutputs model =
-    div []
+    div [ class "mx-3" ]
         [ case model.job of
             Just job ->
                 case job.status of
