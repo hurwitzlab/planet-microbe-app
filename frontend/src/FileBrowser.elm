@@ -15,8 +15,8 @@ import Time
 import Http
 import Route
 import Filesize
-import Page exposing (viewSpinner)
---import View.SearchableDropdown
+import Page exposing (viewSpinner, viewDialog)
+import SearchableDropdown
 import Session exposing (Session)
 import Agave exposing (FileResult, PermissionResult, Permission)
 import List.Extra
@@ -57,7 +57,7 @@ type alias InternalModel =
     , doUserSearch : Bool
     , searchStartTime : Int -- milliseconds
     , filePermissions : Maybe (List PermissionResult)
---    , shareDropdownState : View.SearchableDropdown.State
+    , shareDropdownState : SearchableDropdown.State
     , errorMessage : Maybe String
 --    , confirmationDialog : Maybe (Dialog.Config Msg)
     }
@@ -122,7 +122,7 @@ init session maybeConfig =
         , doUserSearch = False
         , searchStartTime = 0
         , filePermissions = Nothing
---        , shareDropdownState = View.SearchableDropdown.init
+        , shareDropdownState = SearchableDropdown.init
         , errorMessage = Nothing
 --        , confirmationDialog = Nothing
         }
@@ -180,6 +180,10 @@ update session msg (Model internalModel) =
 
 updateInternal : Session -> Msg -> InternalModel -> ( InternalModel, Cmd Msg )
 updateInternal session msg model =
+    let
+        token =
+            Session.token session
+    in
     case msg of
         SetFilter value ->
             let
@@ -223,7 +227,7 @@ updateInternal session msg model =
 
         LoadPath path ->
             ( { model | path = path, selectedPaths = Nothing, errorMessage = Nothing, isBusy = True }
-            , Task.attempt LoadPathCompleted (loadPath (Session.token session) path)
+            , Task.attempt LoadPathCompleted (loadPath token path)
             )
 
         LoadPathCompleted (Ok files) ->
@@ -285,11 +289,11 @@ updateInternal session msg model =
                 chunkSz =
                     Basics.min (length-1) (maxViewFileSz-1)
 
-                openPath token path_ =
-                    Agave.getFileRange token path_ (Just (0, chunkSz)) |> Http.toTask
+                openPath =
+                    Agave.getFileRange token path (Just (0, chunkSz)) |> Http.toTask
             in
             ( { model | showViewFileDialog = True, showViewFileBusy = True, filePath = Just path }
-            , Task.attempt OpenPathCompleted (openPath (Session.token session) path)
+            , Task.attempt OpenPathCompleted openPath
             )
 
         OpenPathCompleted (Ok data) ->
@@ -313,7 +317,7 @@ updateInternal session msg model =
         CreateNewFolder ->
             let
                 createFolder =
-                    Agave.mkdir (Session.token session) model.path model.newFolderName |> Http.toTask
+                    Agave.mkdir token model.path model.newFolderName |> Http.toTask
             in
             ( { model | showNewFolderBusy = True }
             , Task.attempt CreateNewFolderCompleted createFolder
@@ -332,7 +336,7 @@ updateInternal session msg model =
             else
                 let
                     delete =
-                        Agave.delete (Session.token session) path |> Http.toTask
+                        Agave.delete token path |> Http.toTask
                 in
 --                ( { model | isBusy = True, confirmationDialog = Nothing }, Task.attempt DeletePathCompleted delete )
                 ( { model | isBusy = True }, Task.attempt DeletePathCompleted delete )
@@ -346,7 +350,7 @@ updateInternal session msg model =
         OpenShareDialog path ->
             let
                 getPermission =
-                    Agave.getFilePermission (Session.token session) path |> Http.toTask |> Task.map .result
+                    Agave.getFilePermission token path |> Http.toTask |> Task.map .result
             in
             ( { model | showShareDialog = True, showShareBusy = True }, Task.attempt GetPermissionCompleted getPermission )
 
@@ -370,48 +374,46 @@ updateInternal session msg model =
             ( { model | filePermissions = Nothing }, Cmd.none )
 
         SetShareUserName name ->
---            let
---                dropdownState =
---                    model.shareDropdownState
---            in
---            if String.length name >= 3 then
---                ( { model | shareDropdownState = { dropdownState | value = name }, doUserSearch = True }
---                , Task.perform SetSearchStartTime Time.now
---                )
---            else
---                ( { model | shareDropdownState = { dropdownState | value = name, results = [] }, doUserSearch = False }
---                , Cmd.none
---                )
-            ( model, Cmd.none )
+            let
+                dropdownState =
+                    model.shareDropdownState
+            in
+            if String.length name >= 3 then
+                ( { model | shareDropdownState = { dropdownState | value = name }, doUserSearch = True }
+                , Task.perform SetSearchStartTime Time.now
+                )
+            else
+                ( { model | shareDropdownState = { dropdownState | value = name, results = [] }, doUserSearch = False }
+                , Cmd.none
+                )
 
         SetSearchStartTime time ->
             ( { model | searchStartTime = Time.posixToMillis time }, Cmd.none )
 
         SearchUsers time ->
---            if model.doUserSearch && Time.posixToMillis time - model.searchStartTime >= 500 then
---                let
---                    searchProfiles =
---                        Agave.searchProfiles session.token model.shareDropdownState.value |> Http.toTask |> Task.map .result
---                in
---                ( { model | doUserSearch = False }
---                , Task.attempt SearchUsersCompleted searchProfiles
---                )
---            else
+            if model.doUserSearch && Time.posixToMillis time - model.searchStartTime >= 500 then
+                let
+                    searchProfiles =
+                        Agave.searchProfiles token model.shareDropdownState.value |> Http.toTask |> Task.map .result
+                in
+                ( { model | doUserSearch = False }
+                , Task.attempt SearchUsersCompleted searchProfiles
+                )
+            else
                 ( model, Cmd.none )
 
         SearchUsersCompleted (Ok users) ->
---            let
---                userDisplayName user =
---                    user.first_name ++ " " ++ user.last_name ++ " (" ++ user.username ++ ")"
---
---                results =
---                    List.map (\u -> (u.username, userDisplayName u)) users
---
---                dropdownState =
---                    model.shareDropdownState
---            in
---            ( { model | shareDropdownState = { dropdownState | results = results } }, Cmd.none )
-            ( model, Cmd.none )
+            let
+                userDisplayName user =
+                    user.first_name ++ " " ++ user.last_name ++ " (" ++ user.username ++ ")"
+
+                results =
+                    List.map (\u -> (u.username, userDisplayName u)) users
+
+                dropdownState =
+                    model.shareDropdownState
+            in
+            ( { model | shareDropdownState = { dropdownState | results = results } }, Cmd.none )
 
         SearchUsersCompleted (Err error) -> -- TODO
 --            let
@@ -420,43 +422,43 @@ updateInternal session msg model =
             ( model, Cmd.none )
 
         ShareWithUser permission username _ ->
---            let
---                dropdownState =
---                    model.shareDropdownState
---
---                newModel =
---                    { model | showShareBusy = True, shareDropdownState = { dropdownState | value = "", results = [] } }
---
---                firstSelected =
---                    model.selectedPaths |> Maybe.withDefault [] |> List.head |> Maybe.withDefault ""
---            in
---            let
---                noChange =
---                    case model.filePermissions of
---                        Nothing ->
---                            False
---
---                        Just permissions ->
---                            List.any (\p -> p.username == username && (permissionDesc p.permission) == permission) permissions
---
---                agavePerm =
---                    case permission of
---                         "read/write" ->
---                             "READ_WRITE"
---
---                         "none" ->
---                              "NONE"
---
---                         _ ->
---                             "READ"
---
---                shareFile =
---                    Agave.setFilePermission session.token username agavePerm firstSelected |> Http.toTask
---            in
---            if noChange then
+            let
+                dropdownState =
+                    model.shareDropdownState
+
+                newModel =
+                    { model | showShareBusy = True, shareDropdownState = { dropdownState | value = "", results = [] } }
+
+                firstSelected =
+                    model.selectedPaths |> Maybe.withDefault [] |> List.head |> Maybe.withDefault ""
+            in
+            let
+                noChange =
+                    case model.filePermissions of
+                        Nothing ->
+                            False
+
+                        Just permissions ->
+                            List.any (\p -> p.username == username && (permissionDesc p.permission) == permission) permissions
+
+                agavePerm =
+                    case permission of
+                         "read/write" ->
+                             "READ_WRITE"
+
+                         "none" ->
+                              "NONE"
+
+                         _ ->
+                             "READ"
+
+                shareFile =
+                    Agave.setFilePermission token username agavePerm firstSelected |> Http.toTask
+            in
+            if noChange then
                 ( model, Cmd.none )
---            else
---                ( newModel, Task.attempt ShareWithUserCompleted shareFile )
+            else
+                ( newModel, Task.attempt ShareWithUserCompleted shareFile )
 
         ShareWithUserCompleted (Ok _) ->
             let
@@ -506,7 +508,7 @@ determinePreviousPath path =
 view : Model -> Html Msg
 view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy, errorMessage,
             showNewFolderDialog, showNewFolderBusy, showViewFileDialog, showViewFileBusy, filePath, fileContent,
-            fileErrorMessage, showShareDialog, showShareBusy, filePermissions,
+            fileErrorMessage, showShareDialog, showShareBusy, filePermissions, shareDropdownState,
             config
             }) =
     let
@@ -574,49 +576,26 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
           else
             div [ style "overflow-y" "auto", style "height" "100%" ] --("height","60vh")] ]
                 [ viewFileTable config contents selectedPaths ] --[ Table.view (tableConfig config selectedPaths) tableState contents ]
---        , Dialog.view
---            (if (confirmationDialog /= Nothing) then
---                confirmationDialog
---             else if showNewFolderDialog then
---                Just (newFolderDialogConfig showNewFolderBusy)
---             else if showViewFileDialog && filePath /= Nothing then
---                Just (viewFileDialogConfig (filePath |> Maybe.withDefault "") (fileContent |> Maybe.withDefault "") showViewFileBusy fileErrorMessage)
---             else if showShareDialog then
---                Just (shareDialogConfig firstSelected (filePermissions |> Maybe.withDefault []) currentUserName shareDropdownState showShareBusy fileErrorMessage)
---             else
---                Nothing
---            )
+        --, Dialog.view
+        --    (if (confirmationDialog /= Nothing) then
+        --        confirmationDialog
+        --     else if showNewFolderDialog then
+        --        Just (newFolderDialogConfig showNewFolderBusy)
+        --     else if showViewFileDialog && filePath /= Nothing then
+        --        Just (viewFileDialogConfig (filePath |> Maybe.withDefault "") (fileContent |> Maybe.withDefault "") showViewFileBusy fileErrorMessage)
+        --     else if showShareDialog then
+        --        Just (shareDialogConfig firstSelected (filePermissions |> Maybe.withDefault []) currentUserName shareDropdownState showShareBusy fileErrorMessage)
+        --     else
+        --        Nothing
+        --    )
+        , if showViewFileDialog then
+            viewFileDialog (filePath |> Maybe.withDefault "") (fileContent |> Maybe.withDefault "") showViewFileBusy fileErrorMessage
+          else if showShareDialog then
+            viewShareDialog firstSelected (filePermissions |> Maybe.withDefault []) currentUserName shareDropdownState showShareBusy fileErrorMessage
+          else
+            text ""
         , input [ type_ "file", id "fileToUpload", name "fileToUpload", style "display" "none" ] [] -- hidden input for file upload plugin, "fileToUpload" name is required by Agave
         ]
-
-
---toTableAttrs : List (Attribute Msg)
---toTableAttrs =
---    [ attribute "class" "table table-hover"
---    ]
---
---
---toRowAttrs : Config -> Maybe (List String) -> FileResult -> List (Attribute Msg)
---toRowAttrs config selectedPaths data =
---    onClick (SelectPath data.path)
---    :: (case selectedPaths of
---            Nothing ->
---                []
---
---            Just paths ->
---                if (List.member data.path paths && (data.type_ == "file" || config.allowDirSelection)) then
---                    [ attribute "class" "active" ]
---                else
---                    []
---       )
---    |> List.append
---        (if data.type_ == "dir" then
---            [ onDoubleClick (LoadPath data.path) ]
---        else if data.type_ == "file" && config.allowFileViewing then
---            [ onDoubleClick (OpenPath data.path data.length) ]
---        else
---            []
---        )
 
 
 viewFileTable : Config -> List FileResult -> Maybe (List String) -> Html Msg
@@ -633,7 +612,15 @@ viewFileTable config files selectedPaths =
 
                 action f =
                     if f.name /= ".. (previous)" then --FIXME kludge
-                        [ onClick (SelectPath file.path) ]
+                        (onClick (SelectPath file.path) ::
+                            (if f.type_ == "dir" then
+                                [ onDoubleClick (LoadPath f.path) ]
+                              else if f.type_ == "file" && config.allowFileViewing then
+                                [ onDoubleClick (OpenPath f.path f.length) ]
+                              else
+                                []
+                            )
+                        )
                     else
                         []
             in
@@ -736,99 +723,89 @@ viewFileTable config files selectedPaths =
 --    , body = Just content
 --    , footer = Just footer
 --    }
---
---
---viewFileDialogConfig : String -> String -> Bool -> Maybe String -> Dialog.Config Msg
---viewFileDialogConfig path data isBusy errorMsg =
---    let
---        content =
---            if errorMsg /= Nothing then
---                div [ class "alert alert-danger" ] [ Maybe.withDefault "" errorMsg |> text ]
---            else if isBusy then
---                spinner
---            else
---                div [ style [("max-height","60vh"), ("overflow-y", "auto")] ]
---                    [ text path
---                    , pre [] [ text data ]
---                    ]
---
---        header =
---            h3 [] [ text "View File" ]
---
---        footer =
---            div []
---                [ if errorMsg == Nothing && not isBusy then
---                    em [ class "float-left" ] [ "Showing first " ++ (toString maxViewFileSz) ++ " bytes only" |> text ]
---                  else
---                    text ""
---                , button [ class "btn btn-primary", onClick CloseViewFileDialog ] [ text "Close" ]
---                ]
---    in
---    { closeMessage = Nothing
---    , containerClass = Nothing
---    , header = Just header
---    , body = Just content
---    , footer = Just footer
---    }
---
---
---shareDialogConfig : String -> List PermissionResult -> String -> View.SearchableDropdown.State -> Bool -> Maybe String -> Dialog.Config Msg
---shareDialogConfig path permissions currentUserName dropdownState isBusy errorMsg =
---    let
---        content =
---            if errorMsg /= Nothing then
---                div [ class "alert alert-danger" ] [ Maybe.withDefault "" errorMsg |> text ]
---            else if isBusy then
---                spinner
---            else
---                div []
---                    [ text "Who has access"
---                    , div [ class "scrollable", style [ ("max-height","30vh") ] ]
---                        [ viewPermissions currentUserName permissions ]
---                    , addPanel
---                    ]
---
---        addPanel =
---            div []
---                [ br [] []
---                , hr [] []
---                , br [] []
---                , div [ class "form-group" ]
---                    [ div [] [ text "Add a person:" ]
---                    , div []
---                        [ View.SearchableDropdown.view shareDropdownConfig dropdownState ]
---                    ]
---                , br [] []
---                ]
---    in
---    { closeMessage = Just CloseShareDialog
---    , containerClass = Nothing
---    , header = Just (h3 [] [ text "Share Item" ])
---    , body = Just content
---    , footer = Nothing
---    }
---
---
---shareDropdownConfig : View.SearchableDropdown.Config Msg Msg
---shareDropdownConfig =
---    { placeholder = "Enter the name of the person to add "
---    , autofocus = False
---    , inputMsg = SetShareUserName
---    , selectMsg = ShareWithUser "read-only"
---    }
+
+
+viewFileDialog : String -> String -> Bool -> Maybe String -> Html Msg
+viewFileDialog path data isBusy errorMsg =
+    let
+        body =
+            if errorMsg /= Nothing then
+                div [ class "alert alert-danger" ] [ Maybe.withDefault "" errorMsg |> text ]
+            else if isBusy then
+                viewSpinner
+            else
+                div [ style "max-height" "60vh" ]
+                    [ span [ class "text-monospace" ] [ text path ]
+                    , pre [ class "border p-2", style "overflow" "auto", style "background-color" "#E7E7E7", style "min-height" "50vh" ] [ text data ]
+                    ]
+
+        footer =
+            div [ class "row text-right", style "width" "100%" ]
+                [ em []
+                    [ if errorMsg == Nothing && not isBusy then
+                        text <| "Showing first " ++ (String.fromInt maxViewFileSz) ++ " bytes only"
+                      else
+                        text ""
+                    ]
+                , div [ class "col" ]
+                    [ button [ class "btn btn-primary", onClick CloseViewFileDialog ] [ text "Close" ] ]
+                ]
+    in
+    viewDialog "View File"
+        [ body ]
+        [ footer ]
+        CloseViewFileDialog
+
+
+viewShareDialog : String -> List PermissionResult -> String -> SearchableDropdown.State -> Bool -> Maybe String -> Html Msg
+viewShareDialog path permissions currentUserName dropdownState isBusy errorMsg =
+    let
+        body =
+            if errorMsg /= Nothing then
+                div [ class "alert alert-danger" ] [ Maybe.withDefault "" errorMsg |> text ]
+            else if isBusy then
+                viewSpinner
+            else
+                div []
+                    [ text "Who has access"
+                    , div [ class "border-top pb-5", style "overflow-y" "auto", style "max-height" "30vh" ]
+                        [ viewPermissions currentUserName permissions
+                        ]
+                    , addUserPanel
+                    ]
+
+        addUserPanel =
+            div [ class "form-group mt-5" ]
+                [ div [] [ text "Add a person:" ]
+                , div []
+                    [ SearchableDropdown.view shareDropdownConfig dropdownState ]
+                ]
+    in
+    viewDialog "Share Item"
+        [ body ]
+        []
+        CloseShareDialog
+
+
+shareDropdownConfig : SearchableDropdown.Config Msg Msg
+shareDropdownConfig =
+    { placeholder = "Enter the name of the person to add "
+    , autofocus = False
+    , inputMsg = SetShareUserName
+    , selectMsg = ShareWithUser "read-only"
+    }
 
 
 viewPermissions : String -> List PermissionResult -> Html Msg
 viewPermissions currentUserName permissions =
-    let
-        isEditable =
-            permissions
-                |> List.any (\pr -> pr.username == currentUserName && pr.permission.write)
-    in
     if permissions == [] then
         div [] [ text "Only you can see this item." ]
     else
         let
+            isEditable =
+                permissions
+                    |> List.any (\pr -> pr.username == currentUserName && pr.permission.write)
+
             sortByNameAndPerm a b =
                 if a.username == currentUserName then
                     LT
@@ -837,19 +814,17 @@ viewPermissions currentUserName permissions =
                 else
                     compare a.username b.username
         in
-        table [ class "table" ]
-            [ tbody []
-                (permissions
-                    |> List.sortWith sortByNameAndPerm
-                    |> List.map (\pr -> viewPermission (pr.username == currentUserName) isEditable pr.username pr.permission)
-                )
-            ]
+        div [ class "container mt-1" ]
+            (permissions
+                |> List.sortWith sortByNameAndPerm
+                |> List.map (\pr -> viewPermission (pr.username == currentUserName) isEditable pr.username pr.permission)
+            )
 
 
 viewPermission : Bool -> Bool -> String -> Permission -> Html Msg
 viewPermission isMe isEditable username permission =
-    tr []
-        [ td []
+    div [ class "row py-2 border-bottom" ]
+        [ div [ class "col" ]
             [ Icon.user
             , text " "
             , text username
@@ -857,26 +832,28 @@ viewPermission isMe isEditable username permission =
                 text " (you)"
               else
                 text ""
-            , if isEditable && not isMe then
+            ]
+        , div [ class "col-3 text-right" ]
+            [ if isEditable && not isMe then
                 viewPermissionDropdown username permission
               else
-                span [ class "float-right" ] [ permissionDesc permission |> text ]
+                text <| permissionDesc permission
             ]
         ]
 
 
 viewPermissionDropdown : String -> Permission -> Html Msg
 viewPermissionDropdown username permission =
-    div [ class "float-right dropdown" ]
-        [ button [ class "btn btn-default btn-xs dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ]
+    div [ class "dropdown" ]
+        [ button [ class "btn btn-sm btn-outline-secondary dropdown-toggle", style "min-width" "7em", type_ "button", attribute "data-toggle" "dropdown" ]
             [ permissionDesc permission |> text
             , text " "
             , span [ class "caret" ] []
             ]
-        , ul [ class "dropdown-menu nowrap" ]
-            [ li [] [ a [ onClick (ShareWithUser "read-only" username "") ] [ text "Read-only: can view but not modify" ] ]
-            , li [] [ a [ onClick (ShareWithUser "read/write" username "") ] [ text "Read-write: can view, edit, and delete" ] ]
-            , li [] [ a [ onClick (ShareWithUser "none" username "") ] [ text "Remove access" ] ]
+        , div [ class "dropdown-menu text-nowrap" ]
+            [ a [ class "dropdown-item", href "", onClick (ShareWithUser "read-only" username "") ] [ text "Read-only: can view but not modify" ]
+            , a [ class "dropdown-item", href "", onClick (ShareWithUser "read/write" username "") ] [ text "Read-write: can view, edit, and delete" ]
+            , a [ class "dropdown-item", href "", onClick (ShareWithUser "none" username "") ] [ text "Remove access" ]
             ]
         ]
 

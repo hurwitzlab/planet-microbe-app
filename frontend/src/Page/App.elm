@@ -32,8 +32,7 @@ import Error
 
 type alias Model =
     { session : Session
-    , app : Maybe App
-    , agaveApp : Maybe Agave.App
+    , apps : Apps
     , inputs : Dict String String
     , parameters : Dict String String
     , settings : Dict String String
@@ -49,6 +48,13 @@ type alias Model =
     , inputId : Maybe String
     , fileBrowser : FileBrowser.Model
     }
+
+
+
+type Apps
+    = Loading
+    | Loaded (App, Agave.App)
+    | LoadError Http.Error
 
 
 init : Session -> String -> ( Model, Cmd Msg )
@@ -89,8 +95,7 @@ init session term =
             }
     in
     ( { session = session
-      , app = Nothing
-      , agaveApp = Nothing
+      , apps = Loading
       , inputs = Dict.empty
       , parameters = Dict.empty
       , settings = Dict.empty
@@ -199,8 +204,7 @@ update msg model =
                             String.fromFloat num
             in
             ( { model
-                | app = Just app
-                , agaveApp = Just agaveApp
+                | apps = Loaded (app, agaveApp)
                 , inputs = defaultInputs agaveApp.inputs
                 , parameters = defaultParams agaveApp.parameters
                 , settings = defaultSettings
@@ -209,10 +213,7 @@ update msg model =
             )
 
         GetAppCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetAppCompleted" (toString error)
---            in
-            ( model, Error.redirectLoadError error (Session.navKey model.session) )
+            ( { model | apps = LoadError error }, Error.redirectLoadError error (Session.navKey model.session) )
 
         SetInput source id value ->
             let
@@ -272,8 +273,8 @@ update msg model =
             ( { model | settings = newSettings }, Cmd.none )
 
         RunJob -> --TODO messy, clean this up
-            case (model.app, model.agaveApp) of
-                (Just app, Just agaveApp) ->
+            case model.apps of
+                Loaded (app, agaveApp) ->
                     let
                         irodsToAgave path = -- convert IRODS paths to Agave paths
                             if String.contains "/iplant/home" path then
@@ -343,28 +344,31 @@ update msg model =
                         ]
                     )
 
-                (_, _) ->
+                _ ->
                     ( model, Cmd.none )
 
         RunJobCompleted (Ok response) ->
-            let
-                shareJob =
-                    if (model.app |> Maybe.map .provider |> Maybe.withDefault "") == "plan-b" then
-                        PlanB.shareJob
-                    else
-                        Agave.shareJob
-            in
-            ( model
-            , Cmd.batch
-                [ Route.replaceUrl (Session.navKey model.session) (Route.Job response.result.id)
-                , shareJob token response.result.id "planetmicrobe" "READ" |> Http.send ShareJobCompleted
-                ]
-            )
+            case model.apps of
+                Loaded (app, _) ->
+                    let
+                        shareJob =
+                            if isPlanB app then
+                                PlanB.shareJob
+                            else
+                                Agave.shareJob
+                    in
+                    ( model
+                    , Cmd.batch
+                        [ Route.replaceUrl (Session.navKey model.session) (Route.Job response.result.id)
+                        , shareJob token response.result.id "planetmicrobe" "READ" |> Http.send ShareJobCompleted
+                        ]
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
 
         RunJobCompleted (Err error) ->
             let
---                _ = Debug.log "error" (toString error)
-
                 errorMsg =
                     case error of
                         Http.BadStatus response ->
@@ -544,43 +548,47 @@ type InputSource
 
 view : Model -> Html Msg
 view model =
-    case (model.app, model.agaveApp) of
-        (Just app, Just agaveApp) ->
-            let
-                body =
-                    if not app.is_active then
-                        div [ class "alert alert-info" ]
-                            [ text "This app is no longer available." ]
-                    else if app.is_maintenance then
-                        div [ class "alert alert-info" ]
-                            [ text "This app is currently unavailable due to maintenance." ]
-                    else
-                        div []
-                            [ viewApp app agaveApp model.inputs model.parameters model.settings
-                            , div [ class "text-center mt-3 mb-5" ]
-                                [ hr [] []
-                                , button [ class "btn btn-primary btn-lg mt-5 w-25", onClick RunJob ] [ text "Run" ]
+    div [ class "container" ]
+        (case model.apps of
+            Loaded (app, agaveApp) ->
+                let
+                    body =
+                        if not app.is_active then
+                            div [ class "alert alert-info" ]
+                                [ text "This app is no longer available." ]
+                        else if app.is_maintenance then
+                            div [ class "alert alert-info" ]
+                                [ text "This app is currently unavailable due to maintenance." ]
+                        else
+                            div []
+                                [ viewApp app agaveApp model.inputs model.parameters model.settings
+                                , div [ class "text-center mt-3 mb-5" ]
+                                    [ hr [] []
+                                    , button [ class "btn btn-primary btn-lg mt-5 w-25", onClick RunJob ] [ text "Run" ]
+                                    ]
                                 ]
-                            ]
 
-                dialog =
-                    if model.inputId /= Nothing then
-                        viewFileBrowserDialog model.fileBrowser (model.inputId |> Maybe.withDefault "") False
-                    else if model.showRunDialog then
-                        viewRunDialog model
-                    else if model.cartDialogInputId /= Nothing then
-                        viewCartDialog model
-                    else
-                        text ""
-            in
-            div [ class "container" ]
+                    dialog =
+                        if model.inputId /= Nothing then
+                            viewFileBrowserDialog model.fileBrowser (model.inputId |> Maybe.withDefault "") False
+                        else if model.showRunDialog then
+                            viewRunDialog model
+                        else if model.cartDialogInputId /= Nothing then
+                            viewCartDialog model
+                        else
+                            text ""
+                in
                 [ Page.viewTitle "App" app.name
                 , body
                 , dialog
                 ]
 
-        (_, _) ->
-            viewSpinnerCentered
+            LoadError error ->
+                [ Error.view error False ]
+
+            Loading ->
+                [ viewSpinnerCentered ]
+        )
 
 
 viewApp : App -> Agave.App -> Dict String String -> Dict String String -> Dict String String -> Html Msg

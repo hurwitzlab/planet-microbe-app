@@ -20,79 +20,94 @@ import Svg.Attributes exposing (class)
 
 signIn : Html msg
 signIn =
-    i [ class "fas fa-sign-in-alt" ] []
+    i [ class "fas fa-fw fa-sign-in-alt" ] []
 
 
 user : Html msg
 user =
-    i [ class "fas fa-user" ] []
+    i [ class "fas fa-fw fa-user" ] []
 
 
 shoppingCart : Html msg
 shoppingCart =
-    i [ class "fas fa-shopping-cart" ] []
+    i [ class "fas fa-fw fa-shopping-cart" ] []
 
 
 shoppingCartLg : Html msg
 shoppingCartLg =
-    i [ class "fas fa-shopping-cart fa-lg" ] []
+    i [ class "fas fa-fw fa-shopping-cart fa-lg" ] []
 
 
 exclamationTriangle : Html msg
 exclamationTriangle =
-    i [ class "fas fa-exclamation-triangle" ] []
+    i [ class "fas fa-fw fa-exclamation-triangle" ] []
 
 
 table : Html msg
 table =
-    i [ class "fa fa-table" ] []
+    i [ class "fa fa-fw fa-table" ] []
 
 
 search : Html msg
 search =
-    i [ class "fa fa-search" ] []
+    i [ class "fa fa-fw fa-search" ] []
 
 
 barChart : Html msg
 barChart =
-    i [ class "fa fa-chart-bar" ] []
+    i [ class "fa fa-fw fa-chart-bar" ] []
 
 
 questionCircle : Html msg
 questionCircle =
-    i [ class "fa fa-question-circle fa-lg" ] []
+    i [ class "fa fa-fw fa-question-circle fa-lg" ] []
 
 
 cog : Html msg
 cog =
-    i [ class "fas fa-cog" ] []
+    i [ class "fas fa-fw fa-cog" ] []
 
 
 cloud : Html msg
 cloud =
-    i [ class "fas fa-cloud" ] []
+    i [ class "fas fa-fw fa-cloud" ] []
+
+
+cloudDownload : Html msg
+cloudDownload =
+    i [ class "fas fa-fw fa-cloud-download-alt" ] []
 
 
 externalLink : Html msg
 externalLink =
-    i [ class "fas fa-external-link-alt fa-xs" ] []
+    i [ class "fas fa-fw fa-external-link-alt fa-xs" ] []
+
+
+externalLinkSquare : Html msg
+externalLinkSquare =
+    i [ class "fas fa-fw fa-external-link-square-alt" ] []
 
 
 file : Html msg
 file =
-    i [ class "fas fa-file" ] []
+    i [ class "fas fa-fw fa-file" ] []
 
 
 ban : Html msg
 ban =
-    i [ class "fas fa-ban" ] []
+    i [ class "fas fa-fw fa-ban" ] []
 
 
 plus : Html msg
 plus =
-    i [ class "far fa-plus-square" ] []
+    i [ class "far fa-fw fa-plus-square" ] []
 
 
 minus : Html msg
 minus =
-    i [ class "far fa-minus-square" ] []
+    i [ class "far fa-fw fa-minus-square" ] []
+
+
+trash : Html msg
+trash =
+    i [ class "fas fa-fw fa-trash" ] []

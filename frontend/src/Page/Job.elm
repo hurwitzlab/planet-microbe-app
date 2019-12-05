@@ -1,12 +1,14 @@
 module Page.Job exposing (Model, Msg(..), init, toSession, subscriptions, update, view)
 
 import Session exposing (Session)
-import Agave exposing (Job)
+import Agave exposing (Job, FileResult)
 import PlanB
 import App exposing (App)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
+import FormatNumber exposing (format)
+import FormatNumber.Locales exposing (usLocale)
 import Http
 import Route
 import Page exposing (viewJobStatus)
@@ -16,6 +18,7 @@ import Time
 import FileBrowser
 import Icon
 import Error
+import Config exposing (apiBaseUrl)
 --import Debug exposing (toString)
 
 
@@ -105,9 +108,10 @@ toSession model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.batch
-        [ Time.every (10*1000) PollJob -- milliseconds
+        [ Time.every 500 (\time -> FileBrowserMsg (FileBrowser.SearchUsers time)) -- milliseconds
+        , Time.every (10*1000) PollJob -- milliseconds
         ]
 
 
@@ -647,32 +651,118 @@ viewEvent event =
 
 viewOutputs : Model -> Html Msg
 viewOutputs model =
-    let
-        body =
-            case model.job of
-                Just job ->
-                    case job.status of
-                        "FINISHED" ->
-                            case model.fileBrowser of
-                                Nothing ->
-                                    div [ class "mt-2" ]
-                                        [ button [ class "btn btn-outline-secondary", onClick ShowOutputs ] [ text "Show Outputs" ] ]
+    div []
+        [ case model.job of
+            Just job ->
+                case job.status of
+                    "FINISHED" ->
+                        case model.fileBrowser of
+                            Nothing ->
+                                button [ class "btn btn-outline-secondary mt-2", onClick ShowOutputs ] [ text "Show Outputs" ]
 
-                                Just fileBrowser ->
-                                    div [ style "height" "60vh", style "overflow-y" "auto" ]
+                            Just fileBrowser ->
+                                div [ class "row" ]
+                                    [ div [ style "width" "70%", style "min-height" "20em" ]
                                         [ FileBrowser.view fileBrowser |> Html.map FileBrowserMsg ]
+                                    , div [ class "ml-4", style "width" "25%" ]
+                                        [ br [] []
+                                        , case FileBrowser.getSelected fileBrowser of
+                                            [] ->
+                                                p []
+                                                    [ text "Here are the output files from the job."
+                                                    , br [] []
+                                                    , br [] []
+                                                    , text "Click to select a file or directory."
+                                                    , br [] []
+                                                    , text "Double-click to open a file or directory."
+                                                    ]
 
-                        "FAILED" ->
-                            text "None"
+                                            file :: _ ->
+                                                if file.name == ".. (previous)" then -- FIXME
+                                                    text ""
+                                                else
+                                                    viewFileInfo (Session.token model.session) file
+                                        ]
+                                    ]
 
-                        _ ->
-                            text "Job is not FINISHED, please wait ..."
+                    "FAILED" ->
+                        text "None"
 
-                Nothing ->
-                    text ""
+                    _ ->
+                        text "Job is not FINISHED, please wait ..."
+
+            Nothing ->
+                text ""
+        ]
+
+
+--TODO move into FileBrowser.elm
+viewFileInfo : String -> FileResult -> Html Msg
+viewFileInfo token file =
+    let
+        myLocale =
+            { usLocale | decimals = 0 }
+
+        deleteText =
+            "Are you sure you want to remove the " ++
+                (if file.type_ == "dir" then
+                    "directory"
+                 else
+                    file.type_
+                ) ++
+                " '" ++ file.name ++ "'?"
+
+        deleteMsg =
+            FileBrowserMsg (FileBrowser.OpenConfirmationDialog deleteText (FileBrowser.DeletePath file.path))
+
+        deUrl =
+            "https://de.cyverse.org/de/?type=data&folder=/iplant/home" ++ --TODO move base url to config file
+                (if file.type_ == "dir" then
+                     file.path
+                else
+                    dropFileName file.path
+                )
+
+        dropFileName s =
+            String.split "/" s |> List.reverse |> List.drop 1 |> List.reverse |> String.join "/" -- pretty inefficient
     in
     div []
-        [ body ]
+        [ table [ class "table table-borderless table-sm" ]
+            [ tbody []
+                [ tr []
+                    [ th [] [ text "Name " ]
+                    , td [] [ text file.name ]
+                    ]
+                , tr []
+                    [ th [] [ text "Type " ]
+                    , td [] [ text file.type_ ]
+                    ]
+                , tr []
+                    [ th [] [ text "Size " ]
+                    , td [] [ text ((file.length |> toFloat |> format myLocale) ++ " bytes") ]
+                    ]
+                , tr []
+                    [ th [] [ text "Last modified " ]
+                    , td [] [ text file.lastModified ]
+                    ]
+--                , tr []
+--                    [ td [] [ button [ class "btn btn-link btn-xs" ]
+--                        [ span [ class "glyphicon glyphicon-plus" ] [], text " Add to Sample" ] ]
+--                    ]
+                ]
+            ]
+        , if file.type_ == "file" then
+            a [ class "mt-2", href (apiBaseUrl ++ "/download" ++ file.path ++ "?token=" ++ token) ]
+                [ Icon.cloudDownload, text " Download" ]
+          else
+            text ""
+        , a [ class "mt-2 d-block", href "", onClick (FileBrowserMsg (FileBrowser.OpenShareDialog file.path)) ]
+            [ Icon.user, text " Share" ]
+        , a [ class "mt-2 d-block", href deUrl, target "_blank" ]
+            [ Icon.externalLinkSquare, text " View in CyVerse DE" ]
+        --, a [ class "mt-2 d-block", href "", onClick deleteMsg ]
+        --    [ Icon.trash, text " Delete" ]
+        ]
 
 
 viewResults : Model -> Html Msg

@@ -6,6 +6,7 @@
         "username": "",
         "password": ""
     },
+    "agaveBaseUrl": "https://agave.iplantc.org",
     "oauthProviders": {
         "agave": {
             "tokenUrl": "https://agave.iplantc.org/token",
