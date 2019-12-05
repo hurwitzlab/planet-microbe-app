@@ -651,7 +651,7 @@ viewEvent event =
 
 viewOutputs : Model -> Html Msg
 viewOutputs model =
-    div [ class "mx-3" ]
+    div []
         [ case model.job of
             Just job ->
                 case job.status of
@@ -661,7 +661,7 @@ viewOutputs model =
                                 button [ class "btn btn-outline-secondary mt-2", onClick ShowOutputs ] [ text "Show Outputs" ]
 
                             Just fileBrowser ->
-                                div [ class "row" ]
+                                div [ class "row", style "margin-left" "0.1em" ]
                                     [ div [ style "width" "70%", style "min-height" "20em" ]
                                         [ FileBrowser.view fileBrowser |> Html.map FileBrowserMsg ]
                                     , div [ class "ml-4 pt-2", style "width" "25%" ]
