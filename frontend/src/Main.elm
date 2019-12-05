@@ -19,7 +19,6 @@ import OAuth.AuthorizationCode
 import Agave
 import Html exposing (..)
 import Page exposing (Page, view)
-import Page.NotFound as NotFound
 import Page.Blank as Blank
 import Page.Home as Home
 import Page.Browse as Browse
@@ -86,7 +85,6 @@ subscriptions model =
 
 type Model -- FIXME inherited this from elm-spa-example but I don't like it because of redundancy in toSession/changeRouteTo/view functions
     = Redirect Session
-    | NotFound Session
     | Home Session
     | Browse Browse.Model
     | Search Search.Model
@@ -244,9 +242,6 @@ toSession page =
         Redirect session ->
             session
 
-        NotFound session ->
-            session
-
         Home session ->
             session
 
@@ -298,7 +293,7 @@ changeRouteTo maybeRoute model =
     in
     case maybeRoute of
         Nothing ->
-            ( NotFound session, Cmd.none )
+            ( Home session, Cmd.none )
 
         Just route ->
             let
@@ -603,9 +598,6 @@ view model =
     case model of
         Redirect _ ->
             Page.view session Page.Other Blank.view
-
-        NotFound _ ->
-            Page.view session Page.Other NotFound.view
 
         Home _ ->
             Page.view session Page.Home Home.view

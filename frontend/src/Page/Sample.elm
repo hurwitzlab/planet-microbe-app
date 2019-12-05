@@ -5,8 +5,9 @@ import Browser.Dom exposing (Error(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onMouseEnter, onMouseLeave)
-import Page
+import Page exposing (viewSpinner)
 import Route
+import Error
 import Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation)
 import SamplingEvent exposing (SamplingEvent)
 import Experiment exposing (Experiment)
@@ -29,7 +30,7 @@ import Icon
 
 type alias Model =
     { session : Session
-    , sample : Maybe Sample
+    , sample : SampleStatus
     , samplingEvents : Maybe (List SamplingEvent)
     , experiments : Maybe (List Experiment)
     , metadata : Maybe Metadata
@@ -45,10 +46,16 @@ type alias ToolTip a = --TODO move tooltip code into own module
     }
 
 
+type SampleStatus
+    = Loading
+    | Loaded Sample
+    | LoadError Http.Error
+
+
 init : Session -> Int -> ( Model, Cmd Msg )
 init session id =
     ( { session = session
-      , sample = Nothing
+      , sample = Loading
       , samplingEvents = Nothing
       , experiments = Nothing
       , metadata = Nothing
@@ -101,13 +108,13 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GetSampleCompleted (Ok sample) ->
-            ( { model | sample = Just sample }, Cmd.none )
+            ( { model | sample = Loaded sample }, Cmd.none )
 
         GetSampleCompleted (Err error) -> --TODO
 --            let
 --                _ = Debug.log "GetSampleCompleted" (toString error)
 --            in
-            ( model, Cmd.none )
+            ( { model | sample = LoadError error }, Cmd.none )
 
         GetSamplingEventsCompleted (Ok samplingEvents) ->
             ( { model | samplingEvents = Just samplingEvents }, Cmd.none )
@@ -141,7 +148,7 @@ update msg model =
 
         TimerTick time ->
             case (model.mapLoaded, model.sample) of
-                (False, Just sample) ->
+                (False, Loaded sample) ->
                     let
                         map =
                             sample.locations |> Encode.list LatLng.encode
@@ -232,10 +239,7 @@ update msg model =
 view : Model -> Html Msg
 view model =
     case model.sample of
-        Nothing ->
-            text ""
-
-        Just sample ->
+        Loaded sample ->
             let
                 numExperiments =
                     model.experiments |> Maybe.map List.length |> Maybe.withDefault 0
@@ -272,6 +276,12 @@ view model =
                     Nothing ->
                         text ""
                 ]
+
+        Loading ->
+            viewSpinner
+
+        LoadError error ->
+            Error.view error False
 
 
 viewSample : Sample -> List SamplingEvent -> Html Msg

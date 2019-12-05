@@ -56,6 +56,10 @@ view error isLoggedIn =
                         , loginMessage
                         ]
 
+                    404 ->
+                        [ p [] [ text "Resource not found." ]
+                        ]
+
                     _ ->
                         [ p [] [ text "An error occurred:" ]
                         , p [] [ text <| toString error ]

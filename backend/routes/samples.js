@@ -28,6 +28,11 @@ router.post('/samples', async (req, res) => {
         );
     }
 
+    if (result.rowCount == 0) {
+        res.status(404).send();
+        return;
+    }
+
     res.json(result.rows);
 });
 
@@ -43,6 +48,11 @@ router.get('/samples/:id(\\d+)', async (req, res) => {
             WHERE s.sample_id=$1`,
         values: [id]
     });
+
+    if (result.rowCount == 0) {
+        res.status(404).send();
+        return;
+    }
 
     res.json(result.rows[0]);
 });
@@ -151,6 +161,10 @@ router.get('/samples/:id(\\d+)/metadata', async (req, res) => {
             WHERE s.sample_id=$1`,
         values: [id]
     });
+    if (result.rowCount == 0) {
+        res.status(404).send();
+        return;
+    }
 
     let row = result.rows[0];
     let terms = [];
