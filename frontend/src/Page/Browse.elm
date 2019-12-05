@@ -141,7 +141,7 @@ viewProjects maybeProjects descriptionStates =
 
         mkRow project =
             tr []
-                [ td [ style "white-space" "nowrap" ]
+                [ td [ class "text-nowrap" ]
                     [ a [ Route.href (Route.Project project.id) ] [ text project.name ] ]
                 , td [] [ Page.viewToggleText project.description (Dict.get project.id descriptionStates |> Maybe.withDefault False) (ToggleProjectDescription project.id) ]
                 , td [] [ text (String.Extra.toSentenceCase project.type_) ]
@@ -175,9 +175,9 @@ viewSamples maybeSamples =
     let
         mkRow sample =
             tr []
-                [ td [ style "white-space" "nowrap" ]
+                [ td [ class "text-nowrap" ]
                     [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
-                , td [ style "white-space" "nowrap" ]
+                , td [ class "text-nowrap" ]
                     [ a [ Route.href (Route.Project sample.projectId) ] [ text sample.projectName ] ]
                 ]
     in

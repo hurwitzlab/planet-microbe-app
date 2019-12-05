@@ -192,7 +192,7 @@ viewSamplingEvents maybeSamplingEvents =
     let
         mkRow samplingEvent =
             tr []
-                [ td [ style "white-space" "nowrap" ]
+                [ td [ class "text-nowrap" ]
                     [ a [ Route.href (Route.SamplingEvent samplingEvent.id) ] [ text samplingEvent.name ] ]
                 , td [] [ text (String.Extra.toSentenceCase samplingEvent.type_) ]
                 ]
@@ -219,7 +219,7 @@ viewSamples maybeSamples =
     let
         mkRow sample =
             tr []
-                [ td [ style "white-space" "nowrap" ]
+                [ td [ class "text-nowrap" ]
                     [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
                 ]
     in

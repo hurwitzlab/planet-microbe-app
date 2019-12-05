@@ -355,7 +355,7 @@ viewExperiments maybeExperiments =
     let
         mkRow exp =
             tr []
-                [ td [ style "white-space" "nowrap" ]
+                [ td [ class "text-nowrap" ]
                     [ a [ Route.href (Route.Experiment exp.id) ] [ text exp.accn ] ]
                 , td [] [ text (String.Extra.toSentenceCase exp.name) ]
                 ]

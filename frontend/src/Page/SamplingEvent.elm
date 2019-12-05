@@ -208,7 +208,7 @@ viewSamples maybeSamples =
     let
         mkRow sample =
             tr []
-                [ td [ style "white-space" "nowrap" ]
+                [ td [ class "text-nowrap" ]
                     [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
                 ]
     in

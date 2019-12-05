@@ -221,7 +221,7 @@ viewCampaigns maybeCampaigns =
     let
         mkRow campaign =
             tr []
-                [ td [ style "white-space" "nowrap" ]
+                [ td [ class "text-nowrap" ]
                     [ a [ Route.href (Route.Campaign campaign.id) ] [ text campaign.name ] ]
                 , td [] [ text (String.Extra.toSentenceCase campaign.type_) ]
                 ]
@@ -248,7 +248,7 @@ viewSamplingEvents maybeSamplingEvents =
     let
         mkRow samplingEvent =
             tr []
-                [ td [ style "white-space" "nowrap" ]
+                [ td [ class "text-nowrap" ]
                     [ a [ Route.href (Route.SamplingEvent samplingEvent.id) ] [ text samplingEvent.name ] ]
                 , td [] [ text (String.Extra.toSentenceCase samplingEvent.type_) ]
                 ]
@@ -275,7 +275,7 @@ viewSamples maybeSamples =
     let
         mkRow sample =
             tr []
-                [ td [ style "white-space" "nowrap" ]
+                [ td [ class "text-nowrap" ]
                     [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
                 ]
     in
