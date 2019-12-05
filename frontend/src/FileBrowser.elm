@@ -734,9 +734,9 @@ viewFileDialog path data isBusy errorMsg =
             else if isBusy then
                 viewSpinner
             else
-                div [ style "max-height" "60vh" ]
+                div []
                     [ span [ class "text-monospace" ] [ text path ]
-                    , pre [ class "border p-2", style "overflow" "auto", style "background-color" "#E7E7E7", style "min-height" "50vh" ] [ text data ]
+                    , pre [ class "border p-2", style "overflow" "auto", style "background-color" "#E7E7E7", style "min-height" "50vh", style "max-height" "50vh" ] [ text data ]
                     ]
 
         footer =
