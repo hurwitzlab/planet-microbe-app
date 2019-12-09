@@ -6,10 +6,20 @@ const config = require('./config.json');
 const db = require('./db.js')(config);
 
 class TermIndex {
-    constructor() {}
+    constructor(props) {
+        this.searchableTerms = props.searchableTerms;
+    }
 
     async build(db, ontologies) {
         this.index = await generateTermIndex(db, ontologies);
+    }
+
+    getTerms() {
+        return this.index;
+    }
+
+    getSearchableTerms() {
+        return this.searchableTerms.map(purl => this.index[purl])
     }
 
     getTerm(nameOrId) {
@@ -57,7 +67,7 @@ async function generateTermIndex(db, ontologyDescriptors) {
 
             let purl = field.rdfType;
             let unitPurl = field['pm:unitRdfType'];
-            if (!purl || ('pm:searchable' in field && !field['pm:searchable']))
+            if (!purl) // || ('pm:searchable' in field && !field['pm:searchable']))
                 continue; // skip this field if no PURL or not searchable
 
             if (!(purl in index)) {
@@ -147,7 +157,7 @@ function loadOntology(type, path, index) {
         }
     }
     else if (path.endsWith(".csv")) {
-        var data = fs.readFileSync(path, { encoding: "UTF8" });
+        let data = fs.readFileSync(path, { encoding: "UTF8" });
         data.split('\n').forEach(line => {
             let fields = line.split(',');
             let purl = fields[0];
@@ -165,9 +175,20 @@ function loadOntology(type, path, index) {
     return index;
 }
 
+function loadSearchableTerms(path) { // TSV file
+    let data = fs.readFileSync(path, { encoding: "UTF8" });
+    let terms =
+        data
+        .split('\n')
+        .filter(line => !line.startsWith('#'))
+        .map(line => line.split('\t')[0]);
+    return terms;
+}
+
 // Initialize
 (async function() {
-    let termIndex = new TermIndex();
+    let searchableTerms = loadSearchableTerms(config.searchableTerms);
+    let termIndex = new TermIndex({ searchableTerms: searchableTerms });
     await termIndex.build(db, config.ontologies);
 
     const app = express();
