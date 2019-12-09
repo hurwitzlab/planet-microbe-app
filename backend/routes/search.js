@@ -32,7 +32,7 @@ router.get('/searchTerms', (req, res) => {
     else {
         res.json(
             Object.values(termIndex.getSearchableTerms())
-            .filter(term => term.id && term.schemas) // Ignore terms that aren't referenced in datapackages
+            .filter(term => term && term.id && term.schemas) // Ignore terms that aren't referenced in datapackages
             .map(term => {
                 let aliases = [].concat.apply([], Object.values(term.schemas))
                     .map(schema => {
