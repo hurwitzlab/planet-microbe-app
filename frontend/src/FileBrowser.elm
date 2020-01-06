@@ -631,7 +631,7 @@ viewFileTable config files selectedPaths =
                     else
                         text file.name
                     ]
-                , td []
+                , td [ class "text-nowrap" ]
                     [ if file.length > 0 then
                         text (Filesize.format file.length)
                       else
