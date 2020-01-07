@@ -15,6 +15,7 @@ import Dict exposing (Dict)
 --import Debug exposing (toString)
 import Project exposing (Project)
 import Sample exposing (Sample)
+import Icon
 
 
 
@@ -126,6 +127,10 @@ view model =
                     text ""
                   else
                     text (String.fromInt numSamples)
+                ]
+            , a [ class "btn btn-primary mt-2 float-right", href "https://www.planetmicrobe.org/download/", target "_blank" ]
+                [ Icon.externalLink
+                , text " Download"
                 ]
             ]
         , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh"]
