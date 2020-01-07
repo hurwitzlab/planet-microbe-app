@@ -408,7 +408,15 @@ viewMetadata maybeMetadata  =
 
                 mkRdf term =
                     if term.id /= "" then
-                        a [ id term.id, href term.id, target "_blank", onMouseEnter (ShowTooltip term.id), onMouseLeave HideTooltip ]
+                        let
+                            purl =
+                                -- PMO draft purls do not link to a human readable page, redirect them to the owl file GitHub (per Kai)
+                                if String.startsWith "http://purl.obolibrary.org/obo/PMO" term.id then
+                                    "https://raw.githubusercontent.com/hurwitzlab/planet-microbe-ontology/master/src/ontology/pmo-edit.owl"
+                                else
+                                    term.id
+                        in
+                        a [ id term.id, href purl, target "_blank", onMouseEnter (ShowTooltip term.id), onMouseLeave HideTooltip ]
                             [ text term.label ]
                     else
                         text ""
