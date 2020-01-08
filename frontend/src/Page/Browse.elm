@@ -116,6 +116,10 @@ view model =
                   else
                     text (String.fromInt numProjects)
                 ]
+            , a [ class "btn btn-primary mt-2 float-right", href "https://www.planetmicrobe.org/download/", target "_blank" ]
+                [ Icon.externalLink
+                , text " Download"
+                ]
             ]
         , div [ class "pt-2" ]
             [ viewProjects model.projects model.projectDescriptionStates
@@ -127,10 +131,6 @@ view model =
                     text ""
                   else
                     text (String.fromInt numSamples)
-                ]
-            , a [ class "btn btn-primary mt-2 float-right", href "https://www.planetmicrobe.org/download/", target "_blank" ]
-                [ Icon.externalLink
-                , text " Download"
                 ]
             ]
         , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh"]
