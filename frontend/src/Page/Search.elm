@@ -109,6 +109,7 @@ type alias Model =
     , showAddFilterDialog : Bool
     , stringFilterDialogTerm : Maybe SearchTerm
     , chartFilterDialogTerm : Maybe SearchTerm
+    , showProjectSummaryDialog : Bool
     , paramSearchInputVal : String
     , dialogSearchInputVal : String
     , showParamSearchDropdown : Bool
@@ -161,6 +162,7 @@ init session =
         , showAddFilterDialog = False
         , stringFilterDialogTerm = Nothing
         , chartFilterDialogTerm = Nothing
+        , showProjectSummaryDialog = False
         , paramSearchInputVal = ""
         , dialogSearchInputVal = ""
         , showParamSearchDropdown = False
@@ -227,6 +229,8 @@ type Msg
     | RemoveFilter PURL
     | OpenFilterChartDialog PURL
     | CloseFilterChartDialog
+    | OpenProjectChartDialog
+    | CloseProjectChartDialog
     | SetParamSearchInput String
     | ShowParamSearchDropdown
     | OpenAddFilterDialog
@@ -388,6 +392,12 @@ update msg model =
 
         CloseFilterChartDialog ->
             ( { model | chartFilterDialogTerm = Nothing }, Cmd.none )
+
+        OpenProjectChartDialog ->
+            ( { model | showProjectSummaryDialog = True }, Cmd.none )
+
+        CloseProjectChartDialog ->
+            ( { model | showProjectSummaryDialog = False }, Cmd.none )
 
         SetParamSearchInput val ->
             ( { model | paramSearchInputVal = val }, Cmd.none )
@@ -1265,6 +1275,10 @@ view model =
 
             Just term ->
                 viewSearchTermSummaryDialog term
+        , if model.showProjectSummaryDialog then
+            viewProjectSummaryDialog model.projectCounts
+          else
+            viewBlank
         ]
 
 
@@ -1420,7 +1434,7 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
         show =
             searchVal /= "" || showDropdown
     in
-    viewPanel "" "Add Filter" "" False False
+    viewPanel "" "Add Filter" "" Nothing Nothing
         [ div [ class "input-group input-group-sm", style "position" "relative" ]
             [ input [ type_ "text", class "form-control", placeholder "Search parameters", value searchVal, onInput SetParamSearchInput ] []
             , div [ class "input-group-append" ]
@@ -1578,7 +1592,7 @@ viewProjectPanel counts selectedVals =
         numMore =
             0 --numOptions - maxNumPanelOptions
     in
-    viewPanel "" "Project" "" False True
+    viewPanel "" "Project" "" Nothing (Just (\_ -> OpenProjectChartDialog))
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
@@ -1613,7 +1627,7 @@ viewFileFormatPanel counts selectedVals =
         numMore =
             numOptions - maxNumPanelOptions
     in
-    viewPanel "" "Format" "" False False
+    viewPanel "" "Format" "" Nothing Nothing
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
@@ -1648,7 +1662,7 @@ viewFileTypePanel counts selectedVals =
         numMore =
             numOptions - maxNumPanelOptions
     in
-    viewPanel "" "Type" "" False False
+    viewPanel "" "Type" "" Nothing Nothing
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
@@ -1984,11 +1998,11 @@ viewLocationFilterInput val =
 
 viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
 viewTermPanel term nodes =
-    viewPanel term.id term.label term.unitLabel True True nodes
+    viewPanel term.id term.label term.unitLabel (Just RemoveFilter) (Just OpenFilterChartDialog) nodes
 
 
-viewPanel : PURL -> String -> String -> Bool -> Bool -> List (Html Msg) -> Html Msg
-viewPanel id title unit removable showChart nodes =
+viewPanel : PURL -> String -> String -> Maybe (PURL -> Msg) -> Maybe (PURL -> Msg) -> List (Html Msg) -> Html Msg
+viewPanel id title unit maybeRemoveMsg maybeOpenChart nodes =
     let
         header =
             h6 [ style "color" "darkblue"]
@@ -2004,16 +2018,20 @@ viewPanel id title unit removable showChart nodes =
                     small [ style "margin-left" "5px" ] [ text ("[" ++ unit ++ "]") ]
                   else
                     viewBlank
-                , if removable then
-                    span [ class "float-right ml-2", style "cursor" "pointer", onClick (RemoveFilter id) ]
-                        [ text (String.fromChar (Char.fromCode 10005)) ]
-                  else
-                    viewBlank
-                , if showChart then
-                    span [ class "float-right", style "cursor" "pointer", onClick (OpenFilterChartDialog id) ]
-                        [ Icon.barChart ]
-                  else
-                    viewBlank
+                , case maybeRemoveMsg of
+                    Just removeMsg ->
+                        span [ class "float-right ml-2", style "cursor" "pointer", onClick (removeMsg id) ]
+                            [ text (String.fromChar (Char.fromCode 10005)) ]
+
+                    Nothing ->
+                        viewBlank
+                , case maybeOpenChart of
+                    Just openMsg ->
+                        span [ class "float-right", style "cursor" "pointer", onClick (openMsg id) ]
+                            [ Icon.barChart ]
+
+                    Nothing ->
+                        viewBlank
                 ]
     in
     div [ class "card", style "font-size" "0.85em" ]
@@ -2202,6 +2220,18 @@ viewSearchTermSummaryDialog term =
             [ text "Close" ]
         ]
         CloseFilterChartDialog
+
+
+viewProjectSummaryDialog : List ProjectCount -> Html Msg
+viewProjectSummaryDialog counts =
+    viewDialog "Project"
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
+            [ viewSearchTermSummaryChart "Project" (counts |> List.map (\c -> (c.name, c.sampleCount))) ]
+        ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseProjectChartDialog ]
+            [ text "Close" ]
+        ]
+        CloseProjectChartDialog
 
 
 viewSampleResults : Model -> Html Msg
