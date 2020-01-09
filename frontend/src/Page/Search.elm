@@ -54,12 +54,12 @@ purlDepth =
     "http://purl.obolibrary.org/obo/ENVO_3100031"
 
 
-purlDepthMin =
-    "http://purl.obolibrary.org/obo/PMO_00000172"
+--purlDepthMin =
+--    "http://purl.obolibrary.org/obo/PMO_00000172"
 
 
-purlDepthMax =
-    "http://purl.obolibrary.org/obo/PMO_00000052"
+--purlDepthMax =
+--    "http://purl.obolibrary.org/obo/PMO_00000052"
 
 
 -- Need to resolve time zone issue with fields that reference this PURL
@@ -945,9 +945,9 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
                                 fmtVal =
                                     formatParam val
                             in
-                            [ ( "|" ++ purlDepth, fmtVal )
-                            , ( "|" ++ purlDepthMin, fmtVal )
-                            , ( "|" ++ purlDepthMax, fmtVal )
+                            [ ( purlDepth, fmtVal )
+                            --, ( "|" ++ purlDepthMin, fmtVal )
+                            --, ( "|" ++ purlDepthMax, fmtVal )
                             ]
                         else
                             []
@@ -2267,7 +2267,7 @@ viewSampleResults model =
                   else
                     []
                 , if depthVal /= NoValue && validParam depthVal then
-                    [ "Depth", "Min Depth", "Max Depth" ]
+                    [ "Depth" ] --, "Min Depth", "Max Depth" ]
                   else
                     []
                 , if datetimeVal /= NoValue && validParam datetimeVal then
