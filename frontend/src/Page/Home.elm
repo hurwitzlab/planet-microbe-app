@@ -185,7 +185,7 @@ view =
         , footer []
             [ div [ class "container" ]
                 [ div [ class "float-left text-muted small" ]
-                    [ text "Copyright © 2019 Hurwitz Lab | All Rights Reserved" ]
+                    [ text "Copyright © 2020 Hurwitz Lab | All Rights Reserved" ]
                 , div [ class "float-right" ]
                     [ a [ href "https://www.nsf.gov/", attribute "style" "padding-right:2em;", target "_blank" ]
                         [ img [ attribute "height" "60", src "assets/images/nsf-logo.jpg" ] [] ]
