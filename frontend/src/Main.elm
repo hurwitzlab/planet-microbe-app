@@ -21,6 +21,7 @@ import Html exposing (..)
 import Page exposing (Page, view)
 import Page.Blank as Blank
 import Page.Home as Home
+import Page.Maintenance as Maintenance
 import Page.Browse as Browse
 import Page.Search as Search
 import Page.Analyze as Analyze
@@ -595,48 +596,51 @@ view model =
         session =
             toSession model
     in
-    case model of
-        Redirect _ ->
-            Page.view session Page.Other Blank.view
+    if Config.maintenanceMode then
+        Page.view session Page.Maintenance Maintenance.view
+    else
+        case model of
+            Redirect _ ->
+                Page.view session Page.Other Blank.view
 
-        Home _ ->
-            Page.view session Page.Home Home.view
+            Home _ ->
+                Page.view session Page.Home Home.view
 
-        Browse subModel ->
-            Page.view session Page.Browse (Browse.view subModel |> Html.map BrowseMsg)
+            Browse subModel ->
+                Page.view session Page.Browse (Browse.view subModel |> Html.map BrowseMsg)
 
-        Search subModel ->
-            Page.view session Page.Search (Search.view subModel |> Html.map SearchMsg)
+            Search subModel ->
+                Page.view session Page.Search (Search.view subModel |> Html.map SearchMsg)
 
-        Analyze subModel ->
-            Page.view session Page.Analyze (Analyze.view subModel |> Html.map AnalyzeMsg)
+            Analyze subModel ->
+                Page.view session Page.Analyze (Analyze.view subModel |> Html.map AnalyzeMsg)
 
-        App subModel ->
-            Page.view session Page.App (App.view subModel |> Html.map AppMsg)
+            App subModel ->
+                Page.view session Page.App (App.view subModel |> Html.map AppMsg)
 
-        Job subModel ->
-            Page.view session Page.Job (Job.view subModel |> Html.map JobMsg)
+            Job subModel ->
+                Page.view session Page.Job (Job.view subModel |> Html.map JobMsg)
 
-        Project subModel ->
-            Page.view session Page.Project (Project.view subModel |> Html.map ProjectMsg)
+            Project subModel ->
+                Page.view session Page.Project (Project.view subModel |> Html.map ProjectMsg)
 
-        Sample subModel ->
-            Page.view session Page.Sample (Sample.view subModel |> Html.map SampleMsg)
+            Sample subModel ->
+                Page.view session Page.Sample (Sample.view subModel |> Html.map SampleMsg)
 
-        Campaign subModel ->
-            Page.view session Page.Campaign (Campaign.view subModel |> Html.map CampaignMsg)
+            Campaign subModel ->
+                Page.view session Page.Campaign (Campaign.view subModel |> Html.map CampaignMsg)
 
-        SamplingEvent subModel ->
-            Page.view session Page.SamplingEvent (SamplingEvent.view subModel |> Html.map SamplingEventMsg)
+            SamplingEvent subModel ->
+                Page.view session Page.SamplingEvent (SamplingEvent.view subModel |> Html.map SamplingEventMsg)
 
-        Experiment subModel ->
-            Page.view session Page.Experiment (Experiment.view subModel |> Html.map ExperimentMsg)
+            Experiment subModel ->
+                Page.view session Page.Experiment (Experiment.view subModel |> Html.map ExperimentMsg)
 
-        Contact subModel ->
-            Page.view session Page.Contact (Contact.view subModel |> Html.map ContactMsg)
+            Contact subModel ->
+                Page.view session Page.Contact (Contact.view subModel |> Html.map ContactMsg)
 
-        Account subModel ->
-            Page.view session Page.Account (Account.view subModel |> Html.map AccountMsg)
+            Account subModel ->
+                Page.view session Page.Account (Account.view subModel |> Html.map AccountMsg)
 
-        Cart subModel ->
-            Page.view session Page.Cart (Cart.view subModel |> Html.map CartMsg)
+            Cart subModel ->
+                Page.view session Page.Cart (Cart.view subModel |> Html.map CartMsg)

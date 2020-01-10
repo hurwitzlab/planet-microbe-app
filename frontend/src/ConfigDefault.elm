@@ -19,6 +19,11 @@ alertBannerText =
     Nothing
 
 
+maintenanceMode : Bool
+maintenanceMode =
+    False
+
+
 googleAnalyticsTrackingId : String
 googleAnalyticsTrackingId =
     ""

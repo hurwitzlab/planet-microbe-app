@@ -21,6 +21,7 @@ under Other.
 type Page
     = Other
     | Home
+    | Maintenance
     | Browse
     | Search
     | Analyze
