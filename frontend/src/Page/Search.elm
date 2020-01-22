@@ -83,8 +83,18 @@ purlBiome =
     "http://purl.obolibrary.org/obo/ENVO_00000428"
 
 
+purlEnvironmentalFeature =
+    "http://purl.obolibrary.org/obo/ENVO_00002297"
+
+
+purlEnvironmentalMaterial =
+    "http://purl.obolibrary.org/obo/ENVO_00010483"
+
+
 initialParams =
     [ purlBiome
+    , purlEnvironmentalFeature
+    , purlEnvironmentalMaterial
     ]
 
 
