@@ -5,7 +5,7 @@ const Promise = require('promise');
 const express = require('express');
 const router  = express.Router();
 const config = require('../config.json');
-const db = require('../db.js')(config);
+const db = require('../postgres.js')(config);
 
 router.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog of terms
     let termIndex = req.app.get('termIndex');

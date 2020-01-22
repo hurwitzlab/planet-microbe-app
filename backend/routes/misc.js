@@ -7,7 +7,7 @@ const sendmail = require('sendmail')();
 const express = require('express');
 const router = express.Router();
 const config = require('../config.json');
-const db = require('../db.js')(config);
+const db = require('../postgres.js')(config);
 const requireAuth = require('../util.js').requireAuth;
 
 router.post('/contact', (req, res) => {

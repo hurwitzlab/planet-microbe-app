@@ -3,7 +3,7 @@
 const express = require('express');
 const router  = express.Router();
 const config = require('../config.json');
-const db = require('../db.js')(config);
+const db = require('../postgres.js')(config);
 const requireAuth = require('../util.js').requireAuth;
 
 router.get('/apps', async (req, res) => {

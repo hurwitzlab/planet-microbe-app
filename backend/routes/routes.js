@@ -5,7 +5,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const requestp = require('request-promise');
 const config = require('../config.json');
-const db = require('../db.js')(config);
+const db = require('../postgres.js')(config);
 
 module.exports = function(app) {
     app.use(logger('dev'));
@@ -20,6 +20,7 @@ module.exports = function(app) {
     app.use(require('./projects.js'));
     app.use(require('./samples.js'));
     app.use(require('./samplingEvents.js'));
+    app.use(require('./ontologies.js'));
     app.use(require('./search.js'));
 
     app.use(errorHandler);

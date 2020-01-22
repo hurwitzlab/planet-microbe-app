@@ -3,7 +3,7 @@
 const fs = require('fs');
 const express = require('express');
 const config = require('./config.json');
-const db = require('./db.js')(config);
+const db = require('./postgres.js')(config);
 
 class TermIndex {
     constructor(props) {

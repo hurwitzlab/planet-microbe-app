@@ -3,7 +3,7 @@
 const express = require('express');
 const router  = express.Router();
 const config = require('../config.json');
-const db = require('../db.js')(config);
+const db = require('../postgres.js')(config);
 
 router.post('/samples', async (req, res) => {
     let result;
