@@ -1,4 +1,4 @@
-PURL	LABEL
+#PURL	LABEL
 http://purl.obolibrary.org/obo/ENVO_3100030	acidity of water
 http://purl.obolibrary.org/obo/PMO_00000023	aquatic sample maximum filter fractionation size threshold
 http://purl.obolibrary.org/obo/PMO_00000022	aquatic sample minimum filter fractionation size threshold
@@ -33,8 +33,6 @@ http://purl.obolibrary.org/obo/ENVO_00002297	environmental feature
 http://purl.obolibrary.org/obo/ENVO_00010483	environmental material
 http://purl.obolibrary.org/obo/ENVO_3100032	fluorescence of water
 http://purl.obolibrary.org/obo/PMO_00000014	liquid water salinity
-http://purl.obolibrary.org/obo/PMO_00000077	longitude coordinate measurement datum start
-http://purl.obolibrary.org/obo/PMO_00000078	longitude coordinate measurement datum stop
 http://purl.obolibrary.org/obo/PMO_00000114	mesoplankton and macroplankton aggregate
 http://purl.obolibrary.org/obo/PMO_00000101	nanoplankton and microplankton aggregate
 http://purl.obolibrary.org/obo/PMO_00000150	particulate carbon
@@ -47,8 +45,6 @@ http://purl.obolibrary.org/obo/PMO_00000020	potential temperature
 http://purl.obolibrary.org/obo/ENVO_3100033	pressure of water
 http://purl.obolibrary.org/obo/PMO_00000108	primary productivity carbon
 http://purl.obolibrary.org/obo/PMO_00000116	prokaryote derived carbon
-http://purl.obolibrary.org/obo/OBI_0001619	specimen collection time measurement datum
-http://purl.obolibrary.org/obo/PMO_00000009	specimen collection time measurement datum stop
 http://purl.obolibrary.org/obo/OBI_0001901	specimen identifier assigned by sequencing facility
 http://purl.obolibrary.org/obo/OBI_0001900	specimen identifier assigned by specimen repository
 http://purl.obolibrary.org/obo/ENVO_09200014	temperature of water
