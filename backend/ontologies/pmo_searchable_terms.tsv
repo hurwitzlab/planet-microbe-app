@@ -1,4 +1,4 @@
-#Purl	Label
+PURL	LABEL
 http://purl.obolibrary.org/obo/ENVO_3100030	acidity of water
 http://purl.obolibrary.org/obo/PMO_00000023	aquatic sample maximum filter fractionation size threshold
 http://purl.obolibrary.org/obo/PMO_00000022	aquatic sample minimum filter fractionation size threshold
@@ -44,6 +44,7 @@ http://purl.obolibrary.org/obo/PMO_00000112	particulate organic nitrogen
 http://purl.obolibrary.org/obo/PMO_00000153	particulate phosphorus
 http://purl.obolibrary.org/obo/PMO_00000021	potential density
 http://purl.obolibrary.org/obo/PMO_00000020	potential temperature
+http://purl.obolibrary.org/obo/ENVO_3100033	pressure of water
 http://purl.obolibrary.org/obo/PMO_00000108	primary productivity carbon
 http://purl.obolibrary.org/obo/PMO_00000116	prokaryote derived carbon
 http://purl.obolibrary.org/obo/OBI_0001619	specimen collection time measurement datum
