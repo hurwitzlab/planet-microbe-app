@@ -5,7 +5,7 @@ module BarChart exposing (Config, defaultConfig, view)
 
 import Axis
 import Scale exposing (BandConfig, BandScale, ContinuousScale, defaultBandConfig)
-import TypedSvg exposing (g, rect, style, svg, text_, tspan)
+import TypedSvg exposing (g, rect, style, svg, text_)
 import TypedSvg.Attributes exposing (class, textAnchor, transform, viewBox)
 import TypedSvg.Attributes.InPx exposing (height, width, x, y)
 import TypedSvg.Core exposing (Svg, text)
@@ -19,6 +19,7 @@ type alias Config a =
     , formatter : (a -> String)
     , title : Maybe String
     , maxLabelLen : Int
+    , maxDataSz : Int
     }
 
 
@@ -30,6 +31,7 @@ defaultConfig =
     , formatter = (\s -> s)
     , title = Nothing
     , maxLabelLen = 25
+    , maxDataSz = 40
     }
 
 
@@ -124,10 +126,26 @@ view config model =
 
             Nothing ->
                 g [] []
-        , g [ transform [ Translate (padding - 1) (chartHeight - padding) ], class [ "xaxis" ] ]
-            [ xAxis chartWidth padding config.maxLabelLen model config.formatter ]
-        , g [ transform [ Translate padding padding ] ]
-            [ yAxis chartHeight padding range ]
-        , g [ transform [ Translate padding padding ], class [ "series" ] ] <|
-            List.map (column chartWidth chartHeight padding range config.formatter (xScale chartWidth padding model)) model
+        , if List.length model > config.maxDataSz then
+            g []
+                [ g [ transform [ Translate (padding - 1) (chartHeight - padding) ], class [ "xaxis" ] ]
+                    [ xAxis chartWidth padding config.maxLabelLen [] (\s -> "") ]
+                , g [ transform [ Translate padding padding ] ]
+                    [ yAxis chartHeight padding range ]
+                , text_
+                    [ x <| chartWidth / 2
+                    , y <| chartHeight / 2
+                    , textAnchor AnchorMiddle
+                    ]
+                    [ text "Too many data points to show" ]
+                ]
+          else
+            g []
+                [ g [ transform [ Translate (padding - 1) (chartHeight - padding) ], class [ "xaxis" ] ]
+                    [ xAxis chartWidth padding config.maxLabelLen model config.formatter ]
+                , g [ transform [ Translate padding padding ] ]
+                    [ yAxis chartHeight padding range ]
+                , g [ transform [ Translate padding padding ], class [ "series" ] ] <|
+                    List.map (column chartWidth chartHeight padding range config.formatter (xScale chartWidth padding model)) model
+                ]
         ]
