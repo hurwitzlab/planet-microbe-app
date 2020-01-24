@@ -4,7 +4,7 @@ import Session exposing (Session)
 import Browser.Dom exposing (Error(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onMouseEnter, onMouseLeave)
+import Html.Events exposing (onMouseEnter, onMouseLeave, onClick)
 import Page exposing (viewSpinner)
 import Route
 import Error
@@ -36,6 +36,7 @@ type alias Model =
     , metadata : Maybe Metadata
     , mapLoaded : Bool
     , tooltip : Maybe (ToolTip (List Annotation))
+    , showUnannotatedMetadata : Bool
     }
 
 
@@ -61,6 +62,7 @@ init session id =
       , metadata = Nothing
       , mapLoaded = False
       , tooltip = Nothing
+      , showUnannotatedMetadata = False
       }
       , Cmd.batch
         [ GMap.removeMap "" -- workaround for blank map on navigating back to this page
@@ -101,6 +103,7 @@ type Msg
     | ShowTooltip PURL
     | HideTooltip
     | GotElement PURL (Result Browser.Dom.Error Browser.Dom.Element)
+    | ToggleUnannotatedMetadata
     | CartMsg Cart.Msg
 
 
@@ -219,6 +222,9 @@ update msg model =
 --            in
             ( { model | tooltip = Nothing }, Cmd.none )
 
+        ToggleUnannotatedMetadata ->
+            ( { model | showUnannotatedMetadata = not model.showUnannotatedMetadata }, Cmd.none )
+
         CartMsg subMsg ->
             let
                 newCart =
@@ -268,7 +274,7 @@ view model =
                     [ viewExperiments model.experiments ]
                 , div [ class "pt-3 pb-2" ]
                     [ Page.viewTitle2 "Metadata" False ]
-                , viewMetadata model.metadata
+                , viewMetadata model.metadata model.showUnannotatedMetadata
                 , case model.tooltip of
                     Just tooltip ->
                         viewTooltip tooltip
@@ -387,8 +393,8 @@ viewExperiments maybeExperiments =
                 ]
 
 
-viewMetadata : Maybe Metadata -> Html Msg
-viewMetadata maybeMetadata  =
+viewMetadata : Maybe Metadata -> Bool -> Html Msg
+viewMetadata maybeMetadata showUnannotated =
     case maybeMetadata of
         Just metadata ->
             let
@@ -446,21 +452,30 @@ viewMetadata maybeMetadata  =
                 extLinkIcon =
                    span [ class "align-baseline ml-2" ] [ Icon.externalLink ]
             in
-            table [ class "table table-sm" ]
-                [ thead []
-                    [ tr []
-                        [ th [ class "text-nowrap" ] [ text "Ontology Label", extLinkIcon ]
-                        , th [ class "text-nowrap" ] [ text "Dataset Label" ]
-                        , th [] [ text "Value" ]
-                        , th [ class "text-nowrap" ] [ text "Unit", extLinkIcon ]
-                        , th [ class "text-nowrap" ] [ text "Source", extLinkIcon ]
+            div []
+                [ table [ class "table table-sm" ]
+                    [ thead []
+                        [ tr []
+                            [ th [ class "text-nowrap" ] [ text "Ontology Label", extLinkIcon ]
+                            , th [ class "text-nowrap" ] [ text "Dataset Label" ]
+                            , th [] [ text "Value" ]
+                            , th [ class "text-nowrap" ] [ text "Unit", extLinkIcon ]
+                            , th [ class "text-nowrap" ] [ text "Source", extLinkIcon ]
+                            ]
                         ]
+                    , tbody []
+                        (List.Extra.zip metadata.terms metadata.values
+                            |> List.filter (\t -> showUnannotated || (Tuple.first t |> .label) /= "")
+                            |> List.sortBy (Tuple.first >> .label >> String.toLower >> (\s -> if s == "" then "~" else s)) -- hack to sort blank last
+                            |> List.map mkRow
+                        )
                     ]
-                , tbody []
-                    (List.Extra.zip metadata.terms metadata.values
-                        |> List.sortBy (Tuple.first >> .label >> String.toLower >> (\s -> if s == "" then "~" else s)) -- hack to sort blank last
-                        |> List.map mkRow
-                    )
+                , button [ class "btn btn-primary", onClick ToggleUnannotatedMetadata ]
+                    [ if showUnannotated then
+                        text "Hide Unannotated Fields"
+                      else
+                        text "Show Unannotated Fields"
+                    ]
                 ]
 
         Nothing ->
