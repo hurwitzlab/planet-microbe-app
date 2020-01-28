@@ -450,7 +450,23 @@ viewMetadata maybeMetadata showUnannotated =
                         ]
 
                 extLinkIcon =
-                   span [ class "align-baseline ml-2" ] [ Icon.externalLink ]
+                    span [ class "align-baseline ml-2" ] [ Icon.externalLink ]
+
+                sortTerm a b =
+                    let
+                        termA =
+                            Tuple.first a
+
+                        termB =
+                            Tuple.first b
+
+                        label term =
+                            if term.label == "" then
+                                "~" ++ term.alias_ -- hack to sort alias after label
+                            else
+                                term.label
+                    in
+                    compare (label termA |> String.toLower) (label termB |> String.toLower)
             in
             div []
                 [ table [ class "table table-sm" ]
@@ -466,7 +482,7 @@ viewMetadata maybeMetadata showUnannotated =
                     , tbody []
                         (List.Extra.zip metadata.terms metadata.values
                             |> List.filter (\t -> showUnannotated || (Tuple.first t |> .label) /= "")
-                            |> List.sortBy (Tuple.first >> .label >> String.toLower >> (\s -> if s == "" then "~" else s)) -- hack to sort blank last
+                            |> List.sortWith sortTerm
                             |> List.map mkRow
                         )
                     ]
