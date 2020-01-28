@@ -76,9 +76,9 @@ async function generateTermIndex(db, ontologyDescriptors) {
             }
             else { // Check type consistency
                 if (index[purl].type && index[purl].type != field.type)
-                    console.log("WARNING: type mismatch for", purl, index[purl].type, field.type);
+                    console.log("WARNING: type mismatch for", purl, index[purl].type, "!=", field.type);
                 if (index[purl].unitId && index[purl].unitId != unitPurl)
-                    console.log("WARNING: unit mismatch for", purl, index[purl].unitId, unitPurl);
+                    console.log(`WARNING: unit mismatch for term ${purl} (${index[purl].label}): ${index[purl].unitId} (${index[purl].unitLabel}) != ${unitPurl} (${index[unitPurl].label})`);
             }
 
             if (!('schemas' in index[purl]))
