@@ -1444,7 +1444,7 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
         show =
             searchVal /= "" || showDropdown
     in
-    viewPanel "" "Add Filter" "" Nothing Nothing
+    viewPanel "" "Add Filter" "" Nothing Nothing (Just "#d8edf3")
         [ div [ class "input-group input-group-sm", style "position" "relative" ]
             [ input [ type_ "text", class "form-control", placeholder "Search parameters", value searchVal, onInput SetParamSearchInput ] []
             , div [ class "input-group-append" ]
@@ -1602,7 +1602,7 @@ viewProjectPanel counts selectedVals =
         numMore =
             0 --numOptions - maxNumPanelOptions
     in
-    viewPanel "" "Project" "" Nothing (Just (\_ -> OpenProjectChartDialog))
+    viewPanel "" "Project" "" Nothing (Just (\_ -> OpenProjectChartDialog)) Nothing
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
@@ -1637,7 +1637,7 @@ viewFileFormatPanel counts selectedVals =
         numMore =
             numOptions - maxNumPanelOptions
     in
-    viewPanel "" "Format" "" Nothing Nothing
+    viewPanel "" "Format" "" Nothing Nothing Nothing
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
@@ -1672,7 +1672,7 @@ viewFileTypePanel counts selectedVals =
         numMore =
             numOptions - maxNumPanelOptions
     in
-    viewPanel "" "Type" "" Nothing Nothing
+    viewPanel "" "Type" "" Nothing Nothing Nothing
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
@@ -2008,11 +2008,12 @@ viewLocationFilterInput val =
 
 viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
 viewTermPanel term nodes =
-    viewPanel term.id term.label term.unitLabel (Just RemoveFilter) (Just OpenFilterChartDialog) nodes
+    viewPanel term.id term.label term.unitLabel (Just RemoveFilter) (Just OpenFilterChartDialog) Nothing nodes
 
 
-viewPanel : PURL -> String -> String -> Maybe (PURL -> Msg) -> Maybe (PURL -> Msg) -> List (Html Msg) -> Html Msg
-viewPanel id title unit maybeRemoveMsg maybeOpenChart nodes =
+--TODO move coniguration params into type alias (like "type alias PanelConfig = {}")
+viewPanel : PURL -> String -> String -> Maybe (PURL -> Msg) -> Maybe (PURL -> Msg) -> Maybe String -> List (Html Msg) -> Html Msg
+viewPanel id title unit maybeRemoveMsg maybeOpenChart maybeBgColor nodes =
     let
         header =
             h6 [ style "color" "darkblue"]
@@ -2044,7 +2045,7 @@ viewPanel id title unit maybeRemoveMsg maybeOpenChart nodes =
                         viewBlank
                 ]
     in
-    div [ class "card", style "font-size" "0.85em" ]
+    div [ class "card", style "font-size" "0.85em", style "background" (maybeBgColor |> Maybe.withDefault "") ]
         [ div [ class "card-body" ]
             (header :: nodes)
         ]
