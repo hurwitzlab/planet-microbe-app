@@ -202,7 +202,7 @@ router.get('/samples/:id(\\d+)/metadata', async (req, res) => {
             if (isNaN(val)) // below detection limit values are stored as NaN in DB
                 val = "Below Detection Limit"
         else if (field.type == "string")
-            val = row.string_vals[i];
+            val = termIndex.getLabelForValue(row.string_vals[i]); // translate purl value to label
         else if (field.type == "datetime" || field.type == "date")
             val = row.datetime_vals[i];
         else
