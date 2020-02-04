@@ -61,6 +61,7 @@ router.get('/searchTerms', (req, res) => {
                     id: term.id,
                     label: term.label,
                     definition: term.definition,
+                    unitId: term.unitId,
                     unitLabel: term.unitLabel,
                     type: term.type,
                     aliases: aliases,
@@ -71,7 +72,7 @@ router.get('/searchTerms', (req, res) => {
     }
 });
 
-router.get('/searchTerms/:id(*)', async (req, res) => {
+router.get('/searchTerms/:id(*)', async (req, res) => { //TODO refactor me
     let id = decodeURIComponent(req.params.id);
     let termIndex = req.app.get('termIndex');
 
@@ -132,6 +133,7 @@ router.get('/searchTerms/:id(*)', async (req, res) => {
             id: term.id,
             label: term.label,
             definition: term.definition,
+            unitId: term.unitId,
             unitLabel: term.unitLabel,
             type: term.type,
             distribution: result.rows,
@@ -179,6 +181,7 @@ router.get('/searchTerms/:id(*)', async (req, res) => {
             id: term.id,
             label: term.label,
             definition: term.definition,
+            unitId: term.unitId,
             unitLabel: term.unitLabel,
             type: term.type,
             min: min,
@@ -217,6 +220,7 @@ router.get('/searchTerms/:id(*)', async (req, res) => {
             id: term.id,
             label: term.label,
             definition: term.definition,
+            unitId: term.unitId,
             unitLabel: term.unitLabel,
             type: term.type,
             aliases: aliases,

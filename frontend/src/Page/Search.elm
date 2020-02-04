@@ -1305,8 +1305,8 @@ viewSearchPanel model =
             )
         , if model.searchTab == "Samples" then
             viewSampleSearchPanel model
-          else if model.searchTab == "Files" then
-            viewFileSearchPanel model
+          --else if model.searchTab == "Files" then
+          --  viewFileSearchPanel model
           else
             text ""
         ]
@@ -1326,19 +1326,19 @@ viewSampleSearchPanel model =
         ]
 
 
-viewFileSearchPanel : Model -> Html Msg
-viewFileSearchPanel model =
-    let
-        formatCounts =
-            model.fileFormats |> List.map (\ff -> (ff.name, ff.fileCount))
-
-        typeCounts =
-            model.fileTypes |> List.map (\ft -> (ft.name, ft.fileCount))
-    in
-    div []
-        [ viewFileFormatPanel formatCounts model.fileFormatVals
-        , viewFileTypePanel typeCounts model.fileTypeVals
-        ]
+--viewFileSearchPanel : Model -> Html Msg
+--viewFileSearchPanel model =
+--    let
+--        formatCounts =
+--            model.fileFormats |> List.map (\ff -> (ff.name, ff.fileCount))
+--
+--        typeCounts =
+--            model.fileTypes |> List.map (\ft -> (ft.name, ft.fileCount))
+--    in
+--    div []
+--        [ viewFileFormatPanel formatCounts model.fileFormatVals
+--        , viewFileTypePanel typeCounts model.fileTypeVals
+--        ]
 
 
 viewTab : String -> Bool -> (String -> Msg) -> Html Msg
@@ -1432,7 +1432,12 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
                 |> not
 
         filterOnSearch term =
-            String.contains (String.toLower searchVal) (String.toLower term.label)
+            let
+                lowerSearchVal =
+                    String.toLower searchVal
+            in
+            String.contains lowerSearchVal (String.toLower term.label)
+                || String.contains lowerSearchVal (String.toLower term.id)
 
         options =
             allTerms
@@ -1444,7 +1449,7 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
         show =
             searchVal /= "" || showDropdown
     in
-    viewPanel "" "Add Filter" "" Nothing Nothing (Just "#d8edf3")
+    viewPanel "" "Add Filter" "" "" Nothing Nothing (Just "#d8edf3")
         [ div [ class "input-group input-group-sm", style "position" "relative" ]
             [ input [ type_ "text", class "form-control", placeholder "Search parameters", value searchVal, onInput SetParamSearchInput ] []
             , div [ class "input-group-append" ]
@@ -1498,7 +1503,7 @@ viewAddFilterDialog allTerms searchVal =
                             ]
                         , tr []
                             [ th [] [ text "Unit"]
-                            , td [] [ text (noneIfBlank term.unitLabel) ]
+                            , td [] [ a [ href term.unitId, target "_blank" ] [ text (noneIfBlank term.unitLabel) ] ]
                             ]
                         ]
                   else
@@ -1602,7 +1607,7 @@ viewProjectPanel counts selectedVals =
         numMore =
             0 --numOptions - maxNumPanelOptions
     in
-    viewPanel "" "Project" "" Nothing (Just (\_ -> OpenProjectChartDialog)) Nothing
+    viewPanel "" "Project" "" "" Nothing (Just (\_ -> OpenProjectChartDialog)) Nothing
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
@@ -1611,74 +1616,74 @@ viewProjectPanel counts selectedVals =
         ]
 
 
-viewFileFormatPanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
-viewFileFormatPanel counts selectedVals =
-    let
-        viewRow vals ( lbl, num ) =
-            let
-                isChecked =
-                    List.member lbl vals
-            in
-            div []
-                [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileFormatFilterValue lbl) ] []
-                    , label [ class "form-check-label" ] [ text (String.Extra.toSentenceCase lbl) ]
-                    ]
-                , div [ class "badge badge-secondary float-right" ]
-                    [ num |> toFloat |> format myLocale |> text ]
-                ]
+--viewFileFormatPanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
+--viewFileFormatPanel counts selectedVals =
+--    let
+--        viewRow vals ( lbl, num ) =
+--            let
+--                isChecked =
+--                    List.member lbl vals
+--            in
+--            div []
+--                [ div [ class "form-check form-check-inline" ]
+--                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileFormatFilterValue lbl) ] []
+--                    , label [ class "form-check-label" ] [ text (String.Extra.toSentenceCase lbl) ]
+--                    ]
+--                , div [ class "badge badge-secondary float-right" ]
+--                    [ num |> toFloat |> format myLocale |> text ]
+--                ]
+--
+--        truncatedOptions =
+--            counts |> List.sortBy Tuple.second --|> List.take 4 maxNumPanelOptions
+--
+--        numOptions =
+--            List.length counts
+--
+--        numMore =
+--            numOptions - maxNumPanelOptions
+--    in
+--    viewPanel "" "Format" "" "" Nothing Nothing Nothing
+--        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
+--        , if numMore > 0 then
+--            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
+--          else
+--            viewBlank
+--        ]
 
-        truncatedOptions =
-            counts |> List.sortBy Tuple.second --|> List.take 4 maxNumPanelOptions
 
-        numOptions =
-            List.length counts
-
-        numMore =
-            numOptions - maxNumPanelOptions
-    in
-    viewPanel "" "Format" "" Nothing Nothing Nothing
-        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
-        , if numMore > 0 then
-            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
-          else
-            viewBlank
-        ]
-
-
-viewFileTypePanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
-viewFileTypePanel counts selectedVals =
-    let
-        viewRow vals ( lbl, num ) =
-            let
-                isChecked =
-                    List.member lbl vals
-            in
-            div []
-                [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileTypeFilterValue lbl) ] []
-                    , label [ class "form-check-label" ] [ text (String.Extra.toSentenceCase lbl) ]
-                    ]
-                , div [ class "badge badge-secondary float-right" ]
-                    [ num |> toFloat |> format myLocale |> text ]
-                ]
-
-        truncatedOptions =
-            counts |> List.sortBy Tuple.second --|> List.take 4 maxNumPanelOptions
-
-        numOptions =
-            List.length counts
-
-        numMore =
-            numOptions - maxNumPanelOptions
-    in
-    viewPanel "" "Type" "" Nothing Nothing Nothing
-        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
-        , if numMore > 0 then
-            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
-          else
-            viewBlank
-        ]
+--viewFileTypePanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
+--viewFileTypePanel counts selectedVals =
+--    let
+--        viewRow vals ( lbl, num ) =
+--            let
+--                isChecked =
+--                    List.member lbl vals
+--            in
+--            div []
+--                [ div [ class "form-check form-check-inline" ]
+--                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileTypeFilterValue lbl) ] []
+--                    , label [ class "form-check-label" ] [ text (String.Extra.toSentenceCase lbl) ]
+--                    ]
+--                , div [ class "badge badge-secondary float-right" ]
+--                    [ num |> toFloat |> format myLocale |> text ]
+--                ]
+--
+--        truncatedOptions =
+--            counts |> List.sortBy Tuple.second --|> List.take 4 maxNumPanelOptions
+--
+--        numOptions =
+--            List.length counts
+--
+--        numMore =
+--            numOptions - maxNumPanelOptions
+--    in
+--    viewPanel "" "Type" "" "" Nothing Nothing Nothing
+--        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
+--        , if numMore > 0 then
+--            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
+--          else
+--            viewBlank
+--        ]
 
 
 viewStringFilterPanel : SearchTerm -> FilterValue -> Html Msg
@@ -2008,12 +2013,12 @@ viewLocationFilterInput val =
 
 viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
 viewTermPanel term nodes =
-    viewPanel term.id term.label term.unitLabel (Just RemoveFilter) (Just OpenFilterChartDialog) Nothing nodes
+    viewPanel term.id term.label term.unitId term.unitLabel (Just RemoveFilter) (Just OpenFilterChartDialog) Nothing nodes
 
 
 --TODO move coniguration params into type alias (like "type alias PanelConfig = {}")
-viewPanel : PURL -> String -> String -> Maybe (PURL -> Msg) -> Maybe (PURL -> Msg) -> Maybe String -> List (Html Msg) -> Html Msg
-viewPanel id title unit maybeRemoveMsg maybeOpenChart maybeBgColor nodes =
+viewPanel : PURL -> String -> PURL -> String -> Maybe (PURL -> Msg) -> Maybe (PURL -> Msg) -> Maybe String -> List (Html Msg) -> Html Msg
+viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChart maybeBgColor nodes =
     let
         header =
             h6 [ style "color" "darkblue"]
@@ -2025,8 +2030,11 @@ viewPanel id title unit maybeRemoveMsg maybeOpenChart maybeBgColor nodes =
                   else
                     text (String.Extra.toTitleCase title)
                 , text " "
-                , if unit /= "" then
-                    small [ style "margin-left" "5px" ] [ text ("[" ++ unit ++ "]") ]
+                , if unitLabel /= "" then
+                    small [ style "margin-left" "5px" ]
+                        [ a [ href unitId, target "_blank" ]
+                            [ text ("[" ++ unitLabel ++ "]") ]
+                        ]
                   else
                     viewBlank
                 , case maybeRemoveMsg of
@@ -2061,10 +2069,10 @@ viewResults model =
                     , model.sampleResultCount
                     )
 
-                "Files" ->
-                    ( viewFileResults model
-                    , model.fileResultCount
-                    )
+                --"Files" ->
+                --    ( viewFileResults model
+                --    , model.fileResultCount
+                --    )
 
                 _ ->
                     ( viewSummary model
@@ -2397,67 +2405,67 @@ viewSampleResults model =
         []
 
 
-viewFileResults : Model -> Html Msg
-viewFileResults model =
-    let
-        maxColWidth = "8em"
-
-        mkTh index label =
-            let
-                pos =
-                    index + 1
-
-                lbl =
-                    String.Extra.toTitleCase
-                        (if pos == abs model.fileTableState.sortCol then
-                            label ++ " " ++ (viewUpDownArrow model.fileTableState.sortDir )
-                        else
-                            label
-                        )
-            in
-            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetFileSortPos pos) ] [ text lbl ]
-
-        paramNames =
-            [ "Project Name"
-            , "Sample ID"
-            , "File Format"
-            , "File Type"
-            , "Path"
-            ]
-
---        addToCartTh =
---            th []
---                [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
---                    (model.sampleResults
---                        |> Maybe.withDefault []
---                        |> List.map .sampleId
---                    )
---                    |> Html.map CartMsg
+--viewFileResults : Model -> Html Msg
+--viewFileResults model =
+--    let
+--        maxColWidth = "8em"
+--
+--        mkTh index label =
+--            let
+--                pos =
+--                    index + 1
+--
+--                lbl =
+--                    String.Extra.toTitleCase
+--                        (if pos == abs model.fileTableState.sortCol then
+--                            label ++ " " ++ (viewUpDownArrow model.fileTableState.sortDir )
+--                        else
+--                            label
+--                        )
+--            in
+--            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetFileSortPos pos) ] [ text lbl ]
+--
+--        paramNames =
+--            [ "Project Name"
+--            , "Sample ID"
+--            , "File Format"
+--            , "File Type"
+--            , "Path"
+--            ]
+--
+----        addToCartTh =
+----            th []
+----                [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
+----                    (model.sampleResults
+----                        |> Maybe.withDefault []
+----                        |> List.map .sampleId
+----                    )
+----                    |> Html.map CartMsg
+----                ]
+--
+--        columns =
+--            List.indexedMap mkTh paramNames
+----                ++ [ addToCartTh ]
+--
+--        mkTd label =
+--            td [ style "max-width" maxColWidth ] [ text label ]
+--
+--        mkRow result =
+--            tr []
+--                [ mkTd result.projectName
+--                , td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ]
+--                , td [] [ text (String.Extra.toSentenceCase result.fileFormat) ]
+--                , td [] [ text (String.Extra.toSentenceCase result.fileType) ]
+--                , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text result.fileUrl ] ]
+----                , td [] [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
 --                ]
-
-        columns =
-            List.indexedMap mkTh paramNames
---                ++ [ addToCartTh ]
-
-        mkTd label =
-            td [ style "max-width" maxColWidth ] [ text label ]
-
-        mkRow result =
-            tr []
-                [ mkTd result.projectName
-                , td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ]
-                , td [] [ text (String.Extra.toSentenceCase result.fileFormat) ]
-                , td [] [ text (String.Extra.toSentenceCase result.fileType) ]
-                , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text result.fileUrl ] ]
---                , td [] [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
-                ]
-    in
-    SortableTable.view
-        { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
-        model.fileTableState
-        columns
-        (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
-        []
+--    in
+--    SortableTable.view
+--        { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
+--        model.fileTableState
+--        columns
+--        (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
+--        []
 
 
 viewUpDownArrow : SortableTable.Direction -> String
