@@ -1471,6 +1471,7 @@ viewAddFilterDialog allTerms searchVal =
 
         filterOnSearch term =
             String.contains (String.toLower searchVal) (String.toLower term.label)
+                || String.contains (String.toLower searchVal) (String.toLower term.id)
 
         terms =
             allTerms
