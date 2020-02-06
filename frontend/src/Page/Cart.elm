@@ -475,7 +475,7 @@ viewCartControls isEmpty isLoggedIn = -- selectedCartId sampleGroups =
 viewCart : Cart -> List Sample -> Html Msg
 viewCart cart samples =
     if Cart.size cart == 0 then
-        text "The cart is empty"
+        div [ class "alert alert-secondary" ] [ text "The cart is empty" ]
     else
         Cart.view cart samples Cart.Editable |> Html.map CartMsg
 
