@@ -7,17 +7,23 @@ const db = require('../postgres.js')(config);
 
 router.post('/samples', async (req, res) => {
     let result;
-    let ids = req.body.ids;
-    console.log("ids:", ids);
+    let ids;
+
+    if (req.body.ids) {
+        ids = req.body.ids.split(',');
+        console.log("ids:", ids);
+    }
 
     if (ids) {
-        result = await db.query(
-            `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name
-            FROM sample s
-            JOIN project_to_sample pts ON pts.sample_id=s.sample_id
-            JOIN project p ON p.project_id=pts.project_id
-            WHERE s.sample_id IN (${ids})`
-        );
+        result = await db.query({
+            text:
+                `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name
+                FROM sample s
+                JOIN project_to_sample pts ON pts.sample_id=s.sample_id
+                JOIN project p ON p.project_id=pts.project_id
+                WHERE s.sample_id = ANY($1)`,
+            values: [ids]
+        });
     }
     else {
         result = await db.query(
@@ -86,6 +92,78 @@ router.get('/samples/:id(\\d+)/experiments', async (req, res) => {
     res.json(result.rows);
 });
 
+router.post('/samples/experiments', async (req, res) => {
+    let ids;
+    if (req.body.ids) {
+        ids = req.body.ids.split(',');
+        console.log("ids:", ids);
+    }
+
+    let result;
+    if (ids)
+        result = await db.query({
+            text: `SELECT e.experiment_id,e.name,e.accn,l.name AS library_name,l.strategy AS library_strategy, l.source AS library_source, l.selection AS library_selection, l.protocol AS library_protocol, l.layout AS library_layout, l.length AS library_length
+                FROM experiment e
+                LEFT JOIN library l ON l.experiment_id=e.experiment_id
+                WHERE e.sample_id = ANY($1)`,
+            values: [ids]
+        });
+    else
+        result = await db.query(
+            `SELECT e.experiment_id,e.name,e.accn
+            FROM experiment e`
+        );
+
+    res.json(result.rows);
+});
+
+router.post('/samples/runs', async (req, res) => {
+    let ids;
+    if (req.body.ids) {
+        ids = req.body.ids.split(',');
+        console.log("ids:", ids);
+    }
+
+    let id = req.params.id;
+    let result = await db.query({
+        text:
+            `SELECT r.run_id,r.accn,r.total_spots,r.total_bases,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
+            FROM experiment e
+            LEFT JOIN run r ON r.experiment_id=e.experiment_id
+            LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id
+            LEFT JOIN file f ON f.file_id=rtf.file_id
+            LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
+            LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
+            WHERE e.sample_id = ANY($1)`,
+        values: [ids]
+    });
+
+    // FIXME kludgey
+    let rowsById = {};
+    result.rows.forEach(row => {
+        if (!(row.row_id in rowsById)) {
+            rowsById[row.row_id] = {
+                run_id: row.run_id,
+                accn: row.accn,
+                total_spots: row.total_spots * 1, // convert to int
+                total_bases: row.total_bases * 1, // convert to int
+                files: []
+            }
+        }
+        if (row.file_id)
+            rowsById[row.row_id]['files'].push({
+                file_id: row.file_id,
+                file_type: row.file_type,
+                file_format: row.file_format,
+                url: row.url,
+            });
+    })
+
+    res.json(
+        Object.values(rowsById)
+    );
+});
+
 router.post('/samples/files', async (req, res) => {
     let ids;
     if (req.body.ids) {
@@ -95,16 +173,17 @@ router.post('/samples/files', async (req, res) => {
 
     let result;
     if (ids)
-        result = await db.query(
-            `SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
-            FROM experiment e
-            LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
-            LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id
-            LEFT JOIN file f ON f.file_id=rtf.file_id
-            LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
-            LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
-            WHERE e.sample_id IN (${ids})`
-        );
+        result = await db.query({
+            text: `SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
+                FROM experiment e
+                LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+                LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id
+                LEFT JOIN file f ON f.file_id=rtf.file_id
+                LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
+                LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
+                WHERE e.sample_id = ANY($1)`,
+            values: [ids]
+        });
     else
         result = await db.query(
             `SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
