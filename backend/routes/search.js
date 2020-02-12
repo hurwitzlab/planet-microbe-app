@@ -284,9 +284,12 @@ async function search(db, termIndex, params) {
         let val = params['location'];
         if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // [lat, lng, radius] in meters
             let bounds = JSON.parse(val);
+            let lat = bounds[0];
+            let lng = bounds[1];
+            let radius = bounds[2] * 1000; // convert from km to m
             console.log("location:", bounds);
             gisSelect = "replace(replace(replace(replace(ST_AsGeoJson(ST_FlipCoordinates(locations::geometry))::json->>'coordinates', '[[', '['), ']]', ']'), '[', '('), ']', ')')"; //FIXME ugly af
-            gisClause = "ST_DWithin(ST_MakePoint(" + bounds[1] + "," + bounds[0] + ")::geography, locations, " + bounds[2] + ")";
+            gisClause = `ST_DWithin(ST_MakePoint(${lng},${lat})::geography, locations, ${radius})`;
         }
         else if (val) {
             //TODO error

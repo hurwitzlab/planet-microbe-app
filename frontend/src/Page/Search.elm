@@ -1375,7 +1375,7 @@ view4DPanel model =
                                 ++ [ div [ class "input-group-append" ]
                                     [ viewFormatButton
                                     , div [ class "dropdown-menu" ]
-                                        [ a [ class "dropdown-item active", href "", onClick (SetLocationFilterValue (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (m)" ]
+                                        [ a [ class "dropdown-item active", href "", onClick (SetLocationFilterValue (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (km)" ]
                                         , a [ class "dropdown-item disabled", href "", disabled True, onClick (SetLocationFilterValue (LonghurstValue "")) ] [ text "Longhurst Province - coming soon" ]
                                         ]
                                     ]

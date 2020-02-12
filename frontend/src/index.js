@@ -324,7 +324,7 @@ function handleCircleEvent() {
   app.ports.getLocation.send({
     lat: this.center.lat(),
     lng: this.center.lng(),
-    radius: this.getRadius()
+    radius: this.getRadius() / 1000 // convert m to km
   });
 }
 
