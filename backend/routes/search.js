@@ -282,8 +282,21 @@ async function search(db, termIndex, params) {
     let gisClause, gisSelect;
     if (params['location']) {
         let val = params['location'];
-        if (val.match(/\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // [lat, lng, radius] in meters
-            let bounds = JSON.parse(val);
+        if (val.match(/\[\S+\]/)) { // [lat, lng, radius] in meters
+            let bounds = [];
+            try {
+                bounds = JSON.parse(val);
+            }
+            catch (e) {
+                console.log("Error: invalid location value", val);
+                return {
+                    count: 0,
+                    summary: [],
+                    results: [],
+                    error: "Invalid location value"
+                };
+            }
+
             let lat = bounds[0];
             let lng = bounds[1];
             let radius = bounds[2] * 1000; // convert from km to m

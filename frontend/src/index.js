@@ -337,12 +337,12 @@ app.ports.setLocation.subscribe(function(location) {
   }
   else {
     for (var i = 0; i < shapes.length; i++) {
-      circle = shapes[i];
+      let circle = shapes[i];
       console.log(circle);
       google.maps.event.clearListeners(circle, 'radius_changed');
       google.maps.event.clearListeners(circle, 'center_changed');
       circle.setCenter(new google.maps.LatLng(location.lat,location.lng));
-      circle.setRadius(location.radius);
+      circle.setRadius(location.radius * 1000); // convert from km to m
       circle.addListener('radius_changed', handleCircleEvent.bind(circle));
       circle.addListener('center_changed', handleCircleEvent.bind(circle));
     }

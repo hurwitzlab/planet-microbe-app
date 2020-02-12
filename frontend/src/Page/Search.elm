@@ -656,6 +656,7 @@ update msg model =
                 , sampleResults = sampleResults
                 , summaryResults = Just response.summary
                 , mapResults = response.map
+                , errorMsg = response.error
                 , isSearching = False
               }
             , GMap.loadMap response.map
