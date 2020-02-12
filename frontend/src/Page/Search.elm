@@ -2203,7 +2203,7 @@ viewSearchTermSummaryChart label data =
             50
 
         title =
-            "Num Samples by " ++ (String.Extra.toTitleCase label)
+            "# Samples by " ++ (String.Extra.toTitleCase label)
 
         truncTitle =
             if String.length title < maxTitleLen then
