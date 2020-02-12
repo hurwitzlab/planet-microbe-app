@@ -111,3 +111,8 @@ minus =
 trash : Html msg
 trash =
     i [ class "fas fa-fw fa-trash" ] []
+
+
+book : Html msg
+book =
+    i [ class "fas fa-fw fa-book" ] []

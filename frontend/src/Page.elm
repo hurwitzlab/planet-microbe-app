@@ -2,7 +2,7 @@ module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTit
 
 import Browser exposing (Document)
 import Html exposing (Html, a, button, h1, h2, h5, div, span, img, i, li, nav, p, text, ul, small, footer)
-import Html.Attributes exposing (id, class, classList, src, href, style, title, type_, attribute, tabindex)
+import Html.Attributes exposing (id, class, classList, src, href, style, title, type_, attribute, tabindex, target)
 import Html.Events exposing (onClick)
 import Icon
 import Route exposing (Route)
@@ -135,11 +135,17 @@ viewHeader session page =
                                 , text " Analyze"
                                 ]
                             ]
+                        , li [ class "nav-item", style "width" "10em" ]
+                            [ a [ class "nav-link", href "https://hurwitzlab.gitbook.io/planet-microbe-documentation/", target "_blank" ]
+                                [ Icon.book
+                                , text " Documentation"
+                                ]
+                            ]
                         ]
                     , ul [ class "navbar-nav ml-auto" ]
-                        [ li [ class "nav-item mr-5" ]
+                        [ li [ class "nav-item mr-4" ]
                             [ loginButton ]
-                        , li [ class "nav-item ml-2 mr-5" ]
+                        , li [ class "nav-item ml-2 mr-4" ]
                             [ cartButton]
                         , li [ class "nav-item" ]
                             [ a [ class "nav-link", title "Get Help", Route.href Route.Contact ]
