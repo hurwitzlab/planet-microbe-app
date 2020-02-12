@@ -78,13 +78,13 @@ view =
                             high-quality data and metadata linked to ontologies to enable advanced searches and
                             interoperability between heterogeneous datasets. Check out our
                             """
-                        , a [ href "https://www.planetmicrobe.org/project/#/search" ]
+                        , a [ href "https://www.planetmicrobe.org/#/search" ]
                             [ text "metadata and 4D-search capabilities" ]
                         , text "."
                         ]
                     ]
                 , div [ class "col-md-5" ]
-                    [ a [ href "https://www.planetmicrobe.org/project/#/search" ]
+                    [ a [ href "https://www.planetmicrobe.org/#/search" ]
                         [ img [ class "border shadow featurette-image img-fluid mx-auto", src "assets/images/search-demo.gif", alt "Animated GIF screen capture" ] []
                         ]
                     ]
