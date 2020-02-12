@@ -147,7 +147,7 @@ viewHeader session page =
                             [ loginButton ]
                         , li [ class "nav-item ml-2 mr-4" ]
                             [ cartButton]
-                        , li [ class "nav-item" ]
+                        , li [ class "nav-item mr-4" ]
                             [ a [ class "nav-link", title "Get Help", Route.href Route.Contact ]
                                 [ Icon.questionCircle ]
                             ]
