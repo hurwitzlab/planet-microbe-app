@@ -115,8 +115,8 @@ view =
                             """
                             The resulting Planet Microbe framework represents a community-driven and highly
                             accessible data architecture for optimizing global scale computation and expanding our
-                            knowledge of microbial-driven ocean processes. The analytics platform will be coming soon!
-                            Check back with us regularly and follow us on
+                            knowledge of microbial-driven ocean processes. New tools are added often,
+                            check back with us regularly and follow us on
                             """
                         , a [ href "https://twitter.com/PlanetMicrobe", target "_blank" ]
                             [ text "Twitter" ]
