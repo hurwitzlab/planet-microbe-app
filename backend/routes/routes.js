@@ -20,7 +20,7 @@ module.exports = function(app) {
     app.use(require('./projects.js'));
     app.use(require('./samples.js'));
     app.use(require('./samplingEvents.js'));
-    app.use(require('./ontologies.js'));
+    //app.use(require('./ontologies.js'));
     app.use(require('./search.js'));
 
     app.use(errorHandler);
