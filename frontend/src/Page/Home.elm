@@ -110,6 +110,7 @@ view =
                         , text " and "
                         , a [ href "https://www.xsede.org/", target "_blank" ]
                             [ text "XSEDE" ]
+                        , text "."
                         , text
                             """
                             The resulting Planet Microbe framework represents a community-driven and highly
