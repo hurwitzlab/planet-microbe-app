@@ -531,7 +531,7 @@ async function search(db, termIndex, params) {
             if (term.type == 'string') {
                 let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
                 let caseStr = "CASE " + cases.join(" ") + " END";
-                queryStr = `SELECT COALESCE(LOWER(${caseStr}),'none') AS val,count(*)::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
+                queryStr = `SELECT COALESCE(LOWER(${caseStr}),'none') AS val,count(*)::int ${tableStr} ${clauseStr} GROUP BY val`; // ORDER BY val`; // "val" will be PURLs so sort later
             }
             else if (term.type == 'number') {
                 let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
@@ -553,8 +553,7 @@ async function search(db, termIndex, params) {
                             WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val,10) AS bucket,COUNT(*)::int
                         ${tableStr}, min_max
                         ${clauseStr}
-                        GROUP BY bucket
-                        ORDER BY bucket) AS foo`;
+                        GROUP BY bucket) AS foo`;
             }
 //TODO
 //            else if (term.type == 'datetime') {
@@ -602,6 +601,7 @@ async function search(db, termIndex, params) {
                         row[0] = term2.label;
                 }
             }
+            summary = summary.sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase())); // sort converted PURL labels
         }
 
         console.log("Sample Query:");

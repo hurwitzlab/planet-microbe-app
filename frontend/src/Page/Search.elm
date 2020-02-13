@@ -2222,7 +2222,6 @@ viewSearchTermSummaryChart label data =
     BarChart.view config
         (data
             |> List.map (Tuple.mapSecond toFloat)
-            |> List.sortWith (\t1 t2 -> compare (Tuple.first t1) (Tuple.first t2))
         )
 
 
