@@ -176,9 +176,9 @@ router.post('/samples/files', async (req, res) => {
         result = await db.query({
             text: `SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
                 FROM experiment e
-                LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
-                LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id
-                LEFT JOIN file f ON f.file_id=rtf.file_id
+                JOIN run r ON (r.experiment_id=e.experiment_id)
+                JOIN run_to_file rtf ON rtf.run_id=r.run_id
+                JOIN file f ON f.file_id=rtf.file_id
                 LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
                 LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
                 WHERE e.sample_id = ANY($1)`,
@@ -188,7 +188,7 @@ router.post('/samples/files', async (req, res) => {
         result = await db.query(
             `SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
             FROM experiment e
-            LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+            JOIN run r ON (r.experiment_id=e.experiment_id)
             JOIN run_to_file rtf ON rtf.run_id=r.run_id
             JOIN file f ON f.file_id=rtf.file_id
             LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
