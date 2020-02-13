@@ -594,14 +594,17 @@ async function search(db, termIndex, params) {
         ));
         summaries = summaries.map(res => res.rows || []);
         for (let summary of summaries) {
+            let sort = false;
             for (let row of summary) { //TODO move into function (dup'ed elsewhere)
                 if (row[0].startsWith("http://")) { // is this a purl?
+                    sort = true;
                     let term2 = termIndex.getTerm(row[0]);
                     if (term2 && term2.label)
                         row[0] = term2.label;
                 }
             }
-            summary = summary.sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase())); // sort converted PURL labels
+            if (sort)
+                summary = summary.sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase())); // sort converted PURL labels
         }
 
         console.log("Sample Query:");
