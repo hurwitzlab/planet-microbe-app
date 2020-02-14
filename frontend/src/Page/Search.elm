@@ -2064,6 +2064,9 @@ viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChart maybeBgColor n
 viewResults : Model -> Html Msg
 viewResults model =
     let
+        isInitializing = -- page loading
+            model.sampleResults == Nothing && model.fileResults == Nothing
+
         (content, count) =
             case model.resultTab of
                 "Samples" ->
@@ -2083,6 +2086,7 @@ viewResults model =
     in
     div [ style "min-height" "50em" ]
         [ if model.doSearch || model.isSearching then
+            -- spinnner overlay
             div [ style "position" "fixed"
                 , style "width" "100%"
                 , style "height" "100%"
@@ -2101,6 +2105,8 @@ viewResults model =
                 [ p [] [ text "An error occurred:" ]
                 , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
                 ]
+          else if isInitializing then
+            text ""
           else if count == 0 then
             h1 [ class "text-center mt-5", style "min-height" "5.5em" ] [ text "No results" ]
           else
