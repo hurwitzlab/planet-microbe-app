@@ -251,7 +251,7 @@ viewSpinner =
 
 viewSpinnerCentered : Html msg
 viewSpinnerCentered =
-    div [ class "d-flex justify-content-center h-100 w-100", style "position" "fixed", style "top" "0", style "align-items" "center" ]
+    div [ class "d-flex justify-content-center", style "margin-top" "40vh" ]
         [ div [ class "d-flex spinner-border", style "margin" "0 auto", style "color" "lightgray", style "width" "4rem", style "height" "4rem"  ]
             [ span [ class "sr-only" ] [ text "Loading..." ]
             ]
