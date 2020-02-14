@@ -2083,7 +2083,26 @@ viewResults model =
     in
     div [ style "min-height" "50em" ]
         [ if model.doSearch || model.isSearching then
-            viewSpinner
+            div [ style "position" "fixed"
+                , style "width" "100%"
+                , style "height" "100%"
+                , style "top" "0"
+                , style "left" "0"
+                , style "right" "0"
+                , style "bottom" "0"
+                , style "z-index" "2"
+                , style "background-color" "rgba(0,0,0,0.3)"
+                ]
+                [ div [ style "padding-top" "40vh" ] [ viewSpinner ] ]
+          else
+            text ""
+        , if model.errorMsg /= Nothing then
+            div [ class "alert alert-danger m-3" ]
+                [ p [] [ text "An error occurred:" ]
+                , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
+                ]
+          else if count == 0 then
+            h1 [ class "text-center mt-5", style "min-height" "5.5em" ] [ text "No results" ]
           else
             div [ style "border" "1px solid lightgray" ]
                 [ ul [ class "nav nav-tabs", style "width" "100%" ]
@@ -2092,19 +2111,12 @@ viewResults model =
 --                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
 --                        ]
                     )
-                , if model.errorMsg /= Nothing then
-                    div [ class "alert alert-danger m-3" ]
-                        [ p [] [ text "An error occurred:" ]
-                        , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
-                        ]
-                  else if count > 0 then
-                    div []
-                        [ viewPageSummary model.pageNum model.pageSize count
-                        , content
-                        , viewPageControls model.pageNum model.pageSize count
-                        ]
-                  else
-                    h1 [ class "text-center mt-5", style "min-height" "5.5em" ] [ text "No results" ]
+                ,
+                div []
+                    [ viewPageSummary model.pageNum model.pageSize count
+                    , content
+                    , viewPageControls model.pageNum model.pageSize count
+                    ]
                 ]
         ]
 
