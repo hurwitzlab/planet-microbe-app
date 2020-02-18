@@ -287,37 +287,8 @@ update msg model =
                                 |> List.map (\(k, v) -> (k, irodsToAgave v))
                                 |> List.map (\(k, v) -> Agave.JobInput k (String.split ";" v))
 
-                        encodeParam id val =
-                            case List.filter (\p -> p.id == id) agaveApp.parameters of
-                                [ param ] ->
-                                    case param.value.type_ of
-                                        "number" ->
-                                            Agave.NumberValue (String.toFloat val |> Maybe.withDefault 0)
-
-                                        "bool" ->
-                                            if val == "true" then
-                                                Agave.BoolValue True
-                                            else
-                                                Agave.BoolValue False
-
-                                        "flag" ->
-                                            if val == "true" then
-                                                Agave.BoolValue True
-                                            else
-                                                Agave.BoolValue False
-
-                                        "enumeration" ->
-                                            Agave.ArrayValue (String.split ";" val)
-
-                                        _ ->
-                                            Agave.StringValue val
-
-                                _ ->
-                                    Agave.StringValue val
-
                         jobParameters =
-                            Dict.toList model.parameters
-                                |> List.map (\(k, v) -> Agave.JobParameter k (encodeParam k v))
+                            Agave.encodeJobParameterValues model.parameters agaveApp.parameters
 
                         jobName =
                             "PlanetMicrobe " ++ app.name --FIXME should be a user-inputted value?

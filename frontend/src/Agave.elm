@@ -482,6 +482,45 @@ encodeNotification notification =
         ]
 
 
+encodeJobParameterValues : Dict String String -> List AppParameter -> List JobParameter
+encodeJobParameterValues paramVals appParams =
+    paramVals
+        |> Dict.toList
+        |> List.map (\(k, v) -> JobParameter k (encodeJobParameterValue appParams k v))
+
+
+encodeJobParameterValue : List AppParameter -> String -> String -> ValueType
+encodeJobParameterValue appParams id val =
+    case List.filter (\p -> p.id == id) appParams of
+        [ param ] ->
+            case param.value.type_ of
+                "number" ->
+                    NumberValue (String.toFloat val |> Maybe.withDefault 0)
+
+                "bool" ->
+                    if val == "true" then
+                        BoolValue True
+                    else
+                        BoolValue False
+
+                "flag" ->
+                    if val == "true" then
+                        BoolValue True
+                    else
+                        BoolValue False
+
+                "enumeration" ->
+                    ArrayValue (String.split ";" val)
+
+                _ ->
+                    StringValue val
+
+        _ ->
+            StringValue val
+
+
+--validateJobInputs :
+
 
 -- REQUESTS --
 
