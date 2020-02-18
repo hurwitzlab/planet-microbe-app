@@ -1616,7 +1616,29 @@ viewProjectPanel counts selectedVals =
                 ]
 
         truncatedOptions =
-            counts |> List.sortBy Tuple.second |> List.reverse |> List.take 6
+            counts
+                |> List.sortWith sortBySelected --|> List.sortBy Tuple.second
+                |> List.take 6
+
+        sortBySelected a b =
+            case ( isSelected (Tuple.first a), isSelected (Tuple.first b) ) of
+                (True, False) ->
+                    LT
+
+                (False, True) ->
+                    GT
+
+                (_, _) ->
+                    sortByCount a b
+
+        sortByCount a b =
+            case compare (Tuple.second a) (Tuple.second b) of
+                LT -> GT
+                EQ -> EQ
+                GT -> LT
+
+        isSelected lbl =
+            List.member lbl selectedVals
 
         numOptions =
             List.length counts
@@ -1640,14 +1662,13 @@ viewProjectFilterDialog projectCounts projectVals =
         options =
             projectCounts |> List.sortBy .name
 
-        viewRow vals count =
-            let
-                isChecked =
-                    List.member count.name vals
-            in
+        isSelected lbl =
+            List.member lbl projectVals
+
+        viewRow count =
             div []
                 [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetProjectFilterValue count.name) ] []
+                    [ input [ class "form-check-input", type_ "checkbox", checked (isSelected count.name), onCheck (SetProjectFilterValue count.name) ] []
                     , label [ class "form-check-label" ] [ text count.name ]
                     ]
                 , div [ class "badge badge-secondary float-right" ]
@@ -1655,7 +1676,7 @@ viewProjectFilterDialog projectCounts projectVals =
                 ]
     in
     viewDialog "Project"
-        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map (viewRow projectVals) options) ]
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map viewRow options) ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseProjectFilterDialog ] [ text "Close" ] ]
         CloseProjectFilterDialog
 
