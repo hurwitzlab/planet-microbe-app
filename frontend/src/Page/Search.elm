@@ -120,6 +120,7 @@ type alias Model =
     , stringFilterDialogTerm : Maybe SearchTerm
     , chartFilterDialogTerm : Maybe SearchTerm
     , showProjectSummaryDialog : Bool
+    , showProjectFilterDialog : Bool
     , paramSearchInputVal : String
     , dialogSearchInputVal : String
     , showParamSearchDropdown : Bool
@@ -173,6 +174,7 @@ init session =
         , stringFilterDialogTerm = Nothing
         , chartFilterDialogTerm = Nothing
         , showProjectSummaryDialog = False
+        , showProjectFilterDialog = False
         , paramSearchInputVal = ""
         , dialogSearchInputVal = ""
         , showParamSearchDropdown = False
@@ -248,6 +250,8 @@ type Msg
     | SetDialogSearchInput String
     | OpenStringFilterDialog SearchTerm
     | CloseStringFilterDialog
+    | OpenProjectFilterDialog
+    | CloseProjectFilterDialog
     | SetSearchFilterValue PURL String
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
@@ -429,6 +433,12 @@ update msg model =
 
         CloseStringFilterDialog ->
             ( { model | stringFilterDialogTerm = Nothing }, Cmd.none )
+
+        OpenProjectFilterDialog ->
+            ( { model | showProjectFilterDialog = True }, Cmd.none )
+
+        CloseProjectFilterDialog ->
+            ( { model | showProjectFilterDialog = False }, Cmd.none )
 
         SetSearchFilterValue id val ->
             let
@@ -1290,6 +1300,10 @@ view model =
             viewProjectSummaryDialog model.projectCounts
           else
             viewBlank
+        , if model.showProjectFilterDialog then
+            viewProjectFilterDialog model.projectCounts model.projectVals
+          else
+            viewBlank
         ]
 
 
@@ -1597,25 +1611,53 @@ viewProjectPanel counts selectedVals =
                     [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetProjectFilterValue lbl) ] []
                     , label [ class "form-check-label" ] [ text lbl ]
                     ]
-                , div [ class "badge badge-secondary float-right" ] [ num |> toFloat |> format myLocale |> text ]
+                , div [ class "badge badge-secondary float-right" ]
+                    [ num |> toFloat |> format myLocale |> text ]
                 ]
 
         truncatedOptions =
-            counts |> List.sortBy Tuple.second |> List.reverse --|> List.take 4 maxNumPanelOptions
+            counts |> List.sortBy Tuple.second |> List.reverse |> List.take 6
 
         numOptions =
             List.length counts
 
         numMore =
-            0 --numOptions - maxNumPanelOptions
+            numOptions - maxNumPanelOptions
     in
     viewPanel "" "Project" "" "" Nothing (Just (\_ -> OpenProjectChartDialog)) Nothing
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
-            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
+            button [ class "btn btn-sm btn-link float-right", onClick OpenProjectFilterDialog ]
+                [ String.fromInt numMore ++ " More ..." |> text ]
           else
             viewBlank
         ]
+
+
+viewProjectFilterDialog : List ProjectCount -> List String -> Html Msg
+viewProjectFilterDialog projectCounts projectVals =
+    let
+        options =
+            projectCounts |> List.sortBy .name
+
+        viewRow vals count =
+            let
+                isChecked =
+                    List.member count.name vals
+            in
+            div []
+                [ div [ class "form-check form-check-inline" ]
+                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetProjectFilterValue count.name) ] []
+                    , label [ class "form-check-label" ] [ text count.name ]
+                    ]
+                , div [ class "badge badge-secondary float-right" ]
+                    [ count.sampleCount |> toFloat |> format myLocale |> text ]
+                ]
+    in
+    viewDialog "Project"
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map (viewRow projectVals) options) ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseProjectFilterDialog ] [ text "Close" ] ]
+        CloseProjectFilterDialog
 
 
 --viewFileFormatPanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
