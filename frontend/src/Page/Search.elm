@@ -2315,7 +2315,7 @@ viewSearchTermSummaryDialog term =
     in
     viewDialog (String.Extra.toTitleCase term.label)
         [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
-            [ viewSearchTermSummaryChart term.label (term.distribution |> List.map (Tuple.mapFirst purlToLabel) |> List.sortBy Tuple.first) ]
+            [ viewSearchTermSummaryChart term.label (term.distribution |> List.map (Tuple.mapFirst purlToLabel)) ]
         ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseFilterChartDialog ]
             [ text "Close" ]
