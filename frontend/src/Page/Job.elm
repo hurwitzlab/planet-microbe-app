@@ -502,7 +502,7 @@ viewJob job app =
                 , td [] []
                 ]
             ]
-            , if isFailed job then
+            , if isFailed job && job.lastStatusMessage /= "" then
                 div [ class "alert alert-danger" ] [ text job.lastStatusMessage ]
               else
                 text ""
