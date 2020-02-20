@@ -523,8 +523,6 @@ encodeJobParameterValue appParams id val =
             StringValue val
 
 
---validateJobInputs :
-
 
 -- REQUESTS --
 
@@ -804,6 +802,21 @@ setFilePermission token username permission path =
         |> HttpBuilder.withJsonBody body
         |> HttpBuilder.withExpect (Http.expectJson emptyResponseDecoder)
         |> HttpBuilder.toRequest
+
+
+
+-- FUNCTIONS --
+
+
+validInputs : App -> Dict String String -> Bool
+validInputs app inputs =
+    let
+        validInput def =
+            --TODO finish this: add checks for cardinality, type, etc
+            --TODO perhaps this logic should move to the encoder
+            not def.value.required || (Dict.get def.id inputs |> Maybe.withDefault "") /= ""
+    in
+    (List.filter validInput app.inputs) /= []
 
 
 removeTrailingSlash : String -> String

@@ -275,52 +275,55 @@ update msg model =
         RunJob -> --TODO messy, clean this up
             case model.apps of
                 Loaded (app, agaveApp) ->
-                    let
-                        irodsToAgave path = -- convert IRODS paths to Agave paths
-                            if String.contains "/iplant/home" path then
-                                String.replace "/iplant/home" "" path -- replace all instances (multiple paths separated by semicolon)
-                            else
-                                path
+                    if Agave.validInputs agaveApp model.inputs then
+                        let
+                            irodsToAgave path = -- convert IRODS paths to Agave paths
+                                if String.contains "/iplant/home" path then
+                                    String.replace "/iplant/home" "" path -- replace all instances (multiple paths separated by semicolon)
+                                else
+                                    path
 
-                        jobInputs =
-                            Dict.toList model.inputs
-                                |> List.map (\(k, v) -> (k, irodsToAgave v))
-                                |> List.map (\(k, v) -> Agave.JobInput k (String.split ";" v))
+                            jobInputs = --FIXME move into encoder like with parameters
+                                Dict.toList model.inputs
+                                    |> List.map (\(k, v) -> (k, irodsToAgave v))
+                                    |> List.map (\(k, v) -> Agave.JobInput k (String.split ";" v))
 
-                        jobParameters =
-                            Agave.encodeJobParameterValues model.parameters agaveApp.parameters
+                            jobParameters =
+                                Agave.encodeJobParameterValues model.parameters agaveApp.parameters
 
-                        jobName =
-                            "PlanetMicrobe " ++ app.name --FIXME should be a user-inputted value?
+                            jobName =
+                                "PlanetMicrobe " ++ app.name --FIXME should be a user-inputted value?
 
-                        jobRequest =
-                            { name = jobName
-                            , app_id = app.name
-                            , archive = True
-                            , archiveOnAppError = True
-                            , inputs = jobInputs
-                            , parameters = jobParameters
-                            , notifications = []
-                            }
+                            jobRequest =
+                                { name = jobName
+                                , app_id = app.name
+                                , archive = True
+                                , archiveOnAppError = True
+                                , inputs = jobInputs
+                                , parameters = jobParameters
+                                , notifications = []
+                                }
 
-                        jobSettings =
-                            Dict.toList model.settings
+                            jobSettings =
+                                Dict.toList model.settings
 
-                        sendAppRun =
-                            App.run token app.id (Agave.encodeJobRequest jobRequest jobSettings |> Encode.encode 0) |> Http.send AppRunCompleted
+                            sendAppRun =
+                                App.run token app.id (Agave.encodeJobRequest jobRequest jobSettings |> Encode.encode 0) |> Http.send AppRunCompleted
 
-                        launchApp =
-                            if isPlanB app then
-                                PlanB.launchJob token jobRequest
-                            else
-                                Agave.launchJob token jobRequest jobSettings
-                    in
-                    ( { model | showRunDialog = True }
-                    , Cmd.batch
-                        [ launchApp |> Http.send RunJobCompleted
-                        , sendAppRun
-                        ]
-                    )
+                            launchApp =
+                                if isPlanB app then
+                                    PlanB.launchJob token jobRequest
+                                else
+                                    Agave.launchJob token jobRequest jobSettings
+                        in
+                        ( { model | showRunDialog = True }
+                        , Cmd.batch
+                            [ launchApp |> Http.send RunJobCompleted
+                            , sendAppRun
+                            ]
+                        )
+                    else
+                        ( { model | showRunDialog = True, dialogError = Just "Please enter the required inputs (see asterisk)." }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
