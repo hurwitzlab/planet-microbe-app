@@ -294,7 +294,14 @@ update msg model =
                             "PlanetMicrobe " ++ app.name --FIXME should be a user-inputted value?
 
                         jobRequest =
-                            Agave.JobRequest jobName app.name True jobInputs jobParameters []
+                            { name = jobName
+                            , app_id = app.name
+                            , archive = True
+                            , archiveOnAppError = True
+                            , inputs = jobInputs
+                            , parameters = jobParameters
+                            , notifications = []
+                            }
 
                         jobSettings =
                             Dict.toList model.settings

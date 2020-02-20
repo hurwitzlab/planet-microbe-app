@@ -464,48 +464,59 @@ view model =
 
 viewJob : Job -> App -> Html Msg
 viewJob job app =
-    table [ class "table table-borderless table-sm" ]
-        [ tr []
-            [ th [ class "w-25" ] [ text "ID" ]
-            , td [] [ text job.id ]
-            ]
-        , tr []
-            [ th [] [ text "Name" ]
-            , td [] [ text job.name ]
-            ]
-        , tr []
-            [ th [] [ text "App" ]
-            , td [] [ a [ Route.href (Route.App (String.fromInt app.id)) ] [ text app.name ] ]
-            ]
-        , tr []
-            [ th [] [ text "Owner" ]
-            , td [] [ text job.owner ]
-            ]
-        , tr []
-            [ th [] [ text "Start Time" ]
-            , td [] [ text job.created ]
-            ]
-        , tr []
-            [ th [] [ text "End Time" ]
-            , td [] [ text job.ended ]
-            ]
-        , tr []
-            [ th [ class "top" ] [ text "Status" ]
-            , td []
-                [ viewProgress job.status
-                , if isRunning job then
-                    button [ class "btn btn-outline-secondary btn-sm ml-2 align-top", onClick CancelJob ] [ text "Cancel" ]
-                 else
-                    text ""
+    div []
+        [ table [ class "table table-borderless table-sm" ]
+            [ tr []
+                [ th [ class "w-25" ] [ text "ID" ]
+                , td [] [ text job.id ]
                 ]
-            , td [] []
+            , tr []
+                [ th [] [ text "Name" ]
+                , td [] [ text job.name ]
+                ]
+            , tr []
+                [ th [] [ text "App" ]
+                , td [] [ a [ Route.href (Route.App (String.fromInt app.id)) ] [ text app.name ] ]
+                ]
+            , tr []
+                [ th [] [ text "Owner" ]
+                , td [] [ text job.owner ]
+                ]
+            , tr []
+                [ th [] [ text "Start Time" ]
+                , td [] [ text job.created ]
+                ]
+            , tr []
+                [ th [] [ text "End Time" ]
+                , td [] [ text job.ended ]
+                ]
+            , tr []
+                [ th [ class "top" ] [ text "Status" ]
+                , td []
+                    [ viewProgress job.status
+                    , if isRunning job then
+                        button [ class "btn btn-outline-secondary btn-sm ml-2 align-top", onClick CancelJob ] [ text "Cancel" ]
+                     else
+                        text ""
+                    ]
+                , td [] []
+                ]
             ]
+            , if isFailed job then
+                div [ class "alert alert-danger" ] [ text job.lastStatusMessage ]
+              else
+                text ""
         ]
 
 
 isRunning : Agave.Job -> Bool
 isRunning job =
     job.status /= "FINISHED" && job.status /= "FAILED" && job.status /= "STOPPED"
+
+
+isFailed : Agave.Job -> Bool
+isFailed job =
+    job.status == "FAILED" || job.status == "STOPPED"
 
 
 viewProgress : String -> Html msg
