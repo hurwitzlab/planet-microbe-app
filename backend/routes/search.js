@@ -170,10 +170,13 @@ router.get('/searchTerms/:id(*)', async (req, res) => { //TODO refactor me
                     )
                     SELECT
                         REGEXP_REPLACE(REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None'),'NaN - NaN','Below Detection Limit') AS label,
-                        WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val,10) AS bucket,COUNT(*)::int
+                        WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val+1e-9,10) AS bucket,COUNT(*)::int
                     FROM sample, min_max
                     GROUP BY bucket
                     ORDER BY bucket) AS foo`,
+                    // The max_val+1e-9 in the width_bucket() call is a kludge to prevent the error
+                    // "lower bound cannot equal upper bound" when all data values are zero, as is the case for
+                    // hydrogen sulfide (http://purl.obolibrary.org/obo/ENVO_3100017)
             rowMode: 'array'
         });
 
@@ -190,11 +193,7 @@ router.get('/searchTerms/:id(*)', async (req, res) => { //TODO refactor me
             aliases: aliases,
             annotations: annotations
         });
-// TODO
-//        .catch(err => {
-//            console.log(err);
-//            res.send(err);
-//        });
+
     }
     else if (term.type == "datetime") {
         let queries = term.schema.map(schema => {
@@ -550,10 +549,13 @@ async function search(db, termIndex, params) {
                         )
                         SELECT
                             REGEXP_REPLACE(REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None'),'NaN - NaN','Below Detection Limit') AS label,
-                            WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val,10) AS bucket,COUNT(*)::int
+                            WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val+1e-9,10) AS bucket,COUNT(*)::int
                         ${tableStr}, min_max
                         ${clauseStr}
                         GROUP BY bucket) AS foo`;
+                        // The max_val+1e-9 in the width_bucket() call is a kludge to prevent the error
+                        // "lower bound cannot equal upper bound" when all data values are zero, as is the case for
+                        // hydrogen sulfide (http://purl.obolibrary.org/obo/ENVO_3100017)
             }
 //TODO
 //            else if (term.type == 'datetime') {
