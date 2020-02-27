@@ -9,7 +9,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
 import Json.Encode as Encode
 import Config exposing (apiBaseUrl)
-import File exposing (File, fileDecoder)
+import RemoteFile exposing (File, fileDecoder)
 
 
 

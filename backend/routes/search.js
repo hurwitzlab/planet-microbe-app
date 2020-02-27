@@ -254,6 +254,27 @@ router.get('/search', async (req, res) => {
     }
 });
 
+router.get('/search/download', async (req, res) => {
+    let termIndex = req.app.get('termIndex');
+
+    req.query['limit'] = 999999;
+    req.query['offset'] = 0;
+
+    try {
+        let results = await search(db, termIndex, req.query);
+
+        let table = results.results.map(
+            r => [r.projectName, r.sampleAccn].concat(r.values).join("\t")
+        ).join("\n");
+
+        res.send(table);
+    }
+    catch(err) {
+        console.log(err);
+        res.status(500).json({ error: err });
+    }
+});
+
 // TODO refactor/simplify this ugly af code
 async function search(db, termIndex, params) {
     console.log("params:", params);

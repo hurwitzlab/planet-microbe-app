@@ -9,6 +9,7 @@ import HttpBuilder
 import Json.Encode as Encode exposing (Value, null)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
+import File.Download as Download
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (usLocale)
 import Date exposing (Date)
@@ -24,7 +25,7 @@ import Route
 import Error
 import Page exposing (viewBlank, viewSpinner, viewDialog)
 import Sample exposing (SearchTerm, PURL)
-import File exposing (FileFormat, FileType)
+import RemoteFile exposing (FileFormat, FileType)
 import SortableTable
 import BarChart
 import Cart
@@ -204,8 +205,8 @@ init session =
         [ Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
         , initialParams |> List.map Sample.fetchSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
-        , File.fetchFormats |> Http.toTask |> Task.attempt GetFileFormatsCompleted
-        , File.fetchTypes |> Http.toTask |> Task.attempt GetFileTypesCompleted
+        , RemoteFile.fetchFormats |> Http.toTask |> Task.attempt GetFileFormatsCompleted
+        , RemoteFile.fetchTypes |> Http.toTask |> Task.attempt GetFileTypesCompleted
         , GMap.removeMap "" -- workaround for blank map on navigating back to this page
         , GMap.changeMapSettings (GMap.Settings True True False True |> GMap.encodeSettings)
         ]
@@ -266,9 +267,10 @@ type Msg
     | SetPageSize Int
     | SetPageNum Int
     | InputTimerTick Time.Posix
-    | Search Int
+    | Search Int Bool
     | SampleSearchCompleted (Result Http.Error SearchResponse)
     | FileSearchCompleted (Result Http.Error SearchResponse)
+    | DownloadSearchCompleted (Result Http.Error String)
     | ToggleMap
     | UpdateLocationFromMap (Maybe GMap.Location)
     | MapLoaded Bool
@@ -600,17 +602,17 @@ update msg model =
                         model.pageNum
             in
             if newPageNum /= model.pageNum then
-                update (Search newPageNum) model
+                update (Search newPageNum False) model
             else
                 ( model, Cmd.none )
 
         InputTimerTick time ->
             if model.doSearch && Time.posixToMillis time - model.searchStartTime >= 1000 then -- 1 second
-                update (Search 0) model
+                update (Search 0 False) model
             else
                 ( model, Cmd.none )
 
-        Search newPageNum ->
+        Search newPageNum download ->
             case generateQueryParams model.locationVal model.projectVals model.fileFormatVals model.fileTypeVals model.selectedParams model.selectedVals of
                 Ok queryParams ->
                     let
@@ -624,25 +626,25 @@ update msg model =
                             ("summary", String.join "," model.selectedParams) ::
                             queryParams ++
                             (generateControlParams result [] sortPos model.pageSize (model.pageSize * newPageNum) model.showMap)
-
-                        searchReq =
-                            searchRequest allParams
                     in
-                    if allParams == model.previousSearchParams then
-                        ( { model
-                            | doSearch = False
-                            , isSearching = False
-                            }
-                        , Cmd.none
-                        )
-                    else
+                    if download || allParams /= model.previousSearchParams then
                         ( { model
                             | doSearch = False
                             , isSearching = True
                             , pageNum = newPageNum
                             , previousSearchParams = allParams
                           }
-                        , searchReq |> Http.toTask |> Task.attempt cmd
+                        , if download then
+                            searchDownloadRequest allParams |> Http.toTask |> Task.attempt DownloadSearchCompleted
+                          else
+                            searchRequest allParams |> Http.toTask |> Task.attempt cmd
+                        )
+                    else -- do nothing
+                        ( { model
+                            | doSearch = False
+                            , isSearching = False
+                            }
+                        , Cmd.none
                         )
 
                 Err error ->
@@ -702,6 +704,17 @@ update msg model =
 --                _ = Debug.log "FileSearchCompleted" (toString error)
 --            in
             ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
+
+        DownloadSearchCompleted (Ok response) ->
+            ( { model | isSearching = False }
+            , Download.string "PM_Search_Results.tsv" "text/tab-separated-values" response
+            )
+
+        DownloadSearchCompleted (Err error) ->
+--            let
+--                _ = Debug.log "DownloadSearchCompleted" (toString error)
+--            in
+            ( { model | errorMsg = Just (Error.toString error), isSearching = False }, Cmd.none )
 
         ToggleMap ->
             let
@@ -1035,6 +1048,18 @@ searchRequest queryParams =
     HttpBuilder.get url
         |> HttpBuilder.withQueryParams queryParams
         |> HttpBuilder.withExpect (Http.expectJson decodeSearchResponse)
+        |> HttpBuilder.toRequest
+
+
+searchDownloadRequest : List (String, String) -> Http.Request String
+searchDownloadRequest queryParams =
+    let
+        url =
+            apiBaseUrl ++ "/search/download"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withQueryParams queryParams
+        |> HttpBuilder.withExpect Http.expectString
         |> HttpBuilder.toRequest
 
 
@@ -2179,6 +2204,11 @@ viewResults model =
 --                     ++ [ li [ class "nav-item ml-auto" ]
 --                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
 --                        ]
+                     ++ [ li [ class "nav-item ml-auto" ]
+                            [ a [ class "nav-link", href "", onClick (Search 0 True) ] [ Icon.fileDownload ] ]
+                        --, li [ class "nav-item" ]
+                        --    [ a [ class "nav-link", href "" ] [ Icon.cloudDownload ] ]
+                        ]
                     )
                 ,
                 div []

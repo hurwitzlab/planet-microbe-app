@@ -93,6 +93,11 @@ file =
     i [ class "fas fa-fw fa-file" ] []
 
 
+fileDownload : Html msg
+fileDownload =
+    i [ class "fas fa-fw fa-file-download" ] []
+
+
 ban : Html msg
 ban =
     i [ class "fas fa-fw fa-ban" ] []

@@ -19,7 +19,7 @@ import List.Extra
 import String.Extra
 import Maybe exposing (withDefault)
 import Dict exposing (Dict)
-import File exposing (File)
+import RemoteFile exposing (File)
 import FileBrowser
 import Icon
 import Error
@@ -412,7 +412,7 @@ update msg model =
                         Task.attempt LoadCartCompleted <|
                             Task.map2 (\samples files -> (samples, files))
                                 (Sample.fetchSome idList |> Http.toTask) -- load samples for current cart
-                                (File.fetchAllBySamples idList |> Http.toTask) -- load files for current cart
+                                (RemoteFile.fetchAllBySamples idList |> Http.toTask) -- load files for current cart
 --                            Task.map3 (\samples files sampleGroups -> (samples, files, sampleGroups))
 --                                (Sample.fetchSome session.token id_list |> Http.toTask) -- load samples for current cart
 --                                (Request.Sample.files session.token id_list |> Http.toTask) -- load files for current cart

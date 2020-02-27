@@ -10,7 +10,7 @@ import Json.Decode.Pipeline exposing (required, optional)
 import Json.Encode as Encode
 import Config exposing (apiBaseUrl)
 --import Debug exposing (toString)
-import File exposing (File, fileDecoder)
+import RemoteFile exposing (File, fileDecoder)
 
 
 

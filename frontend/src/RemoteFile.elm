@@ -1,6 +1,10 @@
-module File exposing (..)
+module RemoteFile exposing (..)
 
 {-| The interface to the File data structure.
+
+Represents a data file in the Data Store with a type and a format.
+
+Had to rename this from File to RemoteFile due to conflict with Elm's File package (elm/file).
 -}
 
 import Http
