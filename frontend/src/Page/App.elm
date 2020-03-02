@@ -286,7 +286,7 @@ update msg model =
                             jobInputs = --FIXME move into encoder like with parameters
                                 Dict.toList model.inputs
                                     |> List.map (\(k, v) -> (k, irodsToAgave v))
-                                    |> List.map (\(k, v) -> Agave.JobInput k (String.split ";" v))
+                                    |> List.map (\(k, v) -> Agave.JobInput k (if v == "" then [] else String.split ";" v))
 
                             jobParameters =
                                 Agave.encodeJobParameterValues model.parameters agaveApp.parameters
