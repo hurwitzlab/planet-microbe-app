@@ -261,11 +261,13 @@ router.get('/search/download', async (req, res) => {
     req.query['offset'] = 0;
 
     try {
-        let results = await search(db, termIndex, req.query);
+        let result = await search(db, termIndex, req.query);
 
-        let table = results.results.map(
-            r => [r.projectName, r.sampleAccn].concat(r.values).join("\t")
-        ).join("\n");
+        let table =
+            [].concat(
+                [ result.fields.join("\t") ],
+                result.results.map(r => [r.projectName, r.sampleAccn].concat(r.values).join("\t"))
+            ).join("\n");
 
         res.send(table);
     }
@@ -730,6 +732,7 @@ async function search(db, termIndex, params) {
 
     return {
         count: count,
+        fields: ['Project Name', 'Sample ID'].concat(Object.keys(selections)),
         summary: summaries,
         results: results,
         map: (clusters ? clusters.rows : {})
