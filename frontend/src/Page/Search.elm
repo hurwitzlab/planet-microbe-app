@@ -2205,7 +2205,7 @@ viewResults model =
 --                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
 --                        ]
                      ++ [ li [ class "nav-item ml-auto" ]
-                            [ a [ class "nav-link", href "", onClick (Search 0 True) ] [ Icon.fileDownload ] ]
+                            [ a [ class "nav-link", href "", onClick (Search 0 True) ] [ Icon.fileDownload, text " Download" ] ]
                         --, li [ class "nav-item" ]
                         --    [ a [ class "nav-link", href "" ] [ Icon.cloudDownload ] ]
                         ]
