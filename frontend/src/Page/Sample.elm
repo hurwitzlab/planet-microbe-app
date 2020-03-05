@@ -15,6 +15,7 @@ import Experiment exposing (Experiment)
 import LatLng
 import GMap
 import Http
+import RemoteData exposing (RemoteData(..))
 import Task exposing (Task)
 import Time
 import String.Extra
@@ -31,7 +32,7 @@ import Icon
 
 type alias Model =
     { session : Session
-    , sample : SampleStatus
+    , sample : RemoteData Http.Error Sample
     , samplingEvents : Maybe (List SamplingEvent)
     , experiments : Maybe (List Experiment)
     , metadata : Maybe Metadata
@@ -46,12 +47,6 @@ type alias ToolTip a = --TODO move tooltip code into own module
     , y : Float
     , content : a
     }
-
-
-type SampleStatus
-    = Loading
-    | Loaded Sample
-    | LoadError Http.Error
 
 
 init : Session -> Int -> ( Model, Cmd Msg )
@@ -112,13 +107,13 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GetSampleCompleted (Ok sample) ->
-            ( { model | sample = Loaded sample }, Cmd.none )
+            ( { model | sample = Success sample }, Cmd.none )
 
         GetSampleCompleted (Err error) -> --TODO
 --            let
 --                _ = Debug.log "GetSampleCompleted" (toString error)
 --            in
-            ( { model | sample = LoadError error }, Cmd.none )
+            ( { model | sample = Failure error }, Cmd.none )
 
         GetSamplingEventsCompleted (Ok samplingEvents) ->
             ( { model | samplingEvents = Just samplingEvents }, Cmd.none )
@@ -152,7 +147,7 @@ update msg model =
 
         TimerTick time ->
             case (model.mapLoaded, model.sample) of
-                (False, Loaded sample) ->
+                (False, Success sample) ->
                     let
                         map =
                             sample.locations |> Encode.list LatLng.encode
@@ -246,7 +241,7 @@ update msg model =
 view : Model -> Html Msg
 view model =
     case model.sample of
-        Loaded sample ->
+        Success sample ->
             let
                 numExperiments =
                     model.experiments |> Maybe.map List.length |> Maybe.withDefault 0
@@ -287,8 +282,11 @@ view model =
         Loading ->
             viewSpinner
 
-        LoadError error ->
+        Failure error ->
             Error.view error False
+
+        _ ->
+            text ""
 
 
 viewSample : Sample -> List SamplingEvent -> Html Msg

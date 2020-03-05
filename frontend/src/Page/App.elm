@@ -10,6 +10,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onCheck, onInput)
 import Http
+import RemoteData exposing (RemoteData(..))
 import Route
 import Page exposing (viewSpinner, viewSpinnerCentered, viewDialog)
 import Json.Decode as Decode
@@ -32,7 +33,7 @@ import Error
 
 type alias Model =
     { session : Session
-    , apps : Apps
+    , apps : RemoteData Http.Error (App, Agave.App)
     , inputs : Dict String String
     , parameters : Dict String String
     , settings : Dict String String
@@ -48,13 +49,6 @@ type alias Model =
     , inputId : Maybe String
     , fileBrowser : FileBrowser.Model
     }
-
-
-
-type Apps
-    = Loading
-    | Loaded (App, Agave.App)
-    | LoadError Http.Error
 
 
 init : Session -> String -> ( Model, Cmd Msg )
@@ -204,7 +198,7 @@ update msg model =
                             String.fromFloat num
             in
             ( { model
-                | apps = Loaded (app, agaveApp)
+                | apps = Success (app, agaveApp)
                 , inputs = defaultInputs agaveApp.inputs
                 , parameters = defaultParams agaveApp.parameters
                 , settings = defaultSettings
@@ -213,7 +207,7 @@ update msg model =
             )
 
         GetAppCompleted (Err error) -> --TODO
-            ( { model | apps = LoadError error }, Error.redirectLoadError error (Session.navKey model.session) )
+            ( { model | apps = Failure error }, Error.redirectLoadError error (Session.navKey model.session) )
 
         SetInput source id value ->
             let
@@ -274,7 +268,7 @@ update msg model =
 
         RunJob -> --TODO messy, clean this up
             case model.apps of
-                Loaded (app, agaveApp) ->
+                Success (app, agaveApp) ->
                     if Agave.validInputs agaveApp model.inputs then
                         let
                             irodsToAgave path = -- convert IRODS paths to Agave paths
@@ -330,7 +324,7 @@ update msg model =
 
         RunJobCompleted (Ok response) ->
             case model.apps of
-                Loaded (app, _) ->
+                Success (app, _) ->
                     let
                         shareJob =
                             if isPlanB app then
@@ -531,7 +525,7 @@ view : Model -> Html Msg
 view model =
     div [ class "container" ]
         (case model.apps of
-            Loaded (app, agaveApp) ->
+            Success (app, agaveApp) ->
                 let
                     body =
                         if not app.is_active then
@@ -564,11 +558,14 @@ view model =
                 , dialog
                 ]
 
-            LoadError error ->
+            Failure error ->
                 [ Error.view error False ]
 
             Loading ->
                 [ viewSpinnerCentered ]
+
+            NotAsked ->
+                [ text "" ]
         )
 
 

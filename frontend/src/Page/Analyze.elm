@@ -8,6 +8,7 @@ import Page
 import Route exposing (Route)
 import Error
 import Http
+import RemoteData exposing (RemoteData(..))
 import Task exposing (Task)
 import App exposing (App)
 import Agave exposing (Job)
@@ -20,18 +21,11 @@ import PlanB
 
 type alias Model =
     { session : Session
-    , apps : Maybe (List App)
-    , jobs : Jobs
+    , apps : RemoteData Http.Error (List App)
+    , jobs : RemoteData Http.Error (List Job)
     , tab : String
     , query : String
     }
-
-
-type Jobs
-    = Unavailable
-    | Loading
-    | Loaded (List Job)
-    | LoadError Http.Error
 
 
 init : Session -> Maybe String -> ( Model, Cmd Msg )
@@ -48,10 +42,10 @@ init session tab =
                     )
 
                 _ ->
-                    ( Unavailable, Cmd.none )
+                    ( NotAsked, Cmd.none )
     in
     ( { session = session
-      , apps = Nothing
+      , apps = Loading
       , jobs = jobs
       , tab = tab |> Maybe.withDefault "Apps"
       , query = ""
@@ -83,7 +77,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GetAppsCompleted (Ok apps) ->
-            ( { model | apps = Just apps }, Cmd.none )
+            ( { model | apps = Success apps }, Cmd.none )
 
         GetAppsCompleted (Err error) -> --TODO
 --            let
@@ -92,13 +86,13 @@ update msg model =
             ( model, Cmd.none )
 
         GetJobsCompleted (Ok (agaveJobs, planbJobs)) ->
-            ( { model | jobs = Loaded (agaveJobs ++ planbJobs) }, Cmd.none )
+            ( { model | jobs = Success (agaveJobs ++ planbJobs) }, Cmd.none )
 
         GetJobsCompleted (Err error) -> --TODO
 --            let
 --                _ = Debug.log "GetJobsCompleted" (Error.toString error)
 --            in
-            ( { model | jobs = LoadError error }, Cmd.none )
+            ( { model | jobs = Failure error }, Cmd.none )
 
         SetTab label ->
             ( { model | tab = label }, Cmd.none )
@@ -116,23 +110,32 @@ view model =
     let
         ( numApps, appsRow ) =
             case model.apps of
-                Just apps ->
+                Loading ->
+                    ( 0, Page.viewSpinner )
+
+                Success apps ->
                     ( List.length apps
                     , apps |> filterApp model.query |> viewApps
                     )
 
-                Nothing ->
-                    (0, Page.viewSpinner )
+                Failure error ->
+                    ( 0, Error.view error False )
+
+                _ ->
+                    ( 0, text "" )
 
         ( numJobs, jobsRow ) =
             case model.jobs of
                 Loading ->
                     ( 0, Page.viewSpinner )
 
-                Loaded jobs  ->
+                Success jobs  ->
                     ( List.length jobs
                     , jobs |> filterJob model.query |> viewJobs
                     )
+
+                Failure error ->
+                    ( 0, Error.view error False )
 
                 _ ->
                     ( 0
