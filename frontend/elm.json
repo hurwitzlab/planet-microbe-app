@@ -26,6 +26,7 @@
             "elm-community/typed-svg": "5.2.0",
             "gampleman/elm-visualization": "2.1.1",
             "justinmimbs/date": "3.2.0",
+            "krisajenkins/remotedata": "5.0.0",
             "lukewestby/elm-http-builder": "6.0.0",
             "ryannhg/date-format": "2.3.0",
             "truqu/elm-oauth2": "4.0.1"

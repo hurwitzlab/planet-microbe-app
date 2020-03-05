@@ -5,13 +5,15 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Page
 import Route
-import SamplingEvent exposing (SamplingEvent)
+import SamplingEvent exposing (SamplingEvent, Data)
 import Sample exposing (Sample)
+import SearchTerm
 import LatLng
 import GMap
 import Time
+import Page
 import Http
---import Page.Error as Error exposing (PageLoadError)
+import RemoteData exposing (RemoteData(..))
 import Task exposing (Task)
 import String.Extra
 import Json.Encode as Encode
@@ -26,6 +28,8 @@ type alias Model =
     { session : Session
     , samplingEvent : Maybe SamplingEvent
     , samples : Maybe (List Sample)
+    , niskinData : RemoteData Http.Error Data
+    , ctdData : RemoteData Http.Error Data
     , mapLoaded : Bool
     }
 
@@ -35,6 +39,8 @@ init session id =
     ( { session = session
       , samplingEvent = Nothing
       , samples = Nothing
+      , niskinData = Loading
+      , ctdData = Loading
       , mapLoaded = False
       }
       , Cmd.batch
@@ -42,6 +48,8 @@ init session id =
         , GMap.changeMapSettings (GMap.Settings False False True False |> GMap.encodeSettings)
         , SamplingEvent.fetch id |> Http.toTask |> Task.attempt GetSamplingEventCompleted
         , Sample.fetchAllBySamplingEvent id |> Http.toTask |> Task.attempt GetSamplesCompleted
+        , SamplingEvent.fetchData id "niskin" |> Http.toTask |> Task.attempt GetNiskinDataCompleted
+        , SamplingEvent.fetchData id "ctd" |> Http.toTask |> Task.attempt GetCTDDataCompleted
         ]
     )
 
@@ -67,6 +75,8 @@ subscriptions model =
 type Msg
     = GetSamplingEventCompleted (Result Http.Error SamplingEvent)
     | GetSamplesCompleted (Result Http.Error (List Sample))
+    | GetNiskinDataCompleted (Result Http.Error Data)
+    | GetCTDDataCompleted (Result Http.Error Data)
     | MapLoaded Bool
     | TimerTick Time.Posix
 
@@ -91,6 +101,24 @@ update msg model =
 --                _ = Debug.log "GetSamplesCompleted" (toString error)
 --            in
             ( model, Cmd.none )
+
+        GetNiskinDataCompleted (Ok data) ->
+            ( { model | niskinData = Success data }, Cmd.none )
+
+        GetNiskinDataCompleted (Err error) ->
+            --let
+            --    _ = Debug.log "GetNiskinDataCompleted" (toString error)
+            --in
+            ( { model | niskinData = Failure error }, Cmd.none )
+
+        GetCTDDataCompleted (Ok data) ->
+            ( { model | ctdData = Success data }, Cmd.none )
+
+        GetCTDDataCompleted (Err error) ->
+            --let
+            --    _ = Debug.log "GetCTDDataCompleted" (toString error)
+            --in
+            ( { model | ctdData = Failure error }, Cmd.none )
 
         MapLoaded success ->
             ( { model | mapLoaded = success }, Cmd.none )
@@ -141,6 +169,12 @@ view model =
                     ]
                 , div [ class "pt-2" ]
                     [ viewSamples model.samples ]
+                , div [ class "pt-3 pb-2" ]
+                    [ Page.viewTitle2 "Niskin Data" False ]
+                , viewData model.niskinData
+                , div [ class "pt-3 pb-2" ]
+                    [ Page.viewTitle2 "CTD Data" False ]
+                , viewData model.ctdData
                 ]
 
 
@@ -226,3 +260,79 @@ viewSamples maybeSamples =
                 , tbody []
                     (samples |> List.sortBy .accn |> List.map mkRow)
                 ]
+
+
+viewData : RemoteData Http.Error Data -> Html Msg
+viewData maybeData =
+    case maybeData of
+        Success data ->
+            let
+                valueToString maybeValue =
+                    case maybeValue of
+                        Nothing ->
+                            ""
+
+                        Just (SearchTerm.StringValue v) ->
+                            v
+
+                        Just (SearchTerm.IntValue i) ->
+                            String.fromInt i
+
+                        Just (SearchTerm.FloatValue f) ->
+                            String.fromFloat f
+
+                mkRdf term =
+                    if term.id /= "" then
+                        let
+                            purl =
+                                -- PMO draft purls do not link to a human readable page, redirect them to the owl file GitHub (per Kai)
+                                if String.startsWith "http://purl.obolibrary.org/obo/PMO" term.id then
+                                    "https://raw.githubusercontent.com/hurwitzlab/planet-microbe-ontology/master/src/ontology/pmo-edit.owl"
+                                else
+                                    term.id
+                        in
+                        a [ id term.id, href purl, target "_blank" ] --, onMouseEnter (ShowTooltip term.id), onMouseLeave HideTooltip ]
+                            [ text term.label ]
+                    else
+                        text term.alias_
+
+                mkUnit term =
+                    if term.unitId /= "" then
+                        a [ href term.unitId, title term.unitId, target "_blank" ]
+                            [ text term.unitLabel ]
+                    else
+                        text ""
+
+                mkHeader terms =
+                    tr []
+                        (terms |> List.map
+                            (\term ->
+                                th []
+                                    ((mkRdf term) ::
+                                        (if term.unitId /= "" then
+                                            [ text " (", (mkUnit term), text ")" ]
+                                        else
+                                            []
+                                        )
+                                    )
+                            )
+                        )
+
+                mkRow values =
+                    tr []
+                        (values |> List.map (\val -> td [] [ val |> valueToString |> SearchTerm.viewValue ]))
+            in
+            div []
+                [ table [ class "table table-sm table-striped small" ]
+                    [ thead []
+                        [ (mkHeader data.terms) ]
+                    , tbody []
+                        (List.map mkRow data.values)
+                    ]
+                ]
+
+        Loading ->
+            Page.viewSpinner
+
+        _ ->
+            text "None"

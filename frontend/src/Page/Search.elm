@@ -24,7 +24,8 @@ import Dict exposing (Dict)
 import Route
 import Error
 import Page exposing (viewBlank, viewSpinner, viewDialog)
-import Sample exposing (SearchTerm, PURL)
+import Sample
+import SearchTerm exposing (SearchTerm, PURL)
 import RemoteFile exposing (FileFormat, FileType)
 import SortableTable
 import BarChart

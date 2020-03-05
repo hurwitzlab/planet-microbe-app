@@ -13,7 +13,7 @@ router.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog
 });
 
 router.get('/schema', async (req, res) => {
-    let fields = await db.query("SELECT schema_id,name,fields->'fields' AS fields FROM schema");
+    let fields = await db.query("SELECT schema_id,name,type,fields->'fields' AS fields FROM schema");
     res.json(fields.rows);
 });
 
@@ -402,6 +402,9 @@ async function search(db, termIndex, params) {
         for (let schemaId of schemas) {
             let fields = [];
             for (let schema of term.schemas[schemaId]) {
+                if (schema.schemaType != 'sample')
+                    continue;
+
                 let [field, clause] = buildTermSQL(schema.position, term, terms[term.id]);
 
                 if (clause) {
@@ -417,8 +420,10 @@ async function search(db, termIndex, params) {
                 fields.push(field);
             }
 
-            let fieldsStr = "ARRAY[" + fields.join(",") + "]";
-            selectStr += " WHEN schema_id=" + schemaId + " THEN " + fieldsStr;
+            if (fields.length > 0) {
+                let fieldsStr = "ARRAY[" + fields.join(",") + "]";
+                selectStr += " WHEN schema_id=" + schemaId + " THEN " + fieldsStr;
+            }
         }
 
         if (selectStr)
@@ -442,6 +447,9 @@ async function search(db, termIndex, params) {
                 continue;
             }
             for (let schema of term.schemas[schemaId]) {
+                if (schema.schemaType != 'sample')
+                    continue;
+
                 let [field, clause] = buildTermSQL(schema.position, term, terms[term.id]);
 
                 if (clause) {
@@ -457,8 +465,10 @@ async function search(db, termIndex, params) {
                 fields.push(field);
             }
 
-            let fieldsStr = "ARRAY[" + fields.join(",") + "]";
-            selectStr += " WHEN schema_id=" + schemaId + " THEN " + fieldsStr;
+            if (fields.length > 0) {
+                let fieldsStr = "ARRAY[" + fields.join(",") + "]";
+                selectStr += " WHEN schema_id=" + schemaId + " THEN " + fieldsStr;
+            }
         }
 
         if (selectStr)
@@ -750,6 +760,7 @@ function getSchemasForTerms(terms) {
         else
             schemas = intersect(schemas, Object.keys(term.schemas));
     }
+
     return schemas;
 }
 

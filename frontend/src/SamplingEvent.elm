@@ -1,4 +1,4 @@
-module SamplingEvent exposing (SamplingEvent, fetch, fetchAllByCampaign, fetchAllByProject, fetchAllBySample)
+module SamplingEvent exposing (SamplingEvent, Data, fetch, fetchAllByCampaign, fetchAllByProject, fetchAllBySample, fetchData)
 
 {-| The interface to the Sample data structure.
 -}
@@ -7,10 +7,9 @@ import Http
 import HttpBuilder
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
-import Json.Encode as Encode
 import LatLng exposing (LatLng)
+import SearchTerm exposing (SearchTerm, PURL, Value)
 import Config exposing (apiBaseUrl)
---import Debug exposing (toString)
 
 
 
@@ -32,6 +31,13 @@ type alias SamplingEvent  =
     }
 
 
+type alias Data =
+    { schema_id : Int
+    , terms : List SearchTerm
+    , values : List (List (Maybe Value))
+    }
+
+
 
 -- SERIALIZATION
 
@@ -50,6 +56,14 @@ samplingEventDecoder =
         |> optional "campaign_name" Decode.string ""
         |> optional "project_id" Decode.int 0
         |> optional "project_name" Decode.string ""
+
+
+dataDecoder : Decoder Data
+dataDecoder =
+    Decode.succeed Data
+        |> required "schema_id" Decode.int
+        |> required "terms" (Decode.list SearchTerm.searchTermDecoder)
+        |> required "values" (Decode.list (Decode.list SearchTerm.valueDecoder))
 
 
 
@@ -97,4 +111,15 @@ fetchAllBySample id =
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list samplingEventDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchData : Int -> String -> Http.Request Data
+fetchData id type_ =
+    let
+        url =
+            apiBaseUrl ++ "/sampling_events/" ++ (String.fromInt id) ++ "/data/" ++ type_
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson dataDecoder)
         |> HttpBuilder.toRequest

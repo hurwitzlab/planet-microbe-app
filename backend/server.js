@@ -50,7 +50,7 @@ class TermIndex {
 
 async function generateTermIndex(db, ontologyDescriptors) {
     //let result = await query('select fields[1].string from sample limit 1')
-    let schemas = await db.query("SELECT schema_id,name,fields FROM schema");
+    let schemas = await db.query("SELECT schema_id,name,type,fields FROM schema");
     //console.log(schemas.rows);
 
     let index = {};
@@ -88,6 +88,8 @@ async function generateTermIndex(db, ontologyDescriptors) {
 
             index[purl]['schemas'][schema.schema_id].push({
                 schemaId: schema.schema_id,
+                schemaName: schema.name,
+                schemaType: schema.type,
                 position: i + 1,
                 //type: field.type,
                 name: field.name,

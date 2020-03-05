@@ -8,7 +8,8 @@ import Html.Events exposing (onMouseEnter, onMouseLeave, onClick)
 import Page exposing (viewSpinner)
 import Route
 import Error
-import Sample exposing (Sample, PURL, Metadata, Value(..), SearchTerm, Annotation)
+import Sample exposing (Sample, Metadata)
+import SearchTerm exposing (PURL, Value(..), SearchTerm, Annotation)
 import SamplingEvent exposing (SamplingEvent)
 import Experiment exposing (Experiment)
 import LatLng
@@ -444,7 +445,7 @@ viewMetadata maybeMetadata showUnannotated =
                     tr []
                         [ td [] [ mkRdf term ]
                         , td [] [ text term.alias_ ]
-                        , td [] [ maybeValue |> valueToString |> viewValue ]
+                        , td [] [ maybeValue |> valueToString |> SearchTerm.viewValue ]
                         , td [] [ mkUnit term ]
                         , td [] [ mkSourceUrl term.sourceUrl ]
                         ]
@@ -520,11 +521,3 @@ viewTooltip tooltip =
             ]
     else
         text ""
-
-
-viewValue : String -> Html msg
-viewValue val =
-    if String.startsWith "http://" val || String.startsWith "https://" val || String.startsWith "ftp://" val then
-        a [ href val, target "_blank" ] [ text val ]
-    else
-        text val
