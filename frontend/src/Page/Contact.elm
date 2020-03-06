@@ -7,7 +7,7 @@ import Html.Events exposing (onInput, onClick)
 import Page
 import Http
 import Json.Decode as Decode exposing (Decoder)
-import Json.Decode.Pipeline as Pipeline exposing (optional, required)
+import Json.Decode.Pipeline as Pipeline
 import Json.Encode as Encode
 import Config exposing (apiBaseUrl)
 
@@ -133,31 +133,37 @@ view model =
             ]
     else
         div [ class "container" ]
-            [ div [ class "pt-5" ]
-                [ Page.viewTitle1 "Contact Us" True
+            [ div [ class "row" ]
+                [ div [ class "col pt-5" ]
+                    [ Page.viewTitle1 "Contact Us" True
+                    ]
                 ]
-            , div [ class "pt-4" ]
-                [ p []
-                    [ text "Please complete the form below to send us your bug reports, comments, and suggestions." ]
---                , p []
---                    [ text "If you are looking for documentation, see the "
---                    , a [ href "https://hurwitzlab.gitbook.io/planetmicrobe/" ] [ text "User Manual" ]
---                    , text "."
---                    ]
-                ]
-            , div [ class "pt-3" ]
-                [ div [ class "form-group" ]
-                    [ label [ attribute "for" "name" ] [ text "Your name" ]
-                    , input [ type_ "text", class "form-control", placeholder "Enter your name", value model.name, onInput SetName ] []
+            , div [ class "row" ]
+                [ div [ class "col" ]
+                    [ div [ class "pt-4" ]
+                        [ p []
+                            [ text "Please complete the form below to send us your bug reports, comments, and questions." ]
+                        , p [ class "pt-1" ]
+                            [ text "If you are looking for documentation, see the "
+                            , a [ href "https://hurwitzlab.gitbook.io/planet-microbe-documentation/", target "_blank" ] [ text "User Manual" ]
+                            , text "."
+                            ]
+                        ]
+                    , div [ class "pt-4 w-50" ]
+                        [ div [ class "form-group" ]
+                            [ label [ attribute "for" "name" ] [ text "Your name" ]
+                            , input [ type_ "text", class "form-control", placeholder "Enter your name", value model.name, onInput SetName ] []
+                            ]
+                        , div [ class "form-group" ]
+                            [ label [ attribute "for" "email" ] [ text "Your email" ]
+                            , input [ type_ "email", class "form-control", placeholder "Enter your email", value model.email, onInput SetEmail ] []
+                            ]
+                        , div [ class "form-group" ]
+                            [ label [ attribute "for" "message" ] [ text "Your message" ]
+                            , textarea [ class "form-control", rows 6, onInput SetMessage ] []
+                            ]
+                        , button [ class "btn btn-primary", onClick Submit ] [ text "Submit" ]
+                        ]
                     ]
-                , div [ class "form-group" ]
-                    [ label [ attribute "for" "email" ] [ text "Your email" ]
-                    , input [ type_ "email", class "form-control", placeholder "Enter your email", value model.email, onInput SetEmail ] []
-                    ]
-                , div [ class "form-group" ]
-                    [ label [ attribute "for" "message" ] [ text "Your message" ]
-                    , textarea [ class "form-control", rows 3, onInput SetMessage ] []
-                    ]
-                , button [ class "btn btn-primary", onClick Submit ] [ text "Submit" ]
                 ]
             ]
