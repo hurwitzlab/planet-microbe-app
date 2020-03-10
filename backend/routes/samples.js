@@ -198,34 +198,43 @@ router.post('/samples/files', async (req, res) => {
     res.json(result.rows);
 });
 
-router.get('/samples/files/formats', async (req, res) => {
-    let result = await db.query(
-        `SELECT ff.file_format_id,ff.name,ff.description,ff.extensions,COUNT(f.file_id)::int AS file_count
-        FROM experiment e
-        LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
-        JOIN run_to_file rtf ON rtf.run_id=r.run_id
-        JOIN file f ON f.file_id=rtf.file_id
-        LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
-        GROUP BY ff.file_format_id`
+router.get('/samples/files/properties', async (req, res) => {
+    let results =
+        await Promise.all([
+            db.query(
+                `SELECT ff.file_format_id,ff.name AS value,ff.description,ff.extensions,COUNT(f.file_id)::int AS count
+                FROM experiment e
+                LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+                JOIN run_to_file rtf ON rtf.run_id=r.run_id
+                JOIN file f ON f.file_id=rtf.file_id
+                LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
+                GROUP BY ff.file_format_id`
+            ),
+            db.query(
+                `SELECT ft.file_type_id,ft.name AS value,ft.description,COUNT(f.file_id)::int as count
+                FROM experiment e
+                LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+                JOIN run_to_file rtf ON rtf.run_id=r.run_id
+                JOIN file f ON f.file_id=rtf.file_id
+                LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
+                GROUP BY ft.file_type_id`
+            )
+        ]);
+
+    let dist = {
+        format: {},
+        type: {}
+    };
+
+    results[0].rows.forEach(row =>
+        dist['format'][row.value] = row.count
     );
 
-//    res.json(result.rows.map(row => { row.file_count *= 1; return row })); // convert to int
-    res.json(result.rows);
-});
-
-router.get('/samples/files/types', async (req, res) => {
-    let result = await db.query(
-        `SELECT ft.file_type_id,ft.name,ft.description,COUNT(f.file_id)::int as file_count
-        FROM experiment e
-        LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
-        JOIN run_to_file rtf ON rtf.run_id=r.run_id
-        JOIN file f ON f.file_id=rtf.file_id
-        LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
-        GROUP BY ft.file_type_id`
+    results[1].rows.forEach(row =>
+        dist['type'][row.value] = row.count
     );
 
-//    res.json(result.rows.map(row => { row.file_count *= 1; return row })); // convert to int
-    res.json(result.rows);
+    res.json(dist);
 });
 
 router.get('/samples/:id(\\d+)/metadata', async (req, res) => {
