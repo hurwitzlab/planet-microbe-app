@@ -62,36 +62,4 @@ router.get('/experiments/:id(\\d+)/runs', async (req, res) => {
     );
 });
 
-router.get('/experiments/libraries/properties', async (req, res) => { //TODO refactor/simplify
-    let fields = ['strategy', 'source', 'selection', 'protocol', 'layout'];
-
-    let results =
-        await Promise.all(
-            fields.map(col =>
-                db.query(
-                    `SELECT ${col} AS value,COUNT(rtf.file_id)::int AS count
-                    FROM experiment e
-                    JOIN library l ON l.experiment_id=e.experiment_id
-                    JOIN run r ON r.experiment_id=e.experiment_id
-                    JOIN run_to_file rtf ON rtf.run_id=r.run_id
-                    GROUP BY ${col}`
-                )
-            )
-        );
-
-    let i = 0;
-    let dist = {};
-    results.forEach(result => {
-        result.rows.forEach(row => {
-            let f = fields[i];
-            if (!(f in dist))
-                dist[f] = {};
-            dist[f][row.value] = row.count;
-        });
-        i++;
-    });
-
-    res.json(dist);
-});
-
 module.exports = router;

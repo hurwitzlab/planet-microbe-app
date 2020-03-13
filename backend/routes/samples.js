@@ -201,38 +201,53 @@ router.post('/samples/files', async (req, res) => {
 router.get('/samples/files/properties', async (req, res) => {
     let results =
         await Promise.all([
-            db.query(
-                `SELECT ff.file_format_id,ff.name AS value,ff.description,ff.extensions,COUNT(f.file_id)::int AS count
-                FROM experiment e
-                LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
-                JOIN run_to_file rtf ON rtf.run_id=r.run_id
-                JOIN file f ON f.file_id=rtf.file_id
-                LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
-                GROUP BY ff.file_format_id`
-            ),
-            db.query(
-                `SELECT ft.file_type_id,ft.name AS value,ft.description,COUNT(f.file_id)::int as count
-                FROM experiment e
-                LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
-                JOIN run_to_file rtf ON rtf.run_id=r.run_id
-                JOIN file f ON f.file_id=rtf.file_id
-                LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
-                GROUP BY ft.file_type_id`
+            db.query({
+                text:
+                    `SELECT 'format' AS field,ff.name,COUNT(f.file_id)::int
+                    FROM experiment e
+                    LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+                    JOIN run_to_file rtf ON rtf.run_id=r.run_id
+                    JOIN file f ON f.file_id=rtf.file_id
+                    LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
+                    GROUP BY ff.file_format_id`,
+                rowMode: 'array'
+            }),
+            db.query({
+                text:
+                    `SELECT 'type' AS field,ft.name,COUNT(f.file_id)::int
+                    FROM experiment e
+                    LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+                    JOIN run_to_file rtf ON rtf.run_id=r.run_id
+                    JOIN file f ON f.file_id=rtf.file_id
+                    LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
+                    GROUP BY ft.file_type_id`,
+                rowMode: 'array'
+            }),
+        ].concat(
+            ['strategy', 'source', 'selection', 'protocol', 'layout'].map(col =>
+                db.query({
+                    text:
+                        `SELECT '${col}' AS field,COALESCE(${col},'none'),COUNT(rtf.file_id)::int
+                        FROM experiment e
+                        JOIN library l ON l.experiment_id=e.experiment_id
+                        JOIN run r ON r.experiment_id=e.experiment_id
+                        JOIN run_to_file rtf ON rtf.run_id=r.run_id
+                        GROUP BY ${col}`,
+                    rowMode: 'array'
+                })
             )
-        ]);
+        ));
 
-    let dist = {
-        format: {},
-        type: {}
-    };
+    let dist = {};
 
-    results[0].rows.forEach(row =>
-        dist['format'][row.value] = row.count
-    );
-
-    results[1].rows.forEach(row =>
-        dist['type'][row.value] = row.count
-    );
+    results.forEach(result => {
+        console.log(result.rows);
+        result.rows.forEach(row => {
+            if (!(row[0] in dist))
+                dist[row[0]] = [];
+            dist[row[0]].push(row.slice(1));
+        })
+    });
 
     res.json(dist);
 });
