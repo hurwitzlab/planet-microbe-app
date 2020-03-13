@@ -1,4 +1,4 @@
-module SearchTerm exposing (SearchTerm, PURL, Annotation, Value(..), searchTermDecoder, valueDecoder, viewValue)
+module SearchTerm exposing (SearchTerm, PURL, Annotation, Value(..), Distribution, searchTermDecoder, valueDecoder, distributionDecoder, viewValue)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
@@ -9,10 +9,6 @@ import Html.Attributes exposing (href, target)
 
 
 -- TYPES --
-
-
-type alias PURL =
-    String
 
 
 type alias SearchTerm =
@@ -26,13 +22,17 @@ type alias SearchTerm =
     , alias_ : String
     , aliases : List Alias
     , annotations : List Annotation
-    , distribution : List (String, Int)
+    , distribution : Distribution
     -- Only for type "number"
     , min : Float
     , max : Float
     -- Only for type "string"
     , purlLabels : Dict String String
     }
+
+
+type alias PURL =
+    String
 
 
 type alias Alias =
@@ -55,6 +55,10 @@ type Value
     | FloatValue Float
 
 
+type alias Distribution =
+    List (String, Int)
+
+
 
 -- SERIALIZATION --
 
@@ -72,7 +76,7 @@ searchTermDecoder =
         |> optional "alias" Decode.string ""
         |> optional "aliases" (Decode.list aliasDecoder) []
         |> optional "annotations" (Decode.list annotationDecoder) []
-        |> optional "distribution" (Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int))) []
+        |> optional "distribution" distributionDecoder []
         |> optional "min" Decode.float 0
         |> optional "max" Decode.float 0
         |> optional "purlLabels" (Decode.dict Decode.string) Dict.empty
@@ -103,6 +107,12 @@ valueDecoder =
             , Decode.map FloatValue Decode.float
             ]
         )
+
+
+distributionDecoder : Decoder (List (String, Int))
+distributionDecoder =
+    Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int))
+
 
 
 -- VIEWS --

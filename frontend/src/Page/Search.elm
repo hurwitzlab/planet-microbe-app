@@ -24,9 +24,10 @@ import Dict exposing (Dict)
 import Route
 import Error
 import Page exposing (viewBlank, viewSpinner, viewDialog)
+import Project
 import Sample
-import SearchTerm exposing (SearchTerm, PURL)
-import RemoteFile exposing (FileFormat, FileType)
+import SearchTerm exposing (SearchTerm, PURL, Distribution)
+import RemoteFile
 import SortableTable
 import BarChart
 import Cart
@@ -104,20 +105,31 @@ initialParams =
 -- MODEL --
 
 
+type Filter
+    = TermFilter SearchTerm FilterValue
+    | LocationFilter LocationFilterValue
+    | ProjectFilter (List String)
+    | FileFilter (List String)
+
+
 type alias Model =
     { session : Session
-    , projectCounts : List ProjectCount
-    , fileFormats : List FileFormat
-    , fileTypes : List FileType
-    , allParams : List SearchTerm -- list of available params to add
+
+    -- Search filters and selected values
     --TODO combine selectedParams/Terms/Vals into list of records, use get and set routines to access by PURL
+    , allParams : List SearchTerm -- list of available params to add
     , selectedParams : List PURL -- added params, for maintaining order
     , selectedTerms : Dict PURL SearchTerm
     , selectedVals : Dict PURL FilterValue
     , locationVal : LocationFilterValue
+    , projectCounts : Distribution
     , projectVals : List String
-    , fileFormatVals : List String
-    , fileTypeVals : List String
+    , fileProperties : Dict String Distribution
+    , fileVals : Dict String (List String)
+    , startDatePickers : Dict PURL DatePicker
+    , endDatePickers : Dict PURL DatePicker
+
+    -- Dialog states
     , showAddFilterDialog : Bool
     , stringFilterDialogTerm : Maybe SearchTerm
     , chartFilterDialogTerm : Maybe SearchTerm
@@ -125,6 +137,8 @@ type alias Model =
     , showProjectFilterDialog : Bool
     , paramSearchInputVal : String
     , dialogSearchInputVal : String
+
+    -- Search result state
     , showParamSearchDropdown : Bool
     , doSearch : Bool
     , searchStartTime : Int -- milliseconds
@@ -132,7 +146,7 @@ type alias Model =
     , sampleResults : Maybe (List SampleResult)
     , fileResults : Maybe (List FileResult)
     , mapResults : Value --List MapResult
-    , summaryResults : Maybe (List (List (String, Int)))
+    , summaryResults : Maybe (List Distribution)
     , sampleResultCount : Int
     , fileResultCount : Int
     , sampleTableState : SortableTable.State
@@ -144,8 +158,6 @@ type alias Model =
     , pageSize : Int
     , showMap : Bool
     , mapLoaded : Bool
-    , startDatePickers : Dict PURL DatePicker
-    , endDatePickers : Dict PURL DatePicker
     , previousSearchParams : List (String, String)
     }
 
@@ -161,17 +173,21 @@ init session =
     in
     (
         { session = session
-        , projectCounts = []
-        , fileFormats = []
-        , fileTypes = []
+
+        -- Search filters and selected values
         , allParams = []
         , selectedParams = initialParams
         , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
         , locationVal = NoLocationValue
+        , projectCounts = []
         , projectVals = []
-        , fileFormatVals = []
-        , fileTypeVals = []
+        , fileProperties = Dict.empty
+        , fileVals = Dict.empty
+        , startDatePickers = Dict.insert purlDateTimeISO startDatePicker Dict.empty
+        , endDatePickers = Dict.insert purlDateTimeISO endDatePicker Dict.empty
+
+        -- Dialog states
         , showAddFilterDialog = False
         , stringFilterDialogTerm = Nothing
         , chartFilterDialogTerm = Nothing
@@ -179,6 +195,8 @@ init session =
         , showProjectFilterDialog = False
         , paramSearchInputVal = ""
         , dialogSearchInputVal = ""
+
+        -- Search result state
         , showParamSearchDropdown = False
         , doSearch = False -- initial search is activated by GetSearchTermCompleted
         , searchStartTime = 0
@@ -198,16 +216,13 @@ init session =
         , pageSize = defaultPageSize
         , showMap = True
         , mapLoaded = False
-        , startDatePickers = Dict.insert purlDateTimeISO startDatePicker Dict.empty
-        , endDatePickers = Dict.insert purlDateTimeISO endDatePicker Dict.empty
         , previousSearchParams = []
         }
     , Cmd.batch
         [ Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
-        , initialParams |> List.map Sample.fetchSearchTerm |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
-        , getProjectCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
-        , RemoteFile.fetchFormats |> Http.toTask |> Task.attempt GetFileFormatsCompleted
-        , RemoteFile.fetchTypes |> Http.toTask |> Task.attempt GetFileTypesCompleted
+        , List.map Sample.fetchSearchTerm initialParams |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
+        , Project.fetchCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
+        , RemoteFile.fetchProperties |> Http.toTask |> Task.attempt GetFilePropertiesCompleted
         , GMap.removeMap "" -- workaround for blank map on navigating back to this page
         , GMap.changeMapSettings (GMap.Settings True True False True |> GMap.encodeSettings)
         ]
@@ -233,9 +248,8 @@ toSession model =
 
 
 type Msg
-    = GetProjectCountsCompleted (Result Http.Error (List ProjectCount))
-    | GetFileFormatsCompleted (Result Http.Error (List FileFormat))
-    | GetFileTypesCompleted (Result Http.Error (List FileType))
+    = GetProjectCountsCompleted (Result Http.Error Distribution)
+    | GetFilePropertiesCompleted (Result Http.Error (Dict String Distribution))
     | GetAllSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | GetSearchTermCompleted (Result Http.Error SearchTerm)
     | ClearFilters
@@ -259,8 +273,7 @@ type Msg
     | SetFilterValue PURL FilterValue
     | SetLocationFilterValue LocationFilterValue
     | SetProjectFilterValue String Bool
-    | SetFileFormatFilterValue String Bool
-    | SetFileTypeFilterValue String Bool
+    | SetFileFilterValue String Bool
     | SetSearchTab String
     | SetResultTab String
     | SetSampleSortPos Int
@@ -286,41 +299,20 @@ update msg model =
         GetProjectCountsCompleted (Ok counts) ->
             ( { model | projectCounts = counts }, Cmd.none )
 
+        GetProjectCountsCompleted (Err error) ->
+            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
 
-        GetProjectCountsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetProjectCountsCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetFilePropertiesCompleted (Ok props) ->
+            ( { model | fileProperties = props }, Cmd.none )
 
-        GetFileFormatsCompleted (Ok formats) ->
-            ( { model | fileFormats = formats }, Cmd.none )
-
-
-        GetFileFormatsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetFileFormatsCompleted" (toString error)
---            in
-            ( model, Cmd.none )
-
-        GetFileTypesCompleted (Ok types) ->
-            ( { model | fileTypes = types }, Cmd.none )
-
-
-        GetFileTypesCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetFileTypesCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetFilePropertiesCompleted (Err error) ->
+            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
 
         GetAllSearchTermsCompleted (Ok terms) ->
             ( { model | allParams = terms }, Cmd.none )
 
-        GetAllSearchTermsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetAllSearchTermsCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetAllSearchTermsCompleted (Err error) ->
+            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
 
         GetSearchTermCompleted (Ok term) ->
             let
@@ -343,11 +335,8 @@ update msg model =
             in
             ( { model | doSearch = True, selectedParams = selectedParams, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
 
-        GetSearchTermCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSearchTermCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetSearchTermCompleted (Err error) ->
+            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
 
         ClearFilters ->
             let
@@ -363,8 +352,8 @@ update msg model =
                 , selectedParams = initialParams
                 , selectedVals = newVals
                 , projectVals = []
-                , fileFormatVals = []
-                , fileTypeVals = []
+                --, fileFormatVals = []
+                --, fileTypeVals = []
                 , sampleTableState = SortableTable.initialState
                 , fileTableState = SortableTable.initialState
               }
@@ -534,25 +523,35 @@ update msg model =
             in
             ( { model | doSearch = True, projectVals = vals }, Cmd.none )
 
-        SetFileFormatFilterValue val enable ->
+        SetFileFilterValue val enable ->
             let
                 vals =
-                    model.fileFormatVals
+                    model.projectVals
                         |> Set.fromList
                         |> (if enable then Set.insert val else Set.remove val)
                         |> Set.toList
             in
-            ( { model | doSearch = True, fileFormatVals = vals }, Cmd.none )
+            ( { model | doSearch = True, projectVals = vals }, Cmd.none )
 
-        SetFileTypeFilterValue val enable ->
-            let
-                vals =
-                    model.fileTypeVals
-                        |> Set.fromList
-                        |> (if enable then Set.insert val else Set.remove val)
-                        |> Set.toList
-            in
-            ( { model | doSearch = True, fileTypeVals = vals }, Cmd.none )
+        --SetFileFormatFilterValue val enable ->
+        --    let
+        --        vals =
+        --            model.fileFormatVals
+        --                |> Set.fromList
+        --                |> (if enable then Set.insert val else Set.remove val)
+        --                |> Set.toList
+        --    in
+        --    ( { model | doSearch = True, fileFormatVals = vals }, Cmd.none )
+        --
+        --SetFileTypeFilterValue val enable ->
+        --    let
+        --        vals =
+        --            model.fileTypeVals
+        --                |> Set.fromList
+        --                |> (if enable then Set.insert val else Set.remove val)
+        --                |> Set.toList
+        --    in
+        --    ( { model | doSearch = True, fileTypeVals = vals }, Cmd.none )
 
         SetSearchTab label ->
             ( { model | searchTab = label }, Cmd.none )
@@ -614,7 +613,7 @@ update msg model =
                 ( model, Cmd.none )
 
         Search newPageNum download ->
-            case generateQueryParams model.locationVal model.projectVals model.fileFormatVals model.fileTypeVals model.selectedParams model.selectedVals of
+            case generateQueryParams model.locationVal model.projectVals model.fileVals model.selectedParams model.selectedVals of
                 Ok queryParams ->
                     let
                         ( result, sortPos, cmd ) =
@@ -676,10 +675,7 @@ update msg model =
             )
 
         SampleSearchCompleted (Err error) ->
---            let
---                _ = Debug.log "SampleSearchCompleted" (toString error)
---            in
-            ( { model | errorMsg = Just (Error.toString error), isSearching = False }, Cmd.none )
+            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
 
         FileSearchCompleted (Ok response) ->
             let
@@ -701,10 +697,7 @@ update msg model =
             )
 
         FileSearchCompleted (Err error) ->
---            let
---                _ = Debug.log "FileSearchCompleted" (toString error)
---            in
-            ( { model | errorMsg = Just "Error", isSearching = False }, Cmd.none ) --TODO
+            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none ) --TODO
 
         DownloadSearchCompleted (Ok response) ->
             ( { model | isSearching = False }
@@ -712,10 +705,7 @@ update msg model =
             )
 
         DownloadSearchCompleted (Err error) ->
---            let
---                _ = Debug.log "DownloadSearchCompleted" (toString error)
---            in
-            ( { model | errorMsg = Just (Error.toString error), isSearching = False }, Cmd.none )
+            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
 
         ToggleMap ->
             let
@@ -947,8 +937,8 @@ formatLocationParam val = --TODO use encoder instead
 
 
 -- TODO refactor/simplify
-generateQueryParams : LocationFilterValue -> List String -> List String -> List String -> List PURL -> Dict PURL FilterValue -> Result String (List (String, String))
-generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params vals =
+generateQueryParams : LocationFilterValue -> List String -> Dict String (List String) -> List PURL -> Dict PURL FilterValue -> Result String (List (String, String))
+generateQueryParams locationVal projectVals fileVals params vals =
     if locationVal == NoLocationValue && projectVals == [] && Dict.isEmpty vals then
         Ok []
     else
@@ -1011,19 +1001,16 @@ generateQueryParams locationVal projectVals fileFormatVals fileTypeVals params v
                 else
                     []
 
-            fileFormatParam =
-                if fileFormatVals /= [] then
-                    [ ("fileFormat", pipeJoin fileFormatVals) ]
-                else
-                    []
-
-            fileTypeParam =
-                if fileTypeVals /= [] then
-                    [ ("fileType", pipeJoin fileTypeVals) ]
-                else
-                    []
+            fileParams =
+                []
+                --fileVals |>
+                --    -- maintain filter order
+                --    |> List.map (\id ->
+                --        (id, (Dict.get id vals |> Maybe.withDefault NoValue))
+                --    )
+                --    |> List.map (Tuple.mapSecond formatParam)
         in
-        List.concat [ projectParam, fileFormatParam, fileTypeParam, locParam, depthParam, datetimeParam, userParams ]
+        List.concat [ projectParam, fileParams, locParam, depthParam, datetimeParam, userParams ]
             |> Ok
 --    else
 --        Err "Invalid query parameter"
@@ -1064,21 +1051,10 @@ searchDownloadRequest queryParams =
         |> HttpBuilder.toRequest
 
 
-getProjectCounts : Http.Request (List ProjectCount)
-getProjectCounts =
-    let
-        url =
-            apiBaseUrl ++ "/projects"
-    in
-    HttpBuilder.get url
-        |> HttpBuilder.withExpect (Http.expectJson (Decode.list decodeProjectCount))
-        |> HttpBuilder.toRequest
-
-
 type alias SearchResponse =
     { count : Int
     , results : SearchResults
-    , summary : List (List (String, Int)) --List SummaryResult
+    , summary : List Distribution --List SummaryResult
     , map : Value --List MapResult
     , error : Maybe String
     }
@@ -1171,18 +1147,12 @@ type LocationFilterValue
     | LonghurstValue String -- Longhurst province
 
 
-type alias ProjectCount  =
-    { name : String
-    , sampleCount : Int
-    }
-
-
 decodeSearchResponse : Decoder SearchResponse
 decodeSearchResponse =
     Decode.succeed SearchResponse
         |> required "count" Decode.int
         |> required "results" decodeSearchResults
-        |> required "summary" (Decode.list (Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int)))) --(Decode.list decodeSummaryResult)
+        |> required "summary" (Decode.list SearchTerm.distributionDecoder)
         |> optional "map" Decode.value null --(Decode.list decodeMapResult) []
         |> optional "error" (Decode.nullable Decode.string) Nothing
 
@@ -1283,13 +1253,6 @@ decodeLocation =
         |> required "coordinates" (Decode.list Decode.float)
 
 
-decodeProjectCount : Decoder ProjectCount
-decodeProjectCount =
-    Decode.succeed ProjectCount
-        |> required "name" Decode.string
-        |> required "sample_count" Decode.int
-
-
 
 -- VIEW --
 
@@ -1301,15 +1264,24 @@ view model =
         , div [ class "float-left", style "width" "26%" ]
             [ viewSearchPanel model ]
         , div [ class "float-right", style "width" "74%", style "padding-left" "1em" ]
---            [ viewSearchSummary model
---            , br [] []
             [ viewMap model.showMap model.mapLoaded
             , viewResults model
             ]
-        , if model.showAddFilterDialog then
+        , viewDialogs model
+        ]
+
+
+viewDialogs : Model -> Html Msg
+viewDialogs model =
+    div []
+        [ if model.showAddFilterDialog then
             viewAddFilterDialog model.allParams model.dialogSearchInputVal
+          else if model.showProjectSummaryDialog then
+            viewProjectSummaryDialog model.projectCounts
+          else if model.showProjectFilterDialog then
+            viewProjectFilterDialog model.projectCounts model.projectVals
           else
-            text ""
+            viewBlank
         , case model.stringFilterDialogTerm of
             Nothing ->
                 viewBlank
@@ -1322,14 +1294,6 @@ view model =
 
             Just term ->
                 viewSearchTermSummaryDialog term
-        , if model.showProjectSummaryDialog then
-            viewProjectSummaryDialog model.projectCounts
-          else
-            viewBlank
-        , if model.showProjectFilterDialog then
-            viewProjectFilterDialog model.projectCounts model.projectVals
-          else
-            viewBlank
         ]
 
 
@@ -1337,7 +1301,7 @@ viewSearchPanel : Model -> Html Msg
 viewSearchPanel model =
     div [ style "border" "1px solid lightgray", style "width" "25.5vw" ]
         [ ul [ class "nav nav-tabs" ]
-            ( (List.map (\lbl -> viewTab lbl (lbl == model.searchTab) SetSearchTab) [ "Samples" ]) ++ --, "Files" ]) ++
+            ( (List.map (\lbl -> viewTab lbl (lbl == model.searchTab) SetSearchTab) [ "Samples", "Files" ]) ++
               [ (li [ class "nav-item ml-auto" ]
                 [ a [ class "small nav-link", href "", style "font-weight" "bold", onClick ClearFilters ]
                     [ text "Reset" ]
@@ -1346,8 +1310,8 @@ viewSearchPanel model =
             )
         , if model.searchTab == "Samples" then
             viewSampleSearchPanel model
-          --else if model.searchTab == "Files" then
-          --  viewFileSearchPanel model
+          else if model.searchTab == "Files" then
+            viewFileSearchPanel model
           else
             text ""
         ]
@@ -1355,31 +1319,28 @@ viewSearchPanel model =
 
 viewSampleSearchPanel : Model -> Html Msg
 viewSampleSearchPanel model =
-    let
-        projectCounts =
-            model.projectCounts |> List.map (\pc -> (pc.name, pc.sampleCount))
-    in
     div []
         [ view4DPanel model
-        , viewProjectPanel projectCounts model.projectVals
+        , viewProjectPanel model.projectCounts model.projectVals
         , viewAddedFiltersPanel model model.selectedParams model.selectedTerms model.selectedVals
         , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allParams model.selectedParams
         ]
 
 
---viewFileSearchPanel : Model -> Html Msg
---viewFileSearchPanel model =
---    let
---        formatCounts =
---            model.fileFormats |> List.map (\ff -> (ff.name, ff.fileCount))
---
---        typeCounts =
---            model.fileTypes |> List.map (\ft -> (ft.name, ft.fileCount))
---    in
---    div []
---        [ viewFileFormatPanel formatCounts model.fileFormatVals
---        , viewFileTypePanel typeCounts model.fileTypeVals
---        ]
+viewFileSearchPanel : Model -> Html Msg
+viewFileSearchPanel model =
+    --let
+    --    formatCounts =
+    --        model.fileFormats |> List.map (\ff -> (ff.name, ff.fileCount))
+    --
+    --    typeCounts =
+    --        model.fileTypes |> List.map (\ft -> (ft.name, ft.fileCount))
+    --in
+    div []
+        --[ viewFileFormatPanel formatCounts model.fileFormatVals
+        --, viewFileTypePanel typeCounts model.fileTypeVals
+        [
+        ]
 
 
 viewTab : String -> Bool -> (String -> Msg) -> Html Msg
@@ -1624,7 +1585,7 @@ viewSearchFilterPanel term val =
         ]
 
 
-viewProjectPanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
+viewProjectPanel : Distribution -> List String -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
 viewProjectPanel counts selectedVals =
     let
         viewRow vals ( lbl, num ) =
@@ -1682,29 +1643,87 @@ viewProjectPanel counts selectedVals =
         ]
 
 
-viewProjectFilterDialog : List ProjectCount -> List String -> Html Msg
+viewProjectFilterDialog : Distribution -> List String -> Html Msg
 viewProjectFilterDialog projectCounts projectVals =
     let
         options =
-            projectCounts |> List.sortBy .name
+            projectCounts |> List.sortBy Tuple.first
 
         isSelected lbl =
             List.member lbl projectVals
 
-        viewRow count =
+        viewRow (lbl, count) =
             div []
                 [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked (isSelected count.name), onCheck (SetProjectFilterValue count.name) ] []
-                    , label [ class "form-check-label" ] [ text count.name ]
+                    [ input [ class "form-check-input", type_ "checkbox", checked (isSelected lbl), onCheck (SetProjectFilterValue lbl) ] []
+                    , label [ class "form-check-label" ] [ text lbl ]
                     ]
                 , div [ class "badge badge-secondary float-right" ]
-                    [ count.sampleCount |> toFloat |> format myLocale |> text ]
+                    [ count |> toFloat |> format myLocale |> text ]
                 ]
     in
     viewDialog "Project"
         [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map viewRow options) ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseProjectFilterDialog ] [ text "Close" ] ]
         CloseProjectFilterDialog
+
+
+viewFilePropertyPanel : String -> Distribution -> List String -> Html Msg --TODO merge with viewProjectPanel
+viewFilePropertyPanel title counts selectedVals =
+    let
+        viewRow vals ( lbl, num ) =
+            let
+                isChecked =
+                    List.member lbl vals
+            in
+            div []
+                [ div [ class "form-check form-check-inline" ]
+                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileFilterValue lbl) ] []
+                    , label [ class "form-check-label" ] [ text lbl ]
+                    ]
+                , div [ class "badge badge-secondary float-right" ]
+                    [ num |> toFloat |> format myLocale |> text ]
+                ]
+
+        truncatedOptions =
+            counts
+                |> List.sortWith sortBySelected --|> List.sortBy Tuple.second
+                |> List.take 6
+
+        sortBySelected a b =
+            case ( isSelected (Tuple.first a), isSelected (Tuple.first b) ) of
+                (True, False) ->
+                    LT
+
+                (False, True) ->
+                    GT
+
+                (_, _) ->
+                    sortByCount a b
+
+        sortByCount a b =
+            case compare (Tuple.second a) (Tuple.second b) of
+                LT -> GT
+                EQ -> EQ
+                GT -> LT
+
+        isSelected lbl =
+            List.member lbl selectedVals
+
+        numOptions =
+            List.length counts
+
+        numMore =
+            numOptions - maxNumPanelOptions
+    in
+    viewPanel "" title "" "" Nothing (Just (\_ -> OpenProjectChartDialog)) Nothing
+        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
+        , if numMore > 0 then
+            button [ class "btn btn-sm btn-link float-right" ]--, onClick OpenProjectFilterDialog ]
+                [ String.fromInt numMore ++ " More ..." |> text ]
+          else
+            viewBlank
+        ]
 
 
 --viewFileFormatPanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
@@ -2163,10 +2182,10 @@ viewResults model =
                     , model.sampleResultCount
                     )
 
-                --"Files" ->
-                --    ( viewFileResults model
-                --    , model.fileResultCount
-                --    )
+                "Files" ->
+                    ( viewFileResults model
+                    , model.fileResultCount
+                    )
 
                 _ ->
                     ( viewSummary model
@@ -2174,7 +2193,7 @@ viewResults model =
                     )
     in
     div [ style "min-height" "50em" ]
-        [ if model.doSearch || model.isSearching then
+        [ if (model.doSearch || model.isSearching) && model.errorMsg == Nothing then
             -- spinnner overlay
             div [ style "position" "fixed"
                 , style "width" "100%"
@@ -2201,7 +2220,7 @@ viewResults model =
           else
             div [ style "border" "1px solid lightgray" ]
                 [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples" ] ) --, "Files" ] )
+                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
 --                     ++ [ li [ class "nav-item ml-auto" ]
 --                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
 --                        ]
@@ -2354,11 +2373,11 @@ viewSearchTermSummaryDialog term =
         CloseFilterChartDialog
 
 
-viewProjectSummaryDialog : List ProjectCount -> Html Msg
+viewProjectSummaryDialog : Distribution -> Html Msg
 viewProjectSummaryDialog counts =
     viewDialog "Project"
         [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
-            [ viewSearchTermSummaryChart "Project" (counts |> List.map (\c -> (c.name, c.sampleCount))) ]
+            [ viewSearchTermSummaryChart "Project" counts ]
         ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseProjectChartDialog ]
             [ text "Close" ]
@@ -2518,67 +2537,67 @@ viewSampleResults model =
         []
 
 
---viewFileResults : Model -> Html Msg
---viewFileResults model =
---    let
---        maxColWidth = "8em"
---
---        mkTh index label =
---            let
---                pos =
---                    index + 1
---
---                lbl =
---                    String.Extra.toTitleCase
---                        (if pos == abs model.fileTableState.sortCol then
---                            label ++ " " ++ (viewUpDownArrow model.fileTableState.sortDir )
---                        else
---                            label
---                        )
---            in
---            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetFileSortPos pos) ] [ text lbl ]
---
---        paramNames =
---            [ "Project Name"
---            , "Sample ID"
---            , "File Format"
---            , "File Type"
---            , "Path"
---            ]
---
-----        addToCartTh =
-----            th []
-----                [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
-----                    (model.sampleResults
-----                        |> Maybe.withDefault []
-----                        |> List.map .sampleId
-----                    )
-----                    |> Html.map CartMsg
-----                ]
---
---        columns =
---            List.indexedMap mkTh paramNames
-----                ++ [ addToCartTh ]
---
---        mkTd label =
---            td [ style "max-width" maxColWidth ] [ text label ]
---
---        mkRow result =
---            tr []
---                [ mkTd result.projectName
---                , td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ]
---                , td [] [ text (String.Extra.toSentenceCase result.fileFormat) ]
---                , td [] [ text (String.Extra.toSentenceCase result.fileType) ]
---                , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text result.fileUrl ] ]
-----                , td [] [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
+viewFileResults : Model -> Html Msg
+viewFileResults model =
+    let
+        maxColWidth = "8em"
+
+        mkTh index label =
+            let
+                pos =
+                    index + 1
+
+                lbl =
+                    String.Extra.toTitleCase
+                        (if pos == abs model.fileTableState.sortCol then
+                            label ++ " " ++ (viewUpDownArrow model.fileTableState.sortDir )
+                        else
+                            label
+                        )
+            in
+            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetFileSortPos pos) ] [ text lbl ]
+
+        paramNames =
+            [ "Project Name"
+            , "Sample ID"
+            , "File Format"
+            , "File Type"
+            , "Path"
+            ]
+
+--        addToCartTh =
+--            th []
+--                [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
+--                    (model.sampleResults
+--                        |> Maybe.withDefault []
+--                        |> List.map .sampleId
+--                    )
+--                    |> Html.map CartMsg
 --                ]
---    in
---    SortableTable.view
---        { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
---        model.fileTableState
---        columns
---        (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
---        []
+
+        columns =
+            List.indexedMap mkTh paramNames
+--                ++ [ addToCartTh ]
+
+        mkTd label =
+            td [ style "max-width" maxColWidth ] [ text label ]
+
+        mkRow result =
+            tr []
+                [ mkTd result.projectName
+                , td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ]
+                , td [] [ text (String.Extra.toSentenceCase result.fileFormat) ]
+                , td [] [ text (String.Extra.toSentenceCase result.fileType) ]
+                , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text result.fileUrl ] ]
+--                , td [] [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
+                ]
+    in
+    SortableTable.view
+        { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
+        model.fileTableState
+        columns
+        (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
+        []
 
 
 viewUpDownArrow : SortableTable.Direction -> String

@@ -1,4 +1,4 @@
-module Project exposing (Project, fetch, fetchAll)
+module Project exposing (Project, fetch, fetchAll, fetchCounts)
 
 {-| The interface to the Project data structure.
 -}
@@ -7,7 +7,6 @@ import Http
 import HttpBuilder
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
-import Json.Encode as Encode
 import Config exposing (apiBaseUrl)
 import RemoteFile exposing (File, fileDecoder)
 
@@ -70,4 +69,17 @@ fetchAll =
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson (Decode.list projectDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchCounts : Http.Request (List (String, Int))
+fetchCounts =
+    let
+        url =
+            apiBaseUrl ++ "/projects"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect
+            (Http.expectJson
+                (Decode.list (Decode.map2 Tuple.pair (Decode.field "name" Decode.string) (Decode.field "sample_count" Decode.int))))
         |> HttpBuilder.toRequest
