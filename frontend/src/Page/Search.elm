@@ -46,7 +46,7 @@ defaultPageSize =
 
 
 maxNumPanelOptions =
-    3
+    4
 
 
 minNumPanelOptionsForSearchBar =
@@ -105,18 +105,11 @@ initialParams =
 -- MODEL --
 
 
-type Filter
-    = TermFilter SearchTerm FilterValue
-    | LocationFilter LocationFilterValue
-    | ProjectFilter (List String)
-    | FileFilter (List String)
-
-
 type alias Model =
     { session : Session
 
     -- Search filters and selected values
-    --TODO combine selectedParams/Terms/Vals into list of records, use get and set routines to access by PURL
+    --TODO combine selectedParams/Terms/Vals into list of records, use get and set routines to access by PURL.  See FileFilter type.
     , allParams : List SearchTerm -- list of available params to add
     , selectedParams : List PURL -- added params, for maintaining order
     , selectedTerms : Dict PURL SearchTerm
@@ -124,17 +117,12 @@ type alias Model =
     , locationVal : LocationFilterValue
     , projectCounts : Distribution
     , projectVals : List String
-    , fileProperties : Dict String Distribution
-    , fileVals : Dict String (List String)
+    , fileFilters : List FileFilter
     , startDatePickers : Dict PURL DatePicker
     , endDatePickers : Dict PURL DatePicker
 
     -- Dialog states
-    , showAddFilterDialog : Bool
-    , stringFilterDialogTerm : Maybe SearchTerm
-    , chartFilterDialogTerm : Maybe SearchTerm
-    , showProjectSummaryDialog : Bool
-    , showProjectFilterDialog : Bool
+    , dialogState : DialogState
     , paramSearchInputVal : String
     , dialogSearchInputVal : String
 
@@ -162,6 +150,24 @@ type alias Model =
     }
 
 
+type alias FileFilter =
+    { id : String
+    , distribution : List (String, Int)
+    , values : List String
+    }
+
+
+type DialogState --TODO combine StringFilterDialog/ProjectFilterDialog/FileFilterDialog and FilterChartDialog/ProjectSummaryDialog/FileFilterDialog
+    = DialogClosed
+    | AddFilterDialog
+    | StringFilterDialog SearchTerm
+    | FilterChartDialog SearchTerm
+    | ProjectFilterDialog
+    | ProjectSummaryDialog
+    | FileFilterDialog FileFilter
+    | FileSummaryDialog FileFilter
+
+
 init : Session -> ( Model, Cmd Msg )
 init session =
     let
@@ -182,17 +188,12 @@ init session =
         , locationVal = NoLocationValue
         , projectCounts = []
         , projectVals = []
-        , fileProperties = Dict.empty
-        , fileVals = Dict.empty
+        , fileFilters = []
         , startDatePickers = Dict.insert purlDateTimeISO startDatePicker Dict.empty
         , endDatePickers = Dict.insert purlDateTimeISO endDatePicker Dict.empty
 
         -- Dialog states
-        , showAddFilterDialog = False
-        , stringFilterDialogTerm = Nothing
-        , chartFilterDialogTerm = Nothing
-        , showProjectSummaryDialog = False
-        , showProjectFilterDialog = False
+        , dialogState = DialogClosed
         , paramSearchInputVal = ""
         , dialogSearchInputVal = ""
 
@@ -249,31 +250,23 @@ toSession model =
 
 type Msg
     = GetProjectCountsCompleted (Result Http.Error Distribution)
-    | GetFilePropertiesCompleted (Result Http.Error (Dict String Distribution))
+    | GetFilePropertiesCompleted (Result Http.Error (List (String, Distribution)))
     | GetAllSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | GetSearchTermCompleted (Result Http.Error SearchTerm)
     | ClearFilters
     | AddFilter PURL
     | RemoveFilter PURL
-    | OpenFilterChartDialog PURL
-    | CloseFilterChartDialog
-    | OpenProjectChartDialog
-    | CloseProjectChartDialog
+    | OpenDialog DialogState
+    | CloseDialog
     | SetParamSearchInput String
     | ShowParamSearchDropdown
-    | OpenAddFilterDialog
-    | CloseAddFilterDialog
     | SetDialogSearchInput String
-    | OpenStringFilterDialog SearchTerm
-    | CloseStringFilterDialog
-    | OpenProjectFilterDialog
-    | CloseProjectFilterDialog
     | SetSearchFilterValue PURL String
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
     | SetLocationFilterValue LocationFilterValue
     | SetProjectFilterValue String Bool
-    | SetFileFilterValue String Bool
+    | SetFileFilterValue String String Bool
     | SetSearchTab String
     | SetResultTab String
     | SetSampleSortPos Int
@@ -303,7 +296,11 @@ update msg model =
             ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
 
         GetFilePropertiesCompleted (Ok props) ->
-            ( { model | fileProperties = props }, Cmd.none )
+            let
+                fileFilters =
+                    props |> List.map (\(name,dist) -> FileFilter name dist [])
+            in
+            ( { model | fileFilters = fileFilters }, Cmd.none )
 
         GetFilePropertiesCompleted (Err error) ->
             ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
@@ -365,7 +362,9 @@ update msg model =
                 getTerm =
                     Sample.fetchSearchTerm id |> Http.toTask
             in
-            ( { model | showParamSearchDropdown = False, paramSearchInputVal = "", showAddFilterDialog = False }, Task.attempt GetSearchTermCompleted getTerm )
+            ( { model | showParamSearchDropdown = False, paramSearchInputVal = "", dialogState = DialogClosed }
+            , Task.attempt GetSearchTermCompleted getTerm
+            )
 
         RemoveFilter id ->
             let
@@ -389,21 +388,27 @@ update msg model =
             , Cmd.none
             )
 
-        OpenFilterChartDialog id ->
-            let
-                maybeTerm =
-                    Dict.get id model.selectedTerms
-            in
-            ( { model | chartFilterDialogTerm = maybeTerm }, Cmd.none )
+        OpenDialog state ->
+            ( { model | dialogState = state }, Cmd.none )
 
-        CloseFilterChartDialog ->
-            ( { model | chartFilterDialogTerm = Nothing }, Cmd.none )
+        CloseDialog ->
+            ( { model | dialogState = DialogClosed }, Cmd.none )
 
-        OpenProjectChartDialog ->
-            ( { model | showProjectSummaryDialog = True }, Cmd.none )
-
-        CloseProjectChartDialog ->
-            ( { model | showProjectSummaryDialog = False }, Cmd.none )
+        --OpenFilterChartDialog id ->
+        --    let
+        --        maybeTerm =
+        --            Dict.get id model.selectedTerms
+        --    in
+        --    ( { model | chartFilterDialogTerm = maybeTerm }, Cmd.none )
+        --
+        --CloseFilterChartDialog ->
+        --    ( { model | chartFilterDialogTerm = Nothing }, Cmd.none )
+        --
+        --OpenProjectChartDialog ->
+        --    ( { model | showProjectSummaryDialog = True }, Cmd.none )
+        --
+        --CloseProjectChartDialog ->
+        --    ( { model | showProjectSummaryDialog = False }, Cmd.none )
 
         SetParamSearchInput val ->
             ( { model | paramSearchInputVal = val }, Cmd.none )
@@ -411,26 +416,26 @@ update msg model =
         ShowParamSearchDropdown ->
             ( { model | showParamSearchDropdown = not model.showParamSearchDropdown }, Cmd.none )
 
-        OpenAddFilterDialog ->
-            ( { model | showAddFilterDialog = True, dialogSearchInputVal = "" }, Cmd.none )
-
-        CloseAddFilterDialog ->
-            ( { model | showAddFilterDialog = False }, Cmd.none )
+        --OpenAddFilterDialog ->
+        --    ( { model | showAddFilterDialog = True, dialogSearchInputVal = "" }, Cmd.none )
+        --
+        --CloseAddFilterDialog ->
+        --    ( { model | showAddFilterDialog = False }, Cmd.none )
 
         SetDialogSearchInput val ->
             ( { model | dialogSearchInputVal = val }, Cmd.none )
 
-        OpenStringFilterDialog term ->
-            ( { model | stringFilterDialogTerm = Just term }, Cmd.none )
-
-        CloseStringFilterDialog ->
-            ( { model | stringFilterDialogTerm = Nothing }, Cmd.none )
-
-        OpenProjectFilterDialog ->
-            ( { model | showProjectFilterDialog = True }, Cmd.none )
-
-        CloseProjectFilterDialog ->
-            ( { model | showProjectFilterDialog = False }, Cmd.none )
+        --OpenStringFilterDialog term ->
+        --    ( { model | stringFilterDialogTerm = Just term }, Cmd.none )
+        --
+        --CloseStringFilterDialog ->
+        --    ( { model | stringFilterDialogTerm = Nothing }, Cmd.none )
+        --
+        --OpenProjectFilterDialog ->
+        --    ( { model | showProjectFilterDialog = True }, Cmd.none )
+        --
+        --CloseProjectFilterDialog ->
+        --    ( { model | showProjectFilterDialog = False }, Cmd.none )
 
         SetSearchFilterValue id val ->
             let
@@ -448,7 +453,7 @@ update msg model =
             in
             ( { model | doSearch = doSearch, selectedVals = newVals }, Cmd.none )
 
-        SetStringFilterValue id val enable ->
+        SetStringFilterValue id val selected ->
             let
                 newVal =
                     case Dict.get id model.selectedVals of
@@ -458,13 +463,13 @@ update msg model =
                         Just termVal ->
                             case termVal of
                                 NoValue ->
-                                    if enable then
+                                    if selected then
                                         SingleValue val
                                     else
                                         NoValue
 
                                 SingleValue val1 -> --FIXME merge into MultipleValues case?
-                                    if enable then
+                                    if selected then
                                         MultipleValues [val1, val]
                                     else
                                         NoValue
@@ -472,7 +477,7 @@ update msg model =
                                 MultipleValues vals ->
                                     vals
                                         |> Set.fromList
-                                        |> (if enable then Set.insert val else Set.remove val)
+                                        |> (if selected then Set.insert val else Set.remove val)
                                         |> Set.toList
                                         |> MultipleValues
 
@@ -513,45 +518,36 @@ update msg model =
             in
             ( { model | doSearch = True, locationVal = val }, cmd )
 
-        SetProjectFilterValue val enable ->
+        SetProjectFilterValue val selected ->
             let
                 vals =
                     model.projectVals
                         |> Set.fromList
-                        |> (if enable then Set.insert val else Set.remove val)
+                        |> (if selected then Set.insert val else Set.remove val)
                         |> Set.toList
             in
             ( { model | doSearch = True, projectVals = vals }, Cmd.none )
 
-        SetFileFilterValue val enable ->
+        SetFileFilterValue id val selected ->
             let
-                vals =
-                    model.projectVals
+                newValues vals =
+                    vals
                         |> Set.fromList
-                        |> (if enable then Set.insert val else Set.remove val)
+                        |> (if selected then Set.insert val else Set.remove val)
                         |> Set.toList
-            in
-            ( { model | doSearch = True, projectVals = vals }, Cmd.none )
 
-        --SetFileFormatFilterValue val enable ->
-        --    let
-        --        vals =
-        --            model.fileFormatVals
-        --                |> Set.fromList
-        --                |> (if enable then Set.insert val else Set.remove val)
-        --                |> Set.toList
-        --    in
-        --    ( { model | doSearch = True, fileFormatVals = vals }, Cmd.none )
-        --
-        --SetFileTypeFilterValue val enable ->
-        --    let
-        --        vals =
-        --            model.fileTypeVals
-        --                |> Set.fromList
-        --                |> (if enable then Set.insert val else Set.remove val)
-        --                |> Set.toList
-        --    in
-        --    ( { model | doSearch = True, fileTypeVals = vals }, Cmd.none )
+                fileFilters =
+                    model.fileFilters
+                        |> List.map
+                            (\f ->
+                                if f.id == id then -- should only be one filter with this id value
+                                    { f | values = newValues f.values }
+                                else
+                                    f
+                            )
+
+            in
+            ( { model | doSearch = True, fileFilters = fileFilters }, Cmd.none )
 
         SetSearchTab label ->
             ( { model | searchTab = label }, Cmd.none )
@@ -613,7 +609,7 @@ update msg model =
                 ( model, Cmd.none )
 
         Search newPageNum download ->
-            case generateQueryParams model.locationVal model.projectVals model.fileVals model.selectedParams model.selectedVals of
+            case generateQueryParams model.locationVal model.projectVals Dict.empty model.selectedParams model.selectedVals of
                 Ok queryParams ->
                     let
                         ( result, sortPos, cmd ) =
@@ -1273,28 +1269,30 @@ view model =
 
 viewDialogs : Model -> Html Msg
 viewDialogs model =
-    div []
-        [ if model.showAddFilterDialog then
-            viewAddFilterDialog model.allParams model.dialogSearchInputVal
-          else if model.showProjectSummaryDialog then
-            viewProjectSummaryDialog model.projectCounts
-          else if model.showProjectFilterDialog then
-            viewProjectFilterDialog model.projectCounts model.projectVals
-          else
+    case model.dialogState of
+        DialogClosed ->
             viewBlank
-        , case model.stringFilterDialogTerm of
-            Nothing ->
-                viewBlank
 
-            Just term ->
-                viewStringFilterDialog term (Dict.get term.id model.selectedVals |> Maybe.withDefault NoValue)
-        , case model.chartFilterDialogTerm of
-            Nothing ->
-                viewBlank
+        AddFilterDialog ->
+            viewAddFilterDialog model.allParams model.dialogSearchInputVal
 
-            Just term ->
-                viewSearchTermSummaryDialog term
-        ]
+        StringFilterDialog term ->
+            viewStringFilterDialog term (Dict.get term.id model.selectedVals |> Maybe.withDefault NoValue)
+
+        FilterChartDialog term ->
+            viewSearchTermSummaryDialog term
+
+        ProjectFilterDialog ->
+            viewProjectFilterDialog model.projectCounts model.projectVals
+
+        ProjectSummaryDialog ->
+            viewProjectSummaryDialog model.projectCounts
+
+        FileFilterDialog filter ->
+            viewFileFilterDialog filter
+
+        FileSummaryDialog filter ->
+            viewBlank --viewFilleSummaryDialog model.projectCounts
 
 
 viewSearchPanel : Model -> Html Msg
@@ -1329,18 +1327,8 @@ viewSampleSearchPanel model =
 
 viewFileSearchPanel : Model -> Html Msg
 viewFileSearchPanel model =
-    --let
-    --    formatCounts =
-    --        model.fileFormats |> List.map (\ff -> (ff.name, ff.fileCount))
-    --
-    --    typeCounts =
-    --        model.fileTypes |> List.map (\ft -> (ft.name, ft.fileCount))
-    --in
     div []
-        --[ viewFileFormatPanel formatCounts model.fileFormatVals
-        --, viewFileTypePanel typeCounts model.fileTypeVals
-        [
-        ]
+        (List.map viewFilePropertyPanel model.fileFilters)
 
 
 viewTab : String -> Bool -> (String -> Msg) -> Html Msg
@@ -1455,7 +1443,7 @@ viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
         [ div [ class "input-group input-group-sm", style "position" "relative" ]
             [ input [ type_ "text", class "form-control", placeholder "Search parameters", value searchVal, onInput SetParamSearchInput ] []
             , div [ class "input-group-append" ]
-                [ button [ class "btn btn-outline-secondary", type_ "button", onClick OpenAddFilterDialog ] [ text "?" ]
+                [ button [ class "btn btn-outline-secondary", type_ "button", onClick (OpenDialog AddFilterDialog) ] [ text "?" ]
                 , button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", onClick ShowParamSearchDropdown ] []
                 , div [ class "dropdown-menu", classList [("show", show)], style "position" "absolute", style "left" "0px", style "max-height" "30vh", style "overflow-y" "auto" ] options
                 ]
@@ -1526,8 +1514,8 @@ viewAddFilterDialog allTerms searchVal =
         , div [ class "mt-5 border-top", style "overflow-y" "auto", style "max-height" "50vh" ]
             (List.map viewTerm terms)
         ]
-        [ button [ type_ "button", class "btn btn-secondary", onClick CloseAddFilterDialog ] [ text "Close" ] ]
-        CloseAddFilterDialog
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
+        CloseDialog
 
 
 viewAddedFiltersPanel : Model -> List PURL -> Dict PURL SearchTerm -> Dict PURL FilterValue -> Html Msg
@@ -1605,7 +1593,7 @@ viewProjectPanel counts selectedVals =
         truncatedOptions =
             counts
                 |> List.sortWith sortBySelected --|> List.sortBy Tuple.second
-                |> List.take 6
+                |> List.take maxNumPanelOptions
 
         sortBySelected a b =
             case ( isSelected (Tuple.first a), isSelected (Tuple.first b) ) of
@@ -1633,17 +1621,17 @@ viewProjectPanel counts selectedVals =
         numMore =
             numOptions - maxNumPanelOptions
     in
-    viewPanel "" "Project" "" "" Nothing (Just (\_ -> OpenProjectChartDialog)) Nothing
+    viewPanel "" "Project" "" "" Nothing (Just (OpenDialog ProjectSummaryDialog)) Nothing
         [ div [] (List.map (viewRow selectedVals) truncatedOptions)
         , if numMore > 0 then
-            button [ class "btn btn-sm btn-link float-right", onClick OpenProjectFilterDialog ]
+            button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog ProjectFilterDialog) ]
                 [ String.fromInt numMore ++ " More ..." |> text ]
           else
             viewBlank
         ]
 
 
-viewProjectFilterDialog : Distribution -> List String -> Html Msg
+viewProjectFilterDialog : Distribution -> List String -> Html Msg --TODO merge with viewStringFilterDialog/viewFileFilterDialog
 viewProjectFilterDialog projectCounts projectVals =
     let
         options =
@@ -1664,12 +1652,12 @@ viewProjectFilterDialog projectCounts projectVals =
     in
     viewDialog "Project"
         [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map viewRow options) ]
-        [ button [ type_ "button", class "btn btn-secondary", onClick CloseProjectFilterDialog ] [ text "Close" ] ]
-        CloseProjectFilterDialog
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
+        CloseDialog
 
 
-viewFilePropertyPanel : String -> Distribution -> List String -> Html Msg --TODO merge with viewProjectPanel
-viewFilePropertyPanel title counts selectedVals =
+viewFilePropertyPanel : FileFilter -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
+viewFilePropertyPanel filter =
     let
         viewRow vals ( lbl, num ) =
             let
@@ -1678,7 +1666,7 @@ viewFilePropertyPanel title counts selectedVals =
             in
             div []
                 [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileFilterValue lbl) ] []
+                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileFilterValue filter.id lbl) ] []
                     , label [ class "form-check-label" ] [ text lbl ]
                     ]
                 , div [ class "badge badge-secondary float-right" ]
@@ -1686,9 +1674,9 @@ viewFilePropertyPanel title counts selectedVals =
                 ]
 
         truncatedOptions =
-            counts
+            filter.distribution
                 |> List.sortWith sortBySelected --|> List.sortBy Tuple.second
-                |> List.take 6
+                |> List.take maxNumPanelOptions
 
         sortBySelected a b =
             case ( isSelected (Tuple.first a), isSelected (Tuple.first b) ) of
@@ -1708,92 +1696,47 @@ viewFilePropertyPanel title counts selectedVals =
                 GT -> LT
 
         isSelected lbl =
-            List.member lbl selectedVals
+            List.member lbl filter.values
 
         numOptions =
-            List.length counts
+            List.length filter.distribution
 
         numMore =
             numOptions - maxNumPanelOptions
     in
-    viewPanel "" title "" "" Nothing (Just (\_ -> OpenProjectChartDialog)) Nothing
-        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
+    viewPanel "" filter.id "" "" Nothing (Just (OpenDialog ProjectSummaryDialog)) Nothing
+        [ div [] (List.map (viewRow filter.values) truncatedOptions)
         , if numMore > 0 then
-            button [ class "btn btn-sm btn-link float-right" ]--, onClick OpenProjectFilterDialog ]
+            button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog (FileFilterDialog filter)) ]
                 [ String.fromInt numMore ++ " More ..." |> text ]
           else
             viewBlank
         ]
 
 
---viewFileFormatPanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
---viewFileFormatPanel counts selectedVals =
---    let
---        viewRow vals ( lbl, num ) =
---            let
---                isChecked =
---                    List.member lbl vals
---            in
---            div []
---                [ div [ class "form-check form-check-inline" ]
---                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileFormatFilterValue lbl) ] []
---                    , label [ class "form-check-label" ] [ text (String.Extra.toSentenceCase lbl) ]
---                    ]
---                , div [ class "badge badge-secondary float-right" ]
---                    [ num |> toFloat |> format myLocale |> text ]
---                ]
---
---        truncatedOptions =
---            counts |> List.sortBy Tuple.second --|> List.take 4 maxNumPanelOptions
---
---        numOptions =
---            List.length counts
---
---        numMore =
---            numOptions - maxNumPanelOptions
---    in
---    viewPanel "" "Format" "" "" Nothing Nothing Nothing
---        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
---        , if numMore > 0 then
---            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
---          else
---            viewBlank
---        ]
+viewFileFilterDialog : FileFilter -> Html Msg --TODO merge with viewStringFilterDialog/viewProjectFilterDialog
+viewFileFilterDialog filter =
+    let
+        options =
+            filter.distribution |> List.sortBy Tuple.first
 
+        isSelected lbl =
+            List.member lbl filter.values
 
---viewFileTypePanel : List (String, Int) -> List String -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
---viewFileTypePanel counts selectedVals =
---    let
---        viewRow vals ( lbl, num ) =
---            let
---                isChecked =
---                    List.member lbl vals
---            in
---            div []
---                [ div [ class "form-check form-check-inline" ]
---                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileTypeFilterValue lbl) ] []
---                    , label [ class "form-check-label" ] [ text (String.Extra.toSentenceCase lbl) ]
---                    ]
---                , div [ class "badge badge-secondary float-right" ]
---                    [ num |> toFloat |> format myLocale |> text ]
---                ]
---
---        truncatedOptions =
---            counts |> List.sortBy Tuple.second --|> List.take 4 maxNumPanelOptions
---
---        numOptions =
---            List.length counts
---
---        numMore =
---            numOptions - maxNumPanelOptions
---    in
---    viewPanel "" "Type" "" "" Nothing Nothing Nothing
---        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
---        , if numMore > 0 then
---            button [ class "btn btn-sm btn-link float-right" ] [ String.fromInt numMore ++ " More ..." |> text ]
---          else
---            viewBlank
---        ]
+        viewRow (lbl, count) =
+            div []
+                [ div [ class "form-check form-check-inline" ]
+                    [ input [ class "form-check-input", type_ "checkbox", checked (isSelected lbl), onCheck (SetFileFilterValue filter.id lbl) ] []
+                    , label [ class "form-check-label" ] [ text lbl ]
+                    ]
+                , div [ class "badge badge-secondary float-right" ]
+                    [ count |> toFloat |> format myLocale |> text ]
+                ]
+    in
+    viewDialog filter.id
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map viewRow options) ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
+        CloseDialog
 
 
 viewStringFilterPanel : SearchTerm -> FilterValue -> Html Msg
@@ -1833,7 +1776,7 @@ viewStringFilterPanel term val =
         [ div []
             (viewStringFilterOptions term val truncatedOptions)
         , if numOptions > maxNumPanelOptions then
-            button [ class "btn btn-sm btn-link float-right", onClick (OpenStringFilterDialog term) ]
+            button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog (StringFilterDialog term)) ]
                 [ String.fromInt (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
           else
             viewBlank
@@ -1882,7 +1825,7 @@ isStringFilterSelected name val =
     ) |> List.member name
 
 
-viewStringFilterDialog : SearchTerm -> FilterValue -> Html Msg
+viewStringFilterDialog : SearchTerm -> FilterValue -> Html Msg --TODO merge with viewProjectFilterDialog/viewFileFilterDialog
 viewStringFilterDialog term val =
     let
         sortByName a b =
@@ -1901,8 +1844,8 @@ viewStringFilterDialog term val =
     in
     viewDialog (String.Extra.toTitleCase term.label)
         [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions term val options) ]
-        [ button [ type_ "button", class "btn btn-secondary", onClick CloseStringFilterDialog ] [ text "Close" ] ]
-        CloseStringFilterDialog
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
+        CloseDialog
 
 
 viewNumberFilterPanel : SearchTerm -> FilterValue -> Html Msg
@@ -2123,12 +2066,12 @@ viewLocationFilterInput val =
 
 viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
 viewTermPanel term nodes =
-    viewPanel term.id term.label term.unitId term.unitLabel (Just RemoveFilter) (Just OpenFilterChartDialog) Nothing nodes
+    viewPanel term.id term.label term.unitId term.unitLabel (Just RemoveFilter) (Just (OpenDialog (FilterChartDialog term))) Nothing nodes
 
 
 --TODO move coniguration params into type alias (like "type alias PanelConfig = {}")
-viewPanel : PURL -> String -> PURL -> String -> Maybe (PURL -> Msg) -> Maybe (PURL -> Msg) -> Maybe String -> List (Html Msg) -> Html Msg
-viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChart maybeBgColor nodes =
+viewPanel : PURL -> String -> PURL -> String -> Maybe (PURL -> Msg) -> Maybe Msg -> Maybe String -> List (Html Msg) -> Html Msg
+viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChartMsg maybeBgColor nodes =
     let
         header =
             h6 [ style "color" "darkblue"]
@@ -2154,9 +2097,9 @@ viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChart maybeBgColor n
 
                     Nothing ->
                         viewBlank
-                , case maybeOpenChart of
+                , case maybeOpenChartMsg of
                     Just openMsg ->
-                        span [ class "float-right", style "cursor" "pointer", onClick (openMsg id) ]
+                        span [ class "float-right", style "cursor" "pointer", onClick openMsg ]
                             [ Icon.barChart ]
 
                     Nothing ->
@@ -2367,10 +2310,10 @@ viewSearchTermSummaryDialog term =
         [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
             [ viewSearchTermSummaryChart term.label (term.distribution |> List.map (Tuple.mapFirst purlToLabel)) ]
         ]
-        [ button [ type_ "button", class "btn btn-secondary", onClick CloseFilterChartDialog ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ]
             [ text "Close" ]
         ]
-        CloseFilterChartDialog
+        CloseDialog
 
 
 viewProjectSummaryDialog : Distribution -> Html Msg
@@ -2379,10 +2322,10 @@ viewProjectSummaryDialog counts =
         [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
             [ viewSearchTermSummaryChart "Project" counts ]
         ]
-        [ button [ type_ "button", class "btn btn-secondary", onClick CloseProjectChartDialog ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ]
             [ text "Close" ]
         ]
-        CloseProjectChartDialog
+        CloseDialog
 
 
 viewSampleResults : Model -> Html Msg
