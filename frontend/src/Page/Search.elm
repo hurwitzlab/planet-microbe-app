@@ -115,19 +115,18 @@ type alias Model =
     , selectedTerms : Dict PURL SearchTerm
     , selectedVals : Dict PURL FilterValue
     , locationVal : LocationFilterValue
-    , projectCounts : Distribution
-    , projectVals : List String
-    , fileFilters : List FileFilter
+    , projectFilter : Filter
+    , fileFilters : List Filter
     , startDatePickers : Dict PURL DatePicker
     , endDatePickers : Dict PURL DatePicker
+    , showParamSearchDropdown : Bool
+    , paramSearchInputVal : String
 
     -- Dialog states
     , dialogState : DialogState
-    , paramSearchInputVal : String
     , dialogSearchInputVal : String
 
     -- Search result state
-    , showParamSearchDropdown : Bool
     , doSearch : Bool
     , searchStartTime : Int -- milliseconds
     , isSearching : Bool
@@ -150,7 +149,7 @@ type alias Model =
     }
 
 
-type alias FileFilter =
+type alias Filter =
     { id : String
     , distribution : List (String, Int)
     , values : List String
@@ -164,8 +163,8 @@ type DialogState --TODO combine StringFilterDialog/ProjectFilterDialog/FileFilte
     | FilterChartDialog SearchTerm
     | ProjectFilterDialog
     | ProjectSummaryDialog
-    | FileFilterDialog FileFilter
-    | FileSummaryDialog FileFilter
+    | FileFilterDialog Filter
+    | FileSummaryDialog Filter
 
 
 init : Session -> ( Model, Cmd Msg )
@@ -186,19 +185,18 @@ init session =
         , selectedTerms = Dict.empty
         , selectedVals = Dict.empty
         , locationVal = NoLocationValue
-        , projectCounts = []
-        , projectVals = []
+        , projectFilter = Filter "Project" [] []
         , fileFilters = []
         , startDatePickers = Dict.insert purlDateTimeISO startDatePicker Dict.empty
         , endDatePickers = Dict.insert purlDateTimeISO endDatePicker Dict.empty
+        , showParamSearchDropdown = False
+        , paramSearchInputVal = ""
 
         -- Dialog states
         , dialogState = DialogClosed
-        , paramSearchInputVal = ""
         , dialogSearchInputVal = ""
 
         -- Search result state
-        , showParamSearchDropdown = False
         , doSearch = False -- initial search is activated by GetSearchTermCompleted
         , searchStartTime = 0
         , isSearching = True
@@ -290,7 +288,11 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GetProjectCountsCompleted (Ok counts) ->
-            ( { model | projectCounts = counts }, Cmd.none )
+            let
+                projectFilter =
+                    model.projectFilter
+            in
+            ( { model | projectFilter = { projectFilter | distribution = counts } }, Cmd.none )
 
         GetProjectCountsCompleted (Err error) ->
             ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
@@ -298,7 +300,7 @@ update msg model =
         GetFilePropertiesCompleted (Ok props) ->
             let
                 fileFilters =
-                    props |> List.map (\(name,dist) -> FileFilter name dist [])
+                    props |> List.map (\(id,dist) -> Filter id dist [])
             in
             ( { model | fileFilters = fileFilters }, Cmd.none )
 
@@ -348,9 +350,8 @@ update msg model =
                 , locationVal = NoLocationValue
                 , selectedParams = initialParams
                 , selectedVals = newVals
-                , projectVals = []
-                --, fileFormatVals = []
-                --, fileTypeVals = []
+                , projectFilter = Filter "Project" [] []
+                , fileFilters = []
                 , sampleTableState = SortableTable.initialState
                 , fileTableState = SortableTable.initialState
               }
@@ -520,13 +521,16 @@ update msg model =
 
         SetProjectFilterValue val selected ->
             let
-                vals =
-                    model.projectVals
+                newValues =
+                    model.projectFilter.values
                         |> Set.fromList
                         |> (if selected then Set.insert val else Set.remove val)
                         |> Set.toList
+
+                projectFilter =
+                    model.projectFilter
             in
-            ( { model | doSearch = True, projectVals = vals }, Cmd.none )
+            ( { model | doSearch = True, projectFilter = { projectFilter | values = newValues } }, Cmd.none )
 
         SetFileFilterValue id val selected ->
             let
@@ -609,7 +613,7 @@ update msg model =
                 ( model, Cmd.none )
 
         Search newPageNum download ->
-            case generateQueryParams model.locationVal model.projectVals Dict.empty model.selectedParams model.selectedVals of
+            case generateQueryParams model.locationVal model.projectFilter model.fileFilters model.selectedParams model.selectedVals of
                 Ok queryParams ->
                     let
                         ( result, sortPos, cmd ) =
@@ -864,8 +868,8 @@ validParam val =
             True
 
 
-formatParam : FilterValue -> String
-formatParam val = --TODO use encoder instead
+encodeFilterValue : FilterValue -> String
+encodeFilterValue val =
     let
         range from to =
             "[" ++ from ++ "," ++ to ++ "]"
@@ -933,9 +937,9 @@ formatLocationParam val = --TODO use encoder instead
 
 
 -- TODO refactor/simplify
-generateQueryParams : LocationFilterValue -> List String -> Dict String (List String) -> List PURL -> Dict PURL FilterValue -> Result String (List (String, String))
-generateQueryParams locationVal projectVals fileVals params vals =
-    if locationVal == NoLocationValue && projectVals == [] && Dict.isEmpty vals then
+generateQueryParams : LocationFilterValue -> Filter -> List Filter -> List PURL -> Dict PURL FilterValue -> Result String (List (String, String))
+generateQueryParams locationVal projectFilter fileFilters params vals =
+    if locationVal == NoLocationValue && projectFilter.values == [] && Dict.isEmpty vals then
         Ok []
     else
         let
@@ -947,7 +951,7 @@ generateQueryParams locationVal projectVals fileVals params vals =
                     |> List.map (\id ->
                         (id, (Dict.get id vals |> Maybe.withDefault NoValue))
                     )
-                    |> List.map (Tuple.mapSecond formatParam)
+                    |> List.map (Tuple.mapSecond encodeFilterValue)
 
             locParam =
                 if validLocationParam locationVal then
@@ -964,7 +968,7 @@ generateQueryParams locationVal projectVals fileVals params vals =
                         if validParam val then
                             let
                                 fmtVal =
-                                    formatParam val
+                                    encodeFilterValue val
                             in
                             [ ( purlDepth, fmtVal )
                             --, ( "|" ++ purlDepthMin, fmtVal )
@@ -982,7 +986,7 @@ generateQueryParams locationVal projectVals fileVals params vals =
                         if validParam val then
                             let
                                 fmtVal =
-                                    formatParam val
+                                    encodeFilterValue val
                             in
                             [ ( "|" ++ purlDateTimeISO, fmtVal )
                             , ( "|" ++ purlDateTimeISOStart, fmtVal )
@@ -992,19 +996,17 @@ generateQueryParams locationVal projectVals fileVals params vals =
                             []
 
             projectParam =
-                if projectVals /= [] then
-                    [ ("project", pipeJoin projectVals) ]
+                if projectFilter.values /= [] then
+                    [ ("project", pipeJoin projectFilter.values) ]
                 else
                     []
 
             fileParams =
-                []
-                --fileVals |>
-                --    -- maintain filter order
-                --    |> List.map (\id ->
-                --        (id, (Dict.get id vals |> Maybe.withDefault NoValue))
-                --    )
-                --    |> List.map (Tuple.mapSecond formatParam)
+                fileFilters
+                    |> List.map
+                        (\f ->
+                            (f.id, pipeJoin f.values)
+                        )
         in
         List.concat [ projectParam, fileParams, locParam, depthParam, datetimeParam, userParams ]
             |> Ok
@@ -1283,10 +1285,10 @@ viewDialogs model =
             viewSearchTermSummaryDialog term
 
         ProjectFilterDialog ->
-            viewProjectFilterDialog model.projectCounts model.projectVals
+            viewProjectFilterDialog model.projectFilter
 
         ProjectSummaryDialog ->
-            viewProjectSummaryDialog model.projectCounts
+            viewProjectSummaryDialog model.projectFilter.distribution
 
         FileFilterDialog filter ->
             viewFileFilterDialog filter
@@ -1319,7 +1321,7 @@ viewSampleSearchPanel : Model -> Html Msg
 viewSampleSearchPanel model =
     div []
         [ view4DPanel model
-        , viewProjectPanel model.projectCounts model.projectVals
+        , viewProjectPanel model.projectFilter
         , viewAddedFiltersPanel model model.selectedParams model.selectedTerms model.selectedVals
         , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allParams model.selectedParams
         ]
@@ -1573,8 +1575,8 @@ viewSearchFilterPanel term val =
         ]
 
 
-viewProjectPanel : Distribution -> List String -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
-viewProjectPanel counts selectedVals =
+viewProjectPanel : Filter -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
+viewProjectPanel filter =
     let
         viewRow vals ( lbl, num ) =
             let
@@ -1591,7 +1593,7 @@ viewProjectPanel counts selectedVals =
                 ]
 
         truncatedOptions =
-            counts
+            filter.distribution
                 |> List.sortWith sortBySelected --|> List.sortBy Tuple.second
                 |> List.take maxNumPanelOptions
 
@@ -1613,16 +1615,16 @@ viewProjectPanel counts selectedVals =
                 GT -> LT
 
         isSelected lbl =
-            List.member lbl selectedVals
+            List.member lbl filter.values
 
         numOptions =
-            List.length counts
+            List.length filter.distribution
 
         numMore =
             numOptions - maxNumPanelOptions
     in
     viewPanel "" "Project" "" "" Nothing (Just (OpenDialog ProjectSummaryDialog)) Nothing
-        [ div [] (List.map (viewRow selectedVals) truncatedOptions)
+        [ div [] (List.map (viewRow filter.values) truncatedOptions)
         , if numMore > 0 then
             button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog ProjectFilterDialog) ]
                 [ String.fromInt numMore ++ " More ..." |> text ]
@@ -1631,14 +1633,14 @@ viewProjectPanel counts selectedVals =
         ]
 
 
-viewProjectFilterDialog : Distribution -> List String -> Html Msg --TODO merge with viewStringFilterDialog/viewFileFilterDialog
-viewProjectFilterDialog projectCounts projectVals =
+viewProjectFilterDialog : Filter -> Html Msg --TODO merge with viewStringFilterDialog/viewFileFilterDialog
+viewProjectFilterDialog filter =
     let
         options =
-            projectCounts |> List.sortBy Tuple.first
+            filter.distribution |> List.sortBy Tuple.first
 
         isSelected lbl =
-            List.member lbl projectVals
+            List.member lbl filter.values
 
         viewRow (lbl, count) =
             div []
@@ -1656,7 +1658,7 @@ viewProjectFilterDialog projectCounts projectVals =
         CloseDialog
 
 
-viewFilePropertyPanel : FileFilter -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
+viewFilePropertyPanel : Filter -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
 viewFilePropertyPanel filter =
     let
         viewRow vals ( lbl, num ) =
@@ -1714,7 +1716,7 @@ viewFilePropertyPanel filter =
         ]
 
 
-viewFileFilterDialog : FileFilter -> Html Msg --TODO merge with viewStringFilterDialog/viewProjectFilterDialog
+viewFileFilterDialog : Filter -> Html Msg --TODO merge with viewStringFilterDialog/viewProjectFilterDialog
 viewFileFilterDialog filter =
     let
         options =
@@ -2317,10 +2319,10 @@ viewSearchTermSummaryDialog term =
 
 
 viewProjectSummaryDialog : Distribution -> Html Msg
-viewProjectSummaryDialog counts =
+viewProjectSummaryDialog dist =
     viewDialog "Project"
         [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
-            [ viewSearchTermSummaryChart "Project" counts ]
+            [ viewSearchTermSummaryChart "Project" dist ]
         ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ]
             [ text "Close" ]
