@@ -47,6 +47,7 @@ import Config
 
 
 
+main : Program flags model msg
 main =
     Browser.application
         { init = init
