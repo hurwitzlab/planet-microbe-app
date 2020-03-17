@@ -12,7 +12,7 @@ import HttpBuilder
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
 import Json.Encode as Encode
-import Dict exposing (Dict)
+import SearchTerm
 import Config exposing (apiBaseUrl)
 
 
@@ -63,7 +63,7 @@ fetchAllBySamples sampleIds =
         |> HttpBuilder.toRequest
 
 
-fetchProperties : Http.Request (Dict String (List (String, Int)))
+fetchProperties : Http.Request (List (String, SearchTerm.Distribution))
 fetchProperties =
     let
         url =
@@ -71,7 +71,5 @@ fetchProperties =
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect
-            (Http.expectJson
-                (Decode.dict
-                    (Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int)))))
+            (Http.expectJson (Decode.keyValuePairs (SearchTerm.distributionDecoder)))
         |> HttpBuilder.toRequest
