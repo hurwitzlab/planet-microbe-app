@@ -201,30 +201,31 @@ router.post('/samples/files', async (req, res) => {
 router.get('/samples/files/properties', async (req, res) => {
     let results =
         await Promise.all([
-            db.query({
-                text:
-                    `SELECT 'format' AS field,ff.name,COUNT(f.file_id)::int
-                    FROM experiment e
-                    LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
-                    JOIN run_to_file rtf ON rtf.run_id=r.run_id
-                    JOIN file f ON f.file_id=rtf.file_id
-                    LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
-                    GROUP BY ff.file_format_id`,
-                rowMode: 'array'
-            }),
-            db.query({
-                text:
-                    `SELECT 'type' AS field,ft.name,COUNT(f.file_id)::int
-                    FROM experiment e
-                    LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
-                    JOIN run_to_file rtf ON rtf.run_id=r.run_id
-                    JOIN file f ON f.file_id=rtf.file_id
-                    LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
-                    GROUP BY ft.file_type_id`,
-                rowMode: 'array'
-            }),
+// Not needed for now
+//            db.query({
+//                text:
+//                    `SELECT 'format' AS field,ff.name,COUNT(f.file_id)::int
+//                    FROM experiment e
+//                    LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+//                    JOIN run_to_file rtf ON rtf.run_id=r.run_id
+//                    JOIN file f ON f.file_id=rtf.file_id
+//                    LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
+//                    GROUP BY ff.file_format_id`,
+//                rowMode: 'array'
+//            }),
+//            db.query({
+//                text:
+//                    `SELECT 'type' AS field,ft.name,COUNT(f.file_id)::int
+//                    FROM experiment e
+//                    LEFT JOIN run r ON (r.experiment_id=e.experiment_id)
+//                    JOIN run_to_file rtf ON rtf.run_id=r.run_id
+//                    JOIN file f ON f.file_id=rtf.file_id
+//                    LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
+//                    GROUP BY ft.file_type_id`,
+//                rowMode: 'array'
+//            }),
         ].concat(
-            ['strategy', 'source', 'selection', 'protocol', 'layout'].map(col =>
+            [ 'source', 'strategy', 'selection', 'protocol', 'layout'].map(col =>
                 db.query({
                     text:
                         `SELECT '${col}' AS field,COALESCE(${col},'none'),COUNT(rtf.file_id)::int
