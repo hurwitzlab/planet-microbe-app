@@ -225,7 +225,7 @@ router.get('/samples/files/properties', async (req, res) => {
 //                rowMode: 'array'
 //            }),
         ].concat(
-            [ 'source', 'strategy', 'selection', 'protocol', 'layout'].map(col =>
+            [ 'source', 'strategy', 'selection', 'layout'].map(col =>
                 db.query({
                     text:
                         `SELECT '${col}' AS field,COALESCE(${col},'none'),COUNT(rtf.file_id)::int
