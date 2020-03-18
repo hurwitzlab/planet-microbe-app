@@ -26,7 +26,7 @@ import Error
 import Page exposing (viewBlank, viewSpinner, viewDialog)
 import Project
 import Sample
-import SearchTerm exposing (SearchTerm, PURL, Distribution)
+import SearchTerm exposing (SearchTerm, PURL, Distribution, defaultSearchTerm)
 import RemoteFile
 import SortableTable
 import BarChart
@@ -94,7 +94,7 @@ purlEnvironmentalMaterial =
     "http://purl.obolibrary.org/obo/ENVO_00010483"
 
 
-initialParams =
+initialTerms =
     [ purlBiome
     , purlEnvironmentalFeature
     , purlEnvironmentalMaterial
@@ -108,17 +108,17 @@ initialParams =
 type alias Model =
     { session : Session
 
-    -- Search filters and selected values
-    --TODO combine selectedParams/Terms/Vals into list of records, use get and set routines to access by PURL.  See FileFilter type.
-    , allParams : List SearchTerm -- list of available params to add
-    , selectedParams : List PURL -- added params, for maintaining order
-    , selectedTerms : Dict PURL SearchTerm
-    , selectedVals : Dict PURL FilterValue
+    -- Search terms and filters
+    , allTerms: List SearchTerm -- list of available terms to add
+    , selectedTerms : List PURL
+    , termFilters : List Filter
+
     , locationVal : LocationFilterValue
     , projectFilter : Filter
     , fileFilters : List Filter
     , startDatePickers : Dict PURL DatePicker
     , endDatePickers : Dict PURL DatePicker
+
     , showParamSearchDropdown : Bool
     , paramSearchInputVal : String
 
@@ -150,16 +150,23 @@ type alias Model =
 
 
 type alias Filter =
-    { id : String
-    , distribution : List (String, Int)
-    , values : List String
+    { term : SearchTerm
+    , value : FilterValue
+    }
+
+
+projectSearchTerm : SearchTerm
+projectSearchTerm =
+    { defaultSearchTerm
+        | id = "project"
+        , label = "Project"
     }
 
 
 type DialogState --TODO combine StringFilterDialog/ProjectFilterDialog/FileFilterDialog and FilterChartDialog/ProjectSummaryDialog/FileFilterDialog
     = DialogClosed
     | AddFilterDialog
-    | StringFilterDialog SearchTerm
+    | StringFilterDialog Filter
     | FilterChartDialog SearchTerm
     | ProjectFilterDialog
     | ProjectSummaryDialog
@@ -169,26 +176,30 @@ type DialogState --TODO combine StringFilterDialog/ProjectFilterDialog/FileFilte
 
 init : Session -> ( Model, Cmd Msg )
 init session =
-    let
-        ( startDatePicker, _ ) =
-            DatePicker.init
-
-        ( endDatePicker, _ ) =
-            DatePicker.init
-    in
+    --let
+    --    ( startDatePicker, _ ) =
+    --        DatePicker.init
+    --
+    --    ( endDatePicker, _ ) =
+    --        DatePicker.init
+    --in
     (
         { session = session
 
         -- Search filters and selected values
-        , allParams = []
-        , selectedParams = initialParams
-        , selectedTerms = Dict.empty
-        , selectedVals = Dict.empty
+        , allTerms = []
+        , selectedTerms = initialTerms
+        , termFilters = []
+
         , locationVal = NoLocationValue
-        , projectFilter = Filter "Project" [] []
+        , depthVal = NoValue
+        , datetimeVal = NoValue
+        , projectFilter = Filter projectSearchTerm NoValue
+
         , fileFilters = []
-        , startDatePickers = Dict.insert purlDateTimeISO startDatePicker Dict.empty
-        , endDatePickers = Dict.insert purlDateTimeISO endDatePicker Dict.empty
+        --, startDatePickers = Dict.insert purlDateTimeISO startDatePicker Dict.empty
+        --, endDatePickers = Dict.insert purlDateTimeISO endDatePicker Dict.empty
+
         , showParamSearchDropdown = False
         , paramSearchInputVal = ""
 
@@ -219,7 +230,7 @@ init session =
         }
     , Cmd.batch
         [ Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
-        , List.map Sample.fetchSearchTerm initialParams |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
+        , List.map Sample.fetchSearchTerm initialTerms |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , Project.fetchCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         , RemoteFile.fetchProperties |> Http.toTask |> Task.attempt GetFilePropertiesCompleted
         , GMap.removeMap "" -- workaround for blank map on navigating back to this page
@@ -291,8 +302,11 @@ update msg model =
             let
                 projectFilter =
                     model.projectFilter
+
+                projectTerm =
+                    model.projectFilter.term
             in
-            ( { model | projectFilter = { projectFilter | distribution = counts } }, Cmd.none )
+            ( { model | projectFilter = { projectFilter | term = { projectTerm | distribution = counts } } }, Cmd.none )
 
         GetProjectCountsCompleted (Err error) ->
             ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
@@ -300,7 +314,11 @@ update msg model =
         GetFilePropertiesCompleted (Ok props) ->
             let
                 fileFilters =
-                    props |> List.map (\(id,dist) -> Filter id dist [])
+                    props
+                        |> List.map
+                            (\(id,dist) ->
+                                Filter { defaultSearchTerm | id = id, distribution = dist } NoValue
+                            )
             in
             ( { model | fileFilters = fileFilters }, Cmd.none )
 
@@ -308,18 +326,15 @@ update msg model =
             ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
 
         GetAllSearchTermsCompleted (Ok terms) ->
-            ( { model | allParams = terms }, Cmd.none )
+            ( { model | allTerms = terms }, Cmd.none )
 
         GetAllSearchTermsCompleted (Err error) ->
             ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
 
         GetSearchTermCompleted (Ok term) ->
             let
-                selectedParams =
-                    List.singleton term.id |> List.append model.selectedParams |> List.Extra.unique -- cannot use Set because it doesn't preserve order
-
-                selectedTerms =
-                    Dict.insert term.id term model.selectedTerms
+                --selectedParams =
+                --    List.singleton term.id |> List.append model.selectedParams |> List.Extra.unique -- cannot use Set because it doesn't preserve order
 
                 val =
                     case term.type_ of
@@ -329,28 +344,33 @@ update msg model =
                         _ ->
                             NoValue
 
-                selectedVals =
-                    Dict.insert term.id val model.selectedVals
+                --selectedVals =
+                --    Dict.insert term.id val model.selectedVals
+
+                filters =
+                    --Dict.insert term.id term model.selectedTerms
+                    List.append model.termFilters [ Filter term val ]
             in
-            ( { model | doSearch = True, selectedParams = selectedParams, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
+            --( { model | doSearch = True, selectedParams = selectedParams, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
+            ( { model | doSearch = True, termFilters = filters }, Cmd.none )
 
         GetSearchTermCompleted (Err error) ->
             ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
 
         ClearFilters ->
-            let
-                newVals =
-                    model.selectedVals
-                        |> Dict.remove purlDepth
-                        |> Dict.remove purlDateTimeISO
-                        |> Dict.map (\k v -> NoValue)
-            in
+            --let
+            --    newVals =
+            --        model.selectedVals
+            --            |> Dict.remove purlDepth
+            --            |> Dict.remove purlDateTimeISO
+            --            |> Dict.map (\k v -> NoValue)
+            --in
             ( { model
                 | doSearch = True
+                , selectedTerms = initialTerms
+                , termFilters = []
                 , locationVal = NoLocationValue
-                , selectedParams = initialParams
-                , selectedVals = newVals
-                , projectFilter = Filter "Project" [] []
+                , projectFilter = Filter projectSearchTerm NoValue
                 , fileFilters = []
                 , sampleTableState = SortableTable.initialState
                 , fileTableState = SortableTable.initialState
@@ -369,20 +389,23 @@ update msg model =
 
         RemoveFilter id ->
             let
-                newParams =
-                    model.selectedParams |> List.filter (\n -> n /= id) -- cannot use Set because it doesn't preserve order
-
-                newTerms =
-                    Dict.remove id model.selectedTerms
-
-                newVals =
-                    Dict.remove id model.selectedVals
+                --newParams =
+                --    model.selectedParams |> List.filter (\n -> n /= id) -- cannot use Set because it doesn't preserve order
+                --
+                --newTerms =
+                --    Dict.remove id model.selectedTerms
+                --
+                --newVals =
+                --    Dict.remove id model.selectedVals
+                newFilters =
+                    model.termFilters |> List.filter (\f -> f.term.id == id)
             in
             ( { model
                 | doSearch = True
-                , selectedParams = newParams
-                , selectedTerms = newTerms
-                , selectedVals = newVals
+                --, selectedParams = newParams
+                --, selectedTerms = newTerms
+                --, selectedVals = newVals
+                , termFilters = newFilters
                 , sampleTableState = SortableTable.initialState
                 , fileTableState = SortableTable.initialState
               }
@@ -449,53 +472,78 @@ update msg model =
                     else
                         SearchValue val
 
-                newVals =
-                    Dict.insert id newVal model.selectedVals
+                --newVals =
+                --    Dict.insert id newVal model.selectedVals
+
+                termFilters =
+                    model.termFilters
+                        |> List.map
+                            (\f ->
+                                if f.term.id == id then
+                                    { f | value = newVal }
+                                else
+                                    f
+                            )
             in
-            ( { model | doSearch = doSearch, selectedVals = newVals }, Cmd.none )
+            ( { model | doSearch = doSearch, termFilters = termFilters }, Cmd.none )
 
         SetStringFilterValue id val selected ->
             let
-                newVal =
-                    case Dict.get id model.selectedVals of
-                        Nothing -> -- Error
+                newVal termVal =
+                    case termVal of
+                        NoValue ->
+                            if selected then
+                                SingleValue val
+                            else
+                                NoValue
+
+                        SingleValue val1 -> --FIXME merge into MultipleValues case?
+                            if selected then
+                                MultipleValues [val1, val]
+                            else
+                                NoValue
+
+                        MultipleValues vals ->
+                            vals
+                                |> Set.fromList
+                                |> (if selected then Set.insert val else Set.remove val)
+                                |> Set.toList
+                                |> MultipleValues
+
+                        _ -> -- error
                             NoValue
 
-                        Just termVal ->
-                            case termVal of
-                                NoValue ->
-                                    if selected then
-                                        SingleValue val
-                                    else
-                                        NoValue
+                termFilters =
+                    model.termFilters
+                        |> List.map
+                            (\f ->
+                                if f.term.id == id then
+                                    { f | value = newVal f.value }
+                                else
+                                    f
+                            )
 
-                                SingleValue val1 -> --FIXME merge into MultipleValues case?
-                                    if selected then
-                                        MultipleValues [val1, val]
-                                    else
-                                        NoValue
-
-                                MultipleValues vals ->
-                                    vals
-                                        |> Set.fromList
-                                        |> (if selected then Set.insert val else Set.remove val)
-                                        |> Set.toList
-                                        |> MultipleValues
-
-                                _ -> -- error
-                                    NoValue
-
-                newVals =
-                    Dict.insert id newVal model.selectedVals
+                --newVals =
+                --    Dict.insert id newVal model.selectedVals
             in
-            ( { model | doSearch = True, selectedVals = newVals }, Cmd.none )
+            ( { model | doSearch = True, termFilters = termFilters }, Cmd.none )
 
         SetFilterValue id val ->
             let
-                newVals =
-                    Dict.insert id val model.selectedVals
+                --newVals =
+                --    Dict.insert id val model.selectedVals
+
+                termFilters =
+                    model.termFilters
+                        |> List.map
+                            (\f ->
+                                if f.term.id == id then
+                                    { f | value = val }
+                                else
+                                    f
+                            )
             in
-            ( { model | doSearch = True, selectedVals = newVals }, Cmd.none )
+            ( { model | doSearch = True, termFilters = termFilters }, Cmd.none )
 
         SetLocationFilterValue val ->
             let
@@ -519,39 +567,39 @@ update msg model =
             in
             ( { model | doSearch = True, locationVal = val }, cmd )
 
-        SetProjectFilterValue val selected ->
-            let
-                newValues =
-                    model.projectFilter.values
-                        |> Set.fromList
-                        |> (if selected then Set.insert val else Set.remove val)
-                        |> Set.toList
-
-                projectFilter =
-                    model.projectFilter
-            in
-            ( { model | doSearch = True, projectFilter = { projectFilter | values = newValues } }, Cmd.none )
-
-        SetFileFilterValue id val selected ->
-            let
-                newValues vals =
-                    vals
-                        |> Set.fromList
-                        |> (if selected then Set.insert val else Set.remove val)
-                        |> Set.toList
-
-                fileFilters =
-                    model.fileFilters
-                        |> List.map
-                            (\f ->
-                                if f.id == id then -- should only be one filter with this id value
-                                    { f | values = newValues f.values }
-                                else
-                                    f
-                            )
-
-            in
-            ( { model | doSearch = True, fileFilters = fileFilters }, Cmd.none )
+        --SetProjectFilterValue val selected ->
+        --    let
+        --        newValues =
+        --            model.projectFilter.values
+        --                |> Set.fromList
+        --                |> (if selected then Set.insert val else Set.remove val)
+        --                |> Set.toList
+        --
+        --        projectFilter =
+        --            model.projectFilter
+        --    in
+        --    ( { model | doSearch = True, projectFilter = { projectFilter | values = newValues } }, Cmd.none )
+        --
+        --SetFileFilterValue id val selected ->
+        --    let
+        --        newValues vals =
+        --            vals
+        --                |> Set.fromList
+        --                |> (if selected then Set.insert val else Set.remove val)
+        --                |> Set.toList
+        --
+        --        fileFilters =
+        --            model.fileFilters
+        --                |> List.map
+        --                    (\f ->
+        --                        if f.id == id then -- should only be one filter with this id value
+        --                            { f | values = newValues f.values }
+        --                        else
+        --                            f
+        --                    )
+        --
+        --    in
+        --    ( { model | doSearch = True, fileFilters = fileFilters }, Cmd.none )
 
         SetSearchTab label ->
             ( { model | searchTab = label }, Cmd.none )
@@ -613,7 +661,7 @@ update msg model =
                 ( model, Cmd.none )
 
         Search newPageNum download ->
-            case generateQueryParams model.locationVal model.projectFilter model.fileFilters model.selectedParams model.selectedVals of
+            case generateQueryParams model.locationVal model.projectFilter model.fileFilters model.termFilters of
                 Ok queryParams ->
                     let
                         ( result, sortPos, cmd ) =
@@ -623,7 +671,7 @@ update msg model =
                                 ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
 
                         allParams =
-                            ("summary", String.join "," model.selectedParams) ::
+                            ("summary", model.termFilters |> List.map (.term >> .label) |> String.join "," ) ::
                             queryParams ++
                             (generateControlParams result [] sortPos model.pageSize (model.pageSize * newPageNum) model.showMap)
                     in
@@ -763,10 +811,20 @@ update msg model =
 
                                 Nothing ->
                                     val
+
+                        termFilters =
+                            model.termFilters
+                                |> List.map
+                                    (\f ->
+                                        if f.term.id == purlDateTimeISO then
+                                            { f | value = newDateVal }
+                                        else
+                                            f
+                                    )
                     in
                     ({ model
                         | doSearch = newDate /= Nothing
-                        , selectedVals = Dict.insert id newDateVal model.selectedVals
+                        , termFilters = termFilters
                         , startDatePickers = Dict.insert id newDatePicker model.startDatePickers
                     }
                     , Cmd.none)
@@ -808,10 +866,20 @@ update msg model =
 
                                 Nothing ->
                                     val
+
+                        termFilters =
+                            model.termFilters
+                                |> List.map
+                                    (\f ->
+                                        if f.term.id == purlDateTimeISO then
+                                            { f | value = newDateVal }
+                                        else
+                                            f
+                                    )
                     in
                     ({ model
                         | doSearch = newDate /= Nothing
-                        , selectedVals = Dict.insert id newDateVal model.selectedVals
+                        , termFilters = termFilters
                         , endDatePickers = Dict.insert id newDatePicker model.endDatePickers
                     }
                     , Cmd.none)
@@ -916,8 +984,8 @@ validLocationParam val =
             True
 
 
-formatLocationParam : LocationFilterValue -> String
-formatLocationParam val = --TODO use encoder instead
+encodeLocationParam : LocationFilterValue -> String
+encodeLocationParam val =
     case val of
         LatLngRadiusValue (lat,lng) radius ->
             let
@@ -937,78 +1005,66 @@ formatLocationParam val = --TODO use encoder instead
 
 
 -- TODO refactor/simplify
-generateQueryParams : LocationFilterValue -> Filter -> List Filter -> List PURL -> Dict PURL FilterValue -> Result String (List (String, String))
-generateQueryParams locationVal projectFilter fileFilters params vals =
-    if locationVal == NoLocationValue && projectFilter.values == [] && Dict.isEmpty vals then
-        Ok []
-    else
+generateQueryParams : LocationFilterValue -> Filter -> List Filter -> List Filter -> Result String (List (String, String))
+generateQueryParams locationVal projectFilter fileFilters termFilters =
+    --if locationVal == NoLocationValue && projectFilter.value == NoValue && Dict.isEmpty vals then
+    --    Ok []
+    --else
         let
-            pipeJoin values =
-                String.join "|" values
-
-            userParams =
-                params -- maintain filter order
-                    |> List.map (\id ->
-                        (id, (Dict.get id vals |> Maybe.withDefault NoValue))
-                    )
-                    |> List.map (Tuple.mapSecond encodeFilterValue)
+            termParams =
+                termFilters
+                    |> List.map (\f -> Tuple.pair f.term.id (encodeFilterValue f.value))
 
             locParam =
                 if validLocationParam locationVal then
-                    [ ("location", formatLocationParam locationVal) ]
+                    [ ("location", encodeLocationParam locationVal) ]
                 else
                     []
 
             depthParam =
-                case Dict.get purlDepth vals of
-                    Nothing ->
-                        []
-
-                    Just val ->
-                        if validParam val then
-                            let
-                                fmtVal =
-                                    encodeFilterValue val
-                            in
-                            [ ( purlDepth, fmtVal )
-                            --, ( "|" ++ purlDepthMin, fmtVal )
-                            --, ( "|" ++ purlDepthMax, fmtVal )
+                case List.filter (\f -> f.term.id == purlDepth) termFilters of
+                    [ filter ] ->
+                        if validParam filter.value then
+                            [ ( purlDepth, encodeFilterValue filter.value )
+                            --, ( "|" ++ purlDepthMin, encodeFilterValue term.value )
+                            --, ( "|" ++ purlDepthMax, encodeFilterValue term.value )
                             ]
                         else
                             []
+
+                    _ ->
+                        []
 
             datetimeParam =
-                case Dict.get purlDateTimeISO vals of
-                    Nothing ->
-                        []
-
-                    Just val ->
-                        if validParam val then
+                case List.filter (\f -> f.term.id == purlDateTimeISO) termFilters of
+                    [ filter ] ->
+                        if validParam filter.value then
                             let
-                                fmtVal =
-                                    encodeFilterValue val
+                                encodedVal =
+                                    encodeFilterValue filter.value
                             in
-                            [ ( "|" ++ purlDateTimeISO, fmtVal )
-                            , ( "|" ++ purlDateTimeISOStart, fmtVal )
-                            , ( "|" ++ purlDateTimeISOEnd, fmtVal )
+                            [ ( "|" ++ purlDateTimeISO, encodedVal )
+                            , ( "|" ++ purlDateTimeISOStart, encodedVal )
+                            , ( "|" ++ purlDateTimeISOEnd, encodedVal )
                             ]
                         else
                             []
 
+                    _ ->
+                        []
+
             projectParam =
-                if projectFilter.values /= [] then
-                    [ ("project", pipeJoin projectFilter.values) ]
+                if projectFilter.value /= NoValue then
+                    [ ("project", encodeFilterValue projectFilter.value) ]
                 else
                     []
 
             fileParams =
                 fileFilters
-                    |> List.map
-                        (\f ->
-                            (f.id, pipeJoin f.values)
-                        )
+                    |> List.filter (\f -> f.value /= NoValue)
+                    |> List.map (\f -> Tuple.pair f.term.id (encodeFilterValue f.value))
         in
-        List.concat [ projectParam, fileParams, locParam, depthParam, datetimeParam, userParams ]
+        List.concat [ projectParam, fileParams, locParam, depthParam, datetimeParam, termParams ]
             |> Ok
 --    else
 --        Err "Invalid query parameter"
@@ -1135,8 +1191,8 @@ type FilterValue
     | OffsetValue String String -- numeric +/-
     | SearchValue String -- string value for partial match
     | MultipleValues (List String) -- multiple string literal values
-    | DateTimeValue String -- single datetime value
-    | DateTimeRangeValue String String -- start/end datetime values
+    | DateTimeValue DatePicker --String -- single datetime value
+    | DateTimeRangeValue DatePicker DatePicker --String String -- start/end datetime values
 
 
 type LocationFilterValue
@@ -1276,25 +1332,25 @@ viewDialogs model =
             viewBlank
 
         AddFilterDialog ->
-            viewAddFilterDialog model.allParams model.dialogSearchInputVal
+            viewAddFilterDialog model.allTerms model.dialogSearchInputVal
 
-        StringFilterDialog term ->
-            viewStringFilterDialog term (Dict.get term.id model.selectedVals |> Maybe.withDefault NoValue)
+        StringFilterDialog filter ->
+            viewStringFilterDialog filter
 
         FilterChartDialog term ->
             viewSearchTermSummaryDialog term
 
         ProjectFilterDialog ->
-            viewProjectFilterDialog model.projectFilter
+            viewStringFilterDialog model.projectFilter
 
         ProjectSummaryDialog ->
-            viewProjectSummaryDialog model.projectFilter.distribution
+            viewSearchTermSummaryDialog model.projectFilter.term
 
         FileFilterDialog filter ->
-            viewFileFilterDialog filter
+            viewStringFilterDialog filter
 
         FileSummaryDialog filter ->
-            viewBlank --viewFilleSummaryDialog model.projectCounts
+            viewBlank --viewFilleSummaryDialog model.projectCounts --TODO
 
 
 viewSearchPanel : Model -> Html Msg
@@ -1321,8 +1377,8 @@ viewSampleSearchPanel : Model -> Html Msg
 viewSampleSearchPanel model =
     div []
         [ view4DPanel model
-        , viewProjectPanel model.projectFilter
-        , viewAddedFiltersPanel model model.selectedParams model.selectedTerms model.selectedVals
+        , viewStringFilterPanel model.projectFilter
+        , viewAddedFiltersPanel model model.selectedParams model.termFilters
         , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allParams model.selectedParams
         ]
 
@@ -1330,7 +1386,7 @@ viewSampleSearchPanel model =
 viewFileSearchPanel : Model -> Html Msg
 viewFileSearchPanel model =
     div []
-        (List.map viewFilePropertyPanel model.fileFilters)
+        (List.map viewStringFilterPanel model.fileFilters)
 
 
 viewTab : String -> Bool -> (String -> Msg) -> Html Msg
@@ -1345,10 +1401,22 @@ view4DPanel : Model -> Html Msg
 view4DPanel model =
     let
         depthVal =
-            Dict.get purlDepth model.selectedVals |> Maybe.withDefault NoValue
+            model.termFilters
+                |> List.filter (\f -> f.term.id == purlDepth)
+                |> List.head
+                |> Maybe.map .value
+                |> Maybe.withDefault NoValue
 
-        datetimeVal =
-            Dict.get purlDateTimeISO model.selectedVals |> Maybe.withDefault (DateTimeRangeValue "" "")
+        datetimeFilter =
+            model.termFilters
+                |> List.filter (\f -> f.term.id == purlDateTimeISO)
+                |> List.head
+
+        startDatePicker =
+            Dict.get purlDateTimeISO model.startDatePickers
+
+        endDatePicker =
+            Dict.get purlDateTimeISO model.endDatePickers
     in
     div []
         [ div [ class "card", style "font-size" "0.85em" ]
@@ -1385,9 +1453,17 @@ view4DPanel model =
                     , br [] []
                     , div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
-                            ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "5em" ] [ text "Date"] ])
-                                :: (viewDateTimeFilterInput model purlDateTimeISO datetimeVal)
-                                ++ [ viewDateTimeFilterFormatOptions purlDateTimeISO datetimeVal ]
+                            ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "5em" ] [ text "Date"] ]) ::
+                                (case (startDatePicker, endDatePicker, datetimeFilter) of
+                                    (Just d1, Just d2, Just filter) ->
+                                        List.concat
+                                        [ viewDateTimeFilterInput d1 d2 filter
+                                        , [ viewDateTimeFilterFormatOptions filter ]
+                                        ]
+
+                                    (_, _, _) -> -- error, shouldn't happen
+                                        [ viewBlank ]
+                                )
                             )
                         ]
                     , br [] []
@@ -1520,286 +1596,289 @@ viewAddFilterDialog allTerms searchVal =
         CloseDialog
 
 
-viewAddedFiltersPanel : Model -> List PURL -> Dict PURL SearchTerm -> Dict PURL FilterValue -> Html Msg
-viewAddedFiltersPanel model params terms vals  =
+viewAddedFiltersPanel : Model -> List PURL -> List Filter -> Html Msg
+viewAddedFiltersPanel model selectedTerms filters  =
     div []
-        (params
+        (filters
             |> List.map
-                (\param ->
-                    case Dict.get param terms of
-                        Nothing ->
-                            viewBlank
+                (\f ->
+                    case f.term.type_ of
+                        "string" ->
+                            if List.length f.term.distribution >= minNumPanelOptionsForSearchBar then
+                                viewSearchFilterPanel f
+                            else
+                                viewStringFilterPanel f
 
-                        Just term ->
+                        "number" ->
+                            viewNumberFilterPanel f
+
+                        "datetime" ->
                             let
-                                termVal =
-                                    Dict.get param vals |> Maybe.withDefault NoValue
+                                startDatePicker =
+                                    Dict.get f.term.id model.startDatePickers
+
+                                endDatePicker =
+                                    Dict.get f.term.id model.endDatePickers
                             in
-                            case term.type_ of
-                                "string" ->
-                                    if List.length term.distribution >= minNumPanelOptionsForSearchBar then
-                                        viewSearchFilterPanel term termVal
-                                    else
-                                        viewStringFilterPanel term termVal
+                            viewDateTimeFilterPanel startDatePicker endDatePicker f
 
-                                "number" ->
-                                    viewNumberFilterPanel term termVal
-
-                                "datetime" ->
-                                    viewDateTimeFilterPanel model term termVal
-
-                                _ ->
-                                    text "Error"
+                        _ ->
+                            text "Error"
                 )
         )
 
 
-viewSearchFilterPanel : SearchTerm -> FilterValue -> Html Msg
-viewSearchFilterPanel term val =
+viewSearchFilterPanel : Filter -> Html Msg
+viewSearchFilterPanel filter =
     let
         numValues =
-            List.length term.distribution
+            List.length filter.term.distribution
 
         val2 =
-            case val of
+            case filter.value of
                 SearchValue s ->
                     s
 
                 _ ->
                     ""
     in
-    viewTermPanel term
+    viewTermPanel filter.term
         [ label [] [ numValues |> toFloat |> format myLocale |> text, text " unique values" ]
         , div [ class "input-group input-group-sm" ]
-            [ input [ type_ "text", class "form-control", placeholder "Search ...", value val2, onInput (SetSearchFilterValue term.id) ] [] ]
+            [ input [ type_ "text", class "form-control", placeholder "Search ...", value val2, onInput (SetSearchFilterValue filter.term.id) ] [] ]
         ]
 
 
-viewProjectPanel : Filter -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
-viewProjectPanel filter =
+--viewProjectPanel : Filter -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
+--viewProjectPanel filter =
+--    let
+--        viewRow vals ( lbl, num ) =
+--            let
+--                isChecked =
+--                    List.member lbl vals
+--            in
+--            div []
+--                [ div [ class "form-check form-check-inline" ]
+--                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetProjectFilterValue lbl) ] []
+--                    , label [ class "form-check-label" ] [ text lbl ]
+--                    ]
+--                , div [ class "badge badge-secondary float-right" ]
+--                    [ num |> toFloat |> format myLocale |> text ]
+--                ]
+--
+--        truncatedOptions =
+--            filter.distribution
+--                |> List.sortWith sortBySelected --|> List.sortBy Tuple.second
+--                |> List.take maxNumPanelOptions
+--
+--        sortBySelected a b =
+--            case ( isSelected (Tuple.first a), isSelected (Tuple.first b) ) of
+--                (True, False) ->
+--                    LT
+--
+--                (False, True) ->
+--                    GT
+--
+--                (_, _) ->
+--                    sortByCount a b
+--
+--        sortByCount a b =
+--            case compare (Tuple.second a) (Tuple.second b) of
+--                LT -> GT
+--                EQ -> EQ
+--                GT -> LT
+--
+--        isSelected lbl =
+--            List.member lbl filter.values
+--
+--        numOptions =
+--            List.length filter.distribution
+--
+--        numMore =
+--            numOptions - maxNumPanelOptions
+--    in
+--    viewPanel "" "Project" "" "" Nothing (Just (OpenDialog ProjectSummaryDialog)) Nothing
+--        [ div [] (List.map (viewRow filter.values) truncatedOptions)
+--        , if numMore > 0 then
+--            button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog ProjectFilterDialog) ]
+--                [ String.fromInt numMore ++ " More ..." |> text ]
+--          else
+--            viewBlank
+--        ]
+
+
+--viewProjectFilterDialog : Filter -> Html Msg --TODO merge with viewStringFilterDialog/viewFileFilterDialog
+--viewProjectFilterDialog filter =
+--    let
+--        options =
+--            filter.term.distribution |> List.sortBy Tuple.first
+--
+--        isSelected lbl =
+--            List.member lbl filter.value
+--
+--        viewRow (lbl, count) =
+--            div []
+--                [ div [ class "form-check form-check-inline" ]
+--                    [ input [ class "form-check-input", type_ "checkbox", checked (isSelected lbl), onCheck (SetProjectFilterValue lbl) ] []
+--                    , label [ class "form-check-label" ] [ text lbl ]
+--                    ]
+--                , div [ class "badge badge-secondary float-right" ]
+--                    [ count |> toFloat |> format myLocale |> text ]
+--                ]
+--    in
+--    viewDialog "Project"
+--        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map viewRow options) ]
+--        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
+--        CloseDialog
+
+
+--viewFilePropertyPanel : Filter -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
+--viewFilePropertyPanel filter =
+--    let
+--        viewRow vals ( lbl, num ) =
+--            let
+--                isChecked =
+--                    List.member lbl vals
+--            in
+--            div []
+--                [ div [ class "form-check form-check-inline" ]
+--                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileFilterValue filter.id lbl) ] []
+--                    , label [ class "form-check-label" ] [ text lbl ]
+--                    ]
+--                , div [ class "badge badge-secondary float-right" ]
+--                    [ num |> toFloat |> format myLocale |> text ]
+--                ]
+--
+--        truncatedOptions =
+--            filter.distribution
+--                |> List.sortWith sortBySelected --|> List.sortBy Tuple.second
+--                |> List.take maxNumPanelOptions
+--
+--        sortBySelected a b =
+--            case ( isSelected (Tuple.first a), isSelected (Tuple.first b) ) of
+--                (True, False) ->
+--                    LT
+--
+--                (False, True) ->
+--                    GT
+--
+--                (_, _) ->
+--                    sortByCount a b
+--
+--        sortByCount a b =
+--            case compare (Tuple.second a) (Tuple.second b) of
+--                LT -> GT
+--                EQ -> EQ
+--                GT -> LT
+--
+--        isSelected lbl =
+--            List.member lbl filter.values
+--
+--        numOptions =
+--            List.length filter.distribution
+--
+--        numMore =
+--            numOptions - maxNumPanelOptions
+--    in
+--    viewPanel "" filter.id "" "" Nothing (Just (OpenDialog ProjectSummaryDialog)) Nothing
+--        [ div [] (List.map (viewRow filter.values) truncatedOptions)
+--        , if numMore > 0 then
+--            button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog (FileFilterDialog filter)) ]
+--                [ String.fromInt numMore ++ " More ..." |> text ]
+--          else
+--            viewBlank
+--        ]
+
+
+--viewFileFilterDialog : Filter -> Html Msg --TODO merge with viewStringFilterDialog/viewProjectFilterDialog
+--viewFileFilterDialog filter =
+--    let
+--        options =
+--            filter.term.distribution |> List.sortBy Tuple.first
+--
+--        isSelected lbl =
+--            case filter.value of
+--                MultipleValues vals ->
+--                    List.member lbl vals
+--
+--                _ ->
+--                    False
+--
+--        viewRow (lbl, count) =
+--            div []
+--                [ div [ class "form-check form-check-inline" ]
+--                    [ input [ class "form-check-input", type_ "checkbox", checked (isSelected lbl), onCheck (SetFileFilterValue filter.term.id lbl) ] []
+--                    , label [ class "form-check-label" ] [ text lbl ]
+--                    ]
+--                , div [ class "badge badge-secondary float-right" ]
+--                    [ count |> toFloat |> format myLocale |> text ]
+--                ]
+--    in
+--    viewDialog filter.term.id
+--        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map viewRow options) ]
+--        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
+--        CloseDialog
+
+
+viewStringFilterPanel : Filter -> Html Msg
+viewStringFilterPanel filter =
     let
-        viewRow vals ( lbl, num ) =
-            let
-                isChecked =
-                    List.member lbl vals
-            in
-            div []
-                [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetProjectFilterValue lbl) ] []
-                    , label [ class "form-check-label" ] [ text lbl ]
-                    ]
-                , div [ class "badge badge-secondary float-right" ]
-                    [ num |> toFloat |> format myLocale |> text ]
-                ]
-
-        truncatedOptions =
-            filter.distribution
-                |> List.sortWith sortBySelected --|> List.sortBy Tuple.second
-                |> List.take maxNumPanelOptions
-
-        sortBySelected a b =
-            case ( isSelected (Tuple.first a), isSelected (Tuple.first b) ) of
-                (True, False) ->
-                    LT
-
-                (False, True) ->
-                    GT
-
-                (_, _) ->
-                    sortByCount a b
-
-        sortByCount a b =
-            case compare (Tuple.second a) (Tuple.second b) of
-                LT -> GT
-                EQ -> EQ
-                GT -> LT
-
-        isSelected lbl =
-            List.member lbl filter.values
-
         numOptions =
-            List.length filter.distribution
-
-        numMore =
-            numOptions - maxNumPanelOptions
+            List.length filter.term.distribution
     in
-    viewPanel "" "Project" "" "" Nothing (Just (OpenDialog ProjectSummaryDialog)) Nothing
-        [ div [] (List.map (viewRow filter.values) truncatedOptions)
-        , if numMore > 0 then
-            button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog ProjectFilterDialog) ]
-                [ String.fromInt numMore ++ " More ..." |> text ]
-          else
-            viewBlank
-        ]
-
-
-viewProjectFilterDialog : Filter -> Html Msg --TODO merge with viewStringFilterDialog/viewFileFilterDialog
-viewProjectFilterDialog filter =
-    let
-        options =
-            filter.distribution |> List.sortBy Tuple.first
-
-        isSelected lbl =
-            List.member lbl filter.values
-
-        viewRow (lbl, count) =
-            div []
-                [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked (isSelected lbl), onCheck (SetProjectFilterValue lbl) ] []
-                    , label [ class "form-check-label" ] [ text lbl ]
-                    ]
-                , div [ class "badge badge-secondary float-right" ]
-                    [ count |> toFloat |> format myLocale |> text ]
-                ]
-    in
-    viewDialog "Project"
-        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map viewRow options) ]
-        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
-        CloseDialog
-
-
-viewFilePropertyPanel : Filter -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
-viewFilePropertyPanel filter =
-    let
-        viewRow vals ( lbl, num ) =
-            let
-                isChecked =
-                    List.member lbl vals
-            in
-            div []
-                [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileFilterValue filter.id lbl) ] []
-                    , label [ class "form-check-label" ] [ text lbl ]
-                    ]
-                , div [ class "badge badge-secondary float-right" ]
-                    [ num |> toFloat |> format myLocale |> text ]
-                ]
-
-        truncatedOptions =
-            filter.distribution
-                |> List.sortWith sortBySelected --|> List.sortBy Tuple.second
-                |> List.take maxNumPanelOptions
-
-        sortBySelected a b =
-            case ( isSelected (Tuple.first a), isSelected (Tuple.first b) ) of
-                (True, False) ->
-                    LT
-
-                (False, True) ->
-                    GT
-
-                (_, _) ->
-                    sortByCount a b
-
-        sortByCount a b =
-            case compare (Tuple.second a) (Tuple.second b) of
-                LT -> GT
-                EQ -> EQ
-                GT -> LT
-
-        isSelected lbl =
-            List.member lbl filter.values
-
-        numOptions =
-            List.length filter.distribution
-
-        numMore =
-            numOptions - maxNumPanelOptions
-    in
-    viewPanel "" filter.id "" "" Nothing (Just (OpenDialog ProjectSummaryDialog)) Nothing
-        [ div [] (List.map (viewRow filter.values) truncatedOptions)
-        , if numMore > 0 then
-            button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog (FileFilterDialog filter)) ]
-                [ String.fromInt numMore ++ " More ..." |> text ]
-          else
-            viewBlank
-        ]
-
-
-viewFileFilterDialog : Filter -> Html Msg --TODO merge with viewStringFilterDialog/viewProjectFilterDialog
-viewFileFilterDialog filter =
-    let
-        options =
-            filter.distribution |> List.sortBy Tuple.first
-
-        isSelected lbl =
-            List.member lbl filter.values
-
-        viewRow (lbl, count) =
-            div []
-                [ div [ class "form-check form-check-inline" ]
-                    [ input [ class "form-check-input", type_ "checkbox", checked (isSelected lbl), onCheck (SetFileFilterValue filter.id lbl) ] []
-                    , label [ class "form-check-label" ] [ text lbl ]
-                    ]
-                , div [ class "badge badge-secondary float-right" ]
-                    [ count |> toFloat |> format myLocale |> text ]
-                ]
-    in
-    viewDialog filter.id
-        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map viewRow options) ]
-        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
-        CloseDialog
-
-
-viewStringFilterPanel : SearchTerm -> FilterValue -> Html Msg
-viewStringFilterPanel term val =
-    let
-        numOptions =
-            List.length term.distribution
-
-        numSelected =
-            term.distribution
-                |> List.filter (\a -> isStringFilterSelected (Tuple.first a) val)
-                |> List.length
-
-        sortByCount a b =
-            case compare (Tuple.second a) (Tuple.second b) of
-                LT -> GT
-                EQ -> EQ
-                GT -> LT
-
-        sortBySelected a b =
-            case ( isStringFilterSelected (Tuple.first a) val, isStringFilterSelected (Tuple.first b) val ) of
-                (True, False) ->
-                    LT
-
-                (False, True) ->
-                    GT
-
-                (_, _) ->
-                    sortByCount a b
-
-        truncatedOptions =
-            term.distribution
-                |> List.sortWith sortBySelected
-                |> List.take (Basics.max maxNumPanelOptions numSelected)
-    in
-    viewTermPanel term
+    viewTermPanel filter.term
         [ div []
-            (viewStringFilterOptions term val truncatedOptions)
+            (viewStringFilterOptions filter)
         , if numOptions > maxNumPanelOptions then
-            button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog (StringFilterDialog term)) ]
+            button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog (StringFilterDialog filter)) ]
                 [ String.fromInt (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
           else
             viewBlank
         ]
 
 
-viewStringFilterOptions : SearchTerm -> FilterValue -> List (String, Int) -> List (Html Msg)
-viewStringFilterOptions term val options =
+viewStringFilterOptions : Filter -> List (Html Msg)
+viewStringFilterOptions filter =
     let
+        sortByCount a b =
+            case compare (Tuple.second a) (Tuple.second b) of
+                LT -> GT
+                EQ -> EQ
+                GT -> LT
+
+        sortBySelected a b =
+            case ( isStringFilterSelected (Tuple.first a) filter.value, isStringFilterSelected (Tuple.first b) filter.value ) of
+                (True, False) ->
+                    LT
+
+                (False, True) ->
+                    GT
+
+                (_, _) ->
+                    sortByCount a b
+
+        numSelected =
+            filter.term.distribution
+                |> List.filter (\a -> isStringFilterSelected (Tuple.first a) filter.value)
+                |> List.length
+
+        truncatedOptions =
+            filter.term.distribution
+                |> List.sortWith sortBySelected
+                |> List.take (Basics.max maxNumPanelOptions numSelected)
+
         viewRow (name, count) =
             let
                 -- Translate purl to label (for Biome and Env Material terms)
                 purlToLabel s =
-                    Dict.get s term.purlLabels |> Maybe.withDefault s
+                    Dict.get s filter.term.purlLabels |> Maybe.withDefault s
             in
             -- Using table layout to fix issue with wrapping rows
             table [ style "width" "100%" ]
                 [ tr []
                     [ td []
                         [ div [ class "form-check form-check-inline" ]
-                            [ input [ class "form-check-input", type_ "checkbox", checked (isStringFilterSelected name val), onCheck (SetStringFilterValue term.id name) ] []
+                            [ input [ class "form-check-input", type_ "checkbox", checked (isStringFilterSelected name filter.value), onCheck (SetStringFilterValue filter.term.id name) ] []
                             , label [ class "form-check-label" ] [ name |> purlToLabel |> String.Extra.toSentenceCase |> text]
                             ]
                         ]
@@ -1810,7 +1889,7 @@ viewStringFilterOptions term val options =
                     ]
                 ]
     in
-    List.map viewRow options
+    List.map viewRow truncatedOptions
 
 
 isStringFilterSelected : String -> FilterValue -> Bool
@@ -1827,35 +1906,35 @@ isStringFilterSelected name val =
     ) |> List.member name
 
 
-viewStringFilterDialog : SearchTerm -> FilterValue -> Html Msg --TODO merge with viewProjectFilterDialog/viewFileFilterDialog
-viewStringFilterDialog term val =
-    let
-        sortByName a b =
-            let
-                -- Translate purl to label (for Biome and Env Material terms)
-                purlToLabel s =
-                    Dict.get s term.purlLabels |> Maybe.withDefault s
-            in
-            case compare (String.toLower (Tuple.first b |> purlToLabel)) (String.toLower (Tuple.first a |> purlToLabel)) of
-                GT -> LT
-                EQ -> EQ
-                LT -> GT
-
-        options =
-            term.distribution |> List.sortWith sortByName
-    in
-    viewDialog (String.Extra.toTitleCase term.label)
-        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions term val options) ]
+viewStringFilterDialog : Filter -> Html Msg
+viewStringFilterDialog filter =
+    --let
+    --    sortByName a b =
+    --        let
+    --            -- Translate purl to label (for Biome and Env Material terms)
+    --            purlToLabel s =
+    --                Dict.get s term.purlLabels |> Maybe.withDefault s
+    --        in
+    --        case compare (String.toLower (Tuple.first b |> purlToLabel)) (String.toLower (Tuple.first a |> purlToLabel)) of
+    --            GT -> LT
+    --            EQ -> EQ
+    --            LT -> GT
+    --
+    --    options =
+    --        term.distribution |> List.sortWith sortByName
+    --in
+    viewDialog (String.Extra.toTitleCase filter.term.label)
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions filter) ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
         CloseDialog
 
 
-viewNumberFilterPanel : SearchTerm -> FilterValue -> Html Msg
-viewNumberFilterPanel term val =
-    viewTermPanel term
+viewNumberFilterPanel : Filter -> Html Msg
+viewNumberFilterPanel filter =
+    viewTermPanel filter.term
         [ div [ class "input-group input-group-sm" ]
-            (List.append (viewNumberFilterInput term.id val)
-                [ viewNumberFilterFormatOptions term.id val
+            (List.append (viewNumberFilterInput filter.term.id filter.value)
+                [ viewNumberFilterFormatOptions filter.term.id filter.value
                 ]
             )
         ]
@@ -1921,42 +2000,31 @@ viewNumberFilterFormatOptions id val =
         ]
 
 
-viewDateTimeFilterPanel : Model -> SearchTerm -> FilterValue -> Html Msg
-viewDateTimeFilterPanel model term val =
-    viewTermPanel term
+viewDateTimeFilterPanel : DatePicker -> DatePicker -> Filter -> Html Msg
+viewDateTimeFilterPanel startDatePicker endDatePicker filter =
+    viewTermPanel filter.term
         [ div [ class "input-group input-group-sm" ]
-            (List.append (viewDateTimeFilterInput model term.id val)
-                [ viewDateTimeFilterFormatOptions term.id val
+            (List.append (viewDateTimeFilterInput startDatePicker endDatePicker filter)
+                [ viewDateTimeFilterFormatOptions filter
                 ]
             )
         ]
 
 
-viewDateTimeFilterInput : Model -> PURL -> FilterValue -> List (Html Msg)
-viewDateTimeFilterInput model id val =
+viewDateTimeFilterInput : DatePicker -> DatePicker -> Filter -> List (Html Msg)
+viewDateTimeFilterInput startDatePicker endDatePicker filter =
     let
-        startDatePicker =
-            Dict.get id model.startDatePickers
-
-        endDatePicker =
-            Dict.get id model.endDatePickers
-
         singleInput dt =
             let
                 date =
                     Date.fromIsoString dt |> Result.toMaybe
             in
-            case startDatePicker of
-                Just datePicker ->
-                    [ DatePicker.view
-                        date
-                        defaultDatePickerSettings
-                        datePicker
-                     |> Html.map (SetStartDatePicker id val)
-                    ]
-
-                Nothing -> -- should never happen
-                    [ text "error" ]
+            [ DatePicker.view
+                date
+                defaultDatePickerSettings
+                startDatePicker
+                |> Html.map (SetStartDatePicker filter.term.id filter.value)
+            ]
 
         rangeInput dt1 dt2 =
             let
@@ -1966,24 +2034,19 @@ viewDateTimeFilterInput model id val =
                 date2 =
                     Date.fromIsoString dt2 |> Result.toMaybe
             in
-            case (startDatePicker, endDatePicker) of
-                (Just datePicker1, Just datePicker2) ->
-                    [ DatePicker.view
-                        date1
-                        startDatePickerSettings
-                        datePicker1
-                        |> Html.map (SetStartDatePicker id val)
-                    , DatePicker.view
-                        date2
-                        endDatePickerSettings
-                        datePicker2
-                        |> Html.map (SetEndDatePicker id val)
-                    ]
-
-                (_, _) -> -- should never happen
-                    [ text "error" ]
+            [ DatePicker.view
+                date1
+                startDatePickerSettings
+                startDatePicker
+                |> Html.map (SetStartDatePicker filter.term.id filter.value)
+            , DatePicker.view
+                date2
+                endDatePickerSettings
+                endDatePicker
+                |> Html.map (SetEndDatePicker filter.term.id filter.value)
+            ]
     in
-    case val of
+    case filter.value of
         DateTimeValue dt ->
             singleInput dt
 
@@ -2014,13 +2077,13 @@ endDatePickerSettings =
     { defaultDatePickerSettings | placeholder = "end" }
 
 
-viewDateTimeFilterFormatOptions : PURL -> FilterValue -> Html Msg
-viewDateTimeFilterFormatOptions id val =
+viewDateTimeFilterFormatOptions : Filter -> Html Msg
+viewDateTimeFilterFormatOptions filter =
     let
         viewOption (label, filterVal) =
             let
                 isSelected =
-                    case (val, filterVal) of --FIXME kludgey
+                    case (filter.value, filterVal) of --FIXME kludgey
                         (DateTimeValue _, DateTimeValue _) ->
                             True
 
@@ -2030,7 +2093,7 @@ viewDateTimeFilterFormatOptions id val =
                         _ ->
                             False
             in
-            a [ class "dropdown-item", classList [ ( "active", isSelected ) ], href "", onClick (SetFilterValue id filterVal) ]
+            a [ class "dropdown-item", classList [ ( "active", isSelected ) ], href "", onClick (SetFilterValue filter.term.id filterVal) ]
                 [ label |> String.Extra.toSentenceCase |> text ]
 
         options =
@@ -2259,8 +2322,9 @@ viewSummary model =
                     List.tail results |> Maybe.withDefault []
 
                 termLabels =
-                    model.selectedParams
-                        |> List.filterMap (\id -> Dict.get id model.selectedTerms |> Maybe.map .label)
+                    --model.selectedParams
+                    --    |> List.filterMap (\id -> Dict.get id model.termFilters |> Maybe.map .label)
+                    model.termFilters |> List.map (.term >> .label)
             in
             div [ style "margin" "1em" ]
                 (viewSearchTermSummaryChart "project" projectData ::
@@ -2318,16 +2382,16 @@ viewSearchTermSummaryDialog term =
         CloseDialog
 
 
-viewProjectSummaryDialog : Distribution -> Html Msg
-viewProjectSummaryDialog dist =
-    viewDialog "Project"
-        [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
-            [ viewSearchTermSummaryChart "Project" dist ]
-        ]
-        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ]
-            [ text "Close" ]
-        ]
-        CloseDialog
+--viewProjectSummaryDialog : Distribution -> Html Msg
+--viewProjectSummaryDialog dist =
+--    viewDialog "Project"
+--        [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
+--            [ viewSearchTermSummaryChart "Project" dist ]
+--        ]
+--        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ]
+--            [ text "Close" ]
+--        ]
+--        CloseDialog
 
 
 viewSampleResults : Model -> Html Msg
@@ -2351,10 +2415,18 @@ viewSampleResults model =
             th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetSampleSortPos pos) ] [ text lbl ]
 
         depthVal =
-            Dict.get purlDepth model.selectedVals |> Maybe.withDefault NoValue
+            model.termFilters
+                |> List.filter (\f -> f.term.id == purlDepth)
+                |> List.head
+                |> Maybe.map .value
+                |> Maybe.withDefault NoValue
 
         datetimeVal =
-            Dict.get purlDateTimeISO model.selectedVals |> Maybe.withDefault NoValue
+            model.termFilters
+                |> List.filter (\f -> f.term.id == purlDateTimeISO)
+                |> List.head
+                |> Maybe.map .value
+                |> Maybe.withDefault NoValue
 
         timeSpaceParamNames = -- kinda kludgey, find a better way to order time/space params
             List.concat
@@ -2379,18 +2451,13 @@ viewSampleResults model =
                   , "Sample ID"
                   ]
                 , timeSpaceParamNames
-                , (model.selectedParams
-                        |> List.filterMap
-                            (\param ->
-                                case Dict.get param model.selectedTerms of
-                                    Nothing ->
-                                        Nothing
-
-                                    Just term ->
-                                        if term.unitLabel /= "" then
-                                            Just (term.label ++ " (" ++ term.unitLabel ++ ")")
-                                        else
-                                            Just term.label
+                , (model.termFilters
+                        |> List.map
+                            (\f ->
+                                if f.term.unitLabel /= "" then
+                                    f.term.label ++ " (" ++ f.term.unitLabel ++ ")"
+                                else
+                                    f.term.label
                             )
 
                     )
@@ -2406,23 +2473,23 @@ viewSampleResults model =
                     |> Html.map CartMsg
                 ]
 
-        aliases =
-            model.selectedParams
-                |> List.filterMap
-                    (\param ->
-                        case Dict.get param model.selectedTerms of
-                            Nothing ->
-                                Nothing
+        --aliases =
+        --    model.selectedParams
+        --        |> List.filterMap
+        --            (\param ->
+        --                case Dict.get param model.selectedTerms of
+        --                    Nothing ->
+        --                        Nothing
+        --
+        --                    Just term ->
+        --                        Just term.aliases
+        --            )
 
-                            Just term ->
-                                Just term.aliases
-                    )
-
-        mkTh2 a =
-            if List.length a > 1 then
-                th [] [ text (List.map .name a |> String.join ", ") ]
-            else
-                th [] []
+        --mkTh2 a =
+        --    if List.length a > 1 then
+        --        th [] [ text (List.map .name a |> String.join ", ") ]
+        --    else
+        --        th [] []
 
         columns =
             [ tr [] (List.indexedMap mkTh paramNames ++ [ addToCartTh ])

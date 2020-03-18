@@ -1,4 +1,4 @@
-module SearchTerm exposing (SearchTerm, PURL, Annotation, Value(..), Distribution, searchTermDecoder, valueDecoder, distributionDecoder, viewValue)
+module SearchTerm exposing (SearchTerm, PURL, Annotation, Value(..), Distribution, defaultSearchTerm, searchTermDecoder, valueDecoder, distributionDecoder, viewValue)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
@@ -28,6 +28,27 @@ type alias SearchTerm =
     , max : Float
     -- Only for type "string"
     , purlLabels : Dict String String
+    }
+
+
+defaultSearchTerm : SearchTerm
+defaultSearchTerm =
+    { type_ = "string"
+    , id = ""
+    , label = ""
+    , definition = ""
+    , unitId = ""
+    , unitLabel = ""
+    , sourceUrl = ""
+    , alias_ = ""
+    , aliases = []
+    , annotations = []
+    , distribution = []
+    -- Only for type "number"
+    , min = 0
+    , max = 0
+    -- Only for type "string"
+    , purlLabels = Dict.empty
     }
 
 
