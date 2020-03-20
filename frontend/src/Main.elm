@@ -1,11 +1,11 @@
 module Main exposing (main) -- this line is required for Parcel elm-hot HMR file change detection
 
 -- From elm-spa-example:
--- Based on discussions around how asset management features
+-- "Based on discussions around how asset management features
 -- like code splitting and lazy loading have been shaping up, it's possible
 -- that most of this file may become unnecessary in a future release of Elm.
 -- Avoid putting things in this module unless there is no alternative!
--- See https://discourse.elm-lang.org/t/elm-spa-in-0-19/1800/2 for more.
+-- See https://discourse.elm-lang.org/t/elm-spa-in-0-19/1800/2 for more."
 
 import Browser
 import Browser.Navigation
@@ -47,7 +47,7 @@ import Config
 
 
 
-main : Program flags model msg
+main : Program Value Model Msg
 main =
     Browser.application
         { init = init
