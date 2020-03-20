@@ -72,20 +72,26 @@ router.get('/searchTerms', (req, res) => {
     }
 });
 
-router.get('/searchTerms/:id(*)', async (req, res) => { //TODO refactor me
-    let id = decodeURIComponent(req.params.id);
-    let termIndex = req.app.get('termIndex');
+router.get('/searchTerms/:ids(*)', async (req, res) => {
+    let ids = decodeURIComponent(req.params.ids);
 
-    // Workaround for http:// in id changed to http:/ on MYO (NGINX?)
-    if (id.startsWith('http:/'))
-	    id = id.replace(/^http:\//, '');
+    let terms = await Promise.all(
+        ids.split(",").map(id => {
+            // Workaround for http:// in id changed to http:/ on MYO (NGINX?)
+            if (id.startsWith('http:/'))
+                id = id.replace(/^http:\//, '');
 
+            return getSearchTerm(id, req.app.get('termIndex'));
+        })
+    );
+    res.json(terms);
+});
+
+async function getSearchTerm(id, termIndex) {
     let term = termIndex.getTerm(id);
-    if (!term) {
-        res.status(404).json({ error: "Term not found" });
+    if (!term)
         return;
-    }
-    console.log("term:", term);
+    console.log("getSearchTerm:", term);
 
     let aliases = [];
     if (term.schemas) // TODO move into function
@@ -129,7 +135,7 @@ router.get('/searchTerms/:id(*)', async (req, res) => { //TODO refactor me
             }
         }
 
-        res.json({
+        return {
             id: term.id,
             label: term.label,
             definition: term.definition,
@@ -140,13 +146,7 @@ router.get('/searchTerms/:id(*)', async (req, res) => { //TODO refactor me
             aliases: aliases,
             annotations: annotations,
             purlLabels: purlLabels
-        });
-// TODO
-//        })
-//        .catch(err => {
-//            console.log(err);
-//            res.send(err);
-//        });
+        };
     }
     else if (term.type == "number") {
         let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
@@ -180,7 +180,7 @@ router.get('/searchTerms/:id(*)', async (req, res) => { //TODO refactor me
             rowMode: 'array'
         });
 
-        res.json({
+        return {
             id: term.id,
             label: term.label,
             definition: term.definition,
@@ -192,8 +192,7 @@ router.get('/searchTerms/:id(*)', async (req, res) => { //TODO refactor me
             distribution: binResult.rows,
             aliases: aliases,
             annotations: annotations
-        });
-
+        };
     }
     else if (term.type == "datetime") {
         let queries = term.schema.map(schema => {
@@ -215,7 +214,7 @@ router.get('/searchTerms/:id(*)', async (req, res) => { //TODO refactor me
             });
         });
 
-        res.json({
+        return {
             id: term.id,
             label: term.label,
             definition: term.definition,
@@ -226,20 +225,12 @@ router.get('/searchTerms/:id(*)', async (req, res) => { //TODO refactor me
             min: new Date(min).toISOString(),
             max: new Date(max).toISOString(),
             annotations: annotations
-        });
-// TODO
-//        .catch(err => {
-//            console.log(err);
-//            res.send(err);
-//        });
+        };
     }
     else {
-        console.log("ERROR: unknown term type '" + term.type + "'");
-        res.status(500).json({
-            error: "Unknown term type"
-        });
+        throw("Unknown term type '" + term.type + "'");
     }
-});
+}
 
 // Support POST and GET for search endpoints -- POST is easier to debug in browser debugger, GET is easier with curl
 router.get('/search', async (req, res) => {
@@ -356,10 +347,11 @@ async function search(db, termIndex, params) {
         fileTypeClause = "LOWER(ft.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
     }
 
+    let termIds = Object.keys(params).filter(p => p.startsWith("http") || p.startsWith("|http"));
     let orTerms = [], andTerms = [];
     let terms = {}, termOrder = [];
     let termsById = {};
-    for (let param of Object.keys(params).filter(p => p.startsWith("http") || p.startsWith("|http"))) {
+    for (let param of termIds) {
         param = param.replace(/\+/gi, ''); // workaround for Elm uri encoding
         let val = params[param];
 
@@ -560,10 +552,8 @@ async function search(db, termIndex, params) {
             ${clauseStr} GROUP BY p.project_id ORDER BY p.name`;
 
         let summaryQueryStrs = [ projectSummaryQueryStr ];
-        for (let termId of summaryColumns) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
+        for (let termId of termIds) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
             let term = termsById[termId];
-            if (!term)
-                continue;
 
             let queryStr = "";
             if (term.type == 'string') {
