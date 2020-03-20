@@ -439,9 +439,13 @@ searchRequest queryParams =
     let
         url =
             apiBaseUrl ++ "/search"
+
+        body =
+            Encode.object
+                (List.map (Tuple.mapSecond Encode.string) queryParams)
     in
-    HttpBuilder.get url
-        |> HttpBuilder.withQueryParams queryParams
+    HttpBuilder.post url
+        |> HttpBuilder.withJsonBody body
         |> HttpBuilder.withExpect (Http.expectJson decodeSearchResponse)
         |> HttpBuilder.toRequest
 
@@ -450,10 +454,17 @@ searchDownloadRequest : List (String, String) -> Http.Request String
 searchDownloadRequest queryParams =
     let
         url =
-            apiBaseUrl ++ "/search/download"
+            apiBaseUrl ++ "/search"
+
+        downloadParam =
+            ( "download", Encode.bool True )
+
+        body =
+            Encode.object
+                (downloadParam :: (List.map (Tuple.mapSecond Encode.string) queryParams))
     in
-    HttpBuilder.get url
-        |> HttpBuilder.withQueryParams queryParams
+    HttpBuilder.post url
+        |> HttpBuilder.withJsonBody body
         |> HttpBuilder.withExpect Http.expectString
         |> HttpBuilder.toRequest
 

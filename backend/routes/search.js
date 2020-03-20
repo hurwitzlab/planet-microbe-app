@@ -241,41 +241,44 @@ router.get('/searchTerms/:id(*)', async (req, res) => { //TODO refactor me
     }
 });
 
+// Support POST and GET for search endpoints -- POST is easier to debug in browser debugger, GET is easier with curl
 router.get('/search', async (req, res) => {
+    handleSearchRequest(req, res, req.query);
+});
+
+router.post('/search', async (req, res) => {
+    handleSearchRequest(req, res, req.body);
+});
+
+async function handleSearchRequest(req, res, params) {
     let termIndex = req.app.get('termIndex');
+    let download = params.download;
+
+    if (download) {
+        req.query['limit'] = 999999;
+        req.query['offset'] = 0;
+    }
 
     try {
-        let results = await search(db, termIndex, req.query);
-        res.json(results);
+        let results = await search(db, termIndex, params);
+
+        if (download) {
+            let table =
+                [].concat(
+                    [ result.fields.join("\t") ],
+                    result.results.map(r => [r.projectName, r.sampleAccn].concat(r.values).join("\t"))
+                ).join("\n");
+
+            res.send(table);
+        }
+        else
+            res.json(results);
     }
     catch(err) {
         console.log(err);
         res.status(500).json({ error: err });
     }
-});
-
-router.get('/search/download', async (req, res) => {
-    let termIndex = req.app.get('termIndex');
-
-    req.query['limit'] = 999999;
-    req.query['offset'] = 0;
-
-    try {
-        let result = await search(db, termIndex, req.query);
-
-        let table =
-            [].concat(
-                [ result.fields.join("\t") ],
-                result.results.map(r => [r.projectName, r.sampleAccn].concat(r.values).join("\t"))
-            ).join("\n");
-
-        res.send(table);
-    }
-    catch(err) {
-        console.log(err);
-        res.status(500).json({ error: err });
-    }
-});
+}
 
 // TODO refactor/simplify this ugly af code
 async function search(db, termIndex, params) {
@@ -559,6 +562,9 @@ async function search(db, termIndex, params) {
         let summaryQueryStrs = [ projectSummaryQueryStr ];
         for (let termId of summaryColumns) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
             let term = termsById[termId];
+            if (!term)
+                continue;
+
             let queryStr = "";
             if (term.type == 'string') {
                 let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
