@@ -1,4 +1,4 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewToggleText, viewDialog, viewJobStatus)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewToggleText, viewDialog, viewJobStatus)
 
 import Browser exposing (Document)
 import Html exposing (Html, a, button, h1, h2, h5, div, span, img, i, li, nav, p, text, ul, small, footer)
@@ -256,6 +256,21 @@ viewSpinnerCentered =
             [ span [ class "sr-only" ] [ text "Loading..." ]
             ]
         ]
+
+
+viewSpinnerOverlay : Html msg
+viewSpinnerOverlay =
+    div [ style "position" "fixed"
+        , style "width" "100%"
+        , style "height" "100%"
+        , style "top" "0"
+        , style "left" "0"
+        , style "right" "0"
+        , style "bottom" "0"
+        , style "z-index" "2"
+        , style "background-color" "rgba(0,0,0,0.3)"
+        ]
+        [ div [ style "padding-top" "40vh" ] [ viewSpinner ] ]
 
 
 viewToggleText : String -> Bool -> msg -> Html msg

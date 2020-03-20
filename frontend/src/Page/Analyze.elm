@@ -35,7 +35,7 @@ init session tab =
             case session of
                 LoggedIn _ _ _ cred ->
                     ( Loading
-                    , Task.map2 (\agaveJobs planbJobs -> (agaveJobs, planbJobs))
+                    , Task.map2 Tuple.pair
                         (Agave.getJobs cred.token |> Http.toTask |> Task.map .result)
                         (PlanB.getJobs cred.token |> Http.toTask |> Task.map .result)
                             |> Task.attempt GetJobsCompleted

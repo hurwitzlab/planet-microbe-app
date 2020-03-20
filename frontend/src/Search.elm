@@ -225,8 +225,8 @@ validFilterValue val =
             True
 
 
-encodeFilterValue : FilterValue -> String
-encodeFilterValue val =
+filterValueToString : FilterValue -> String
+filterValueToString val =
     let
         range items =
             "[" ++ (String.join "," items) ++ "]"
@@ -524,3 +524,32 @@ updateFilter purl newFilter filters =
                 )
     else
         newFilter :: filters
+
+
+searchResultValuesToString : SearchResultValues -> String
+searchResultValuesToString vals =
+    (case vals of
+        NoResultValues ->
+            []
+
+        SingleResultValue val ->
+            [ val ]
+
+        MultipleResultValues l ->
+            l
+    )
+    |> List.map searchResultValueToString
+    |> String.join ", "
+
+
+searchResultValueToString : SearchResultValue -> String
+searchResultValueToString val =
+    case val of
+        StringResultValue s ->
+            s
+
+        NumberResultValue n ->
+            String.fromFloat n
+
+        NoResultValue ->
+            ""

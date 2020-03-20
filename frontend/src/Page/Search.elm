@@ -5,6 +5,7 @@ import Html exposing (..)
 import Html.Attributes exposing (class, classList, style, href, disabled, type_, value, placeholder, target, checked, attribute)
 import Html.Events exposing (onClick, onInput, onCheck)
 import Http
+import RemoteData exposing (RemoteData(..))
 import Json.Encode as Encode
 import File.Download as Download
 import FormatNumber exposing (format)
@@ -23,13 +24,13 @@ import Error
 import Page exposing (viewBlank, viewSpinner, viewDialog)
 import Project
 import Sample
-import Search exposing (SearchResponse, SearchResults(..), SampleResult, FileResult, SearchResultValues(..), SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Distribution, defaultSearchTerm)
+import Search exposing (SearchResponse, SearchResults(..), SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Distribution, defaultSearchTerm)
 import RemoteFile
 import SortableTable
 import BarChart
 import Cart
 import Icon
-import Config exposing (apiBaseUrl, dataCommonsUrl)
+import Config exposing (dataCommonsUrl)
 --import Debug exposing (toString)
 
 
@@ -118,7 +119,7 @@ purlFileLayout =
     "layout"
 
 
-sampleTerms =
+permanentSampleTerms =
     [ purlLocation
     , purlDepth
     , purlDateTimeISO
@@ -126,18 +127,18 @@ sampleTerms =
     ]
 
 
-fileTerms =
+initialSelectedSampleTerms =
+    [ purlBiome
+    , purlEnvironmentalFeature
+    , purlEnvironmentalMaterial
+    ]
+
+
+permanentFileTerms =
     [ purlFileSource
     , purlFileStrategy
     , purlFileSelection
     , purlFileLayout
-    ]
-
-
-initialSelectedTerms =
-    [ purlBiome
-    , purlEnvironmentalFeature
-    , purlEnvironmentalMaterial
     ]
 
 
@@ -153,13 +154,6 @@ type alias Model =
     --, selectedTerms : List PURL -- list of selected terms (needed to remember order added)
     , filters : List Filter
 
-    -- 4D Search
-    --, locationVal : FilterValue --LocationFilterValue
-    --, depthVal : FilterValue
-    --, datetimeVal : FilterValue
-    --, projectFilter : Filter
-    --, fileFilters : List Filter
-
     -- There could be additional datetime fields
     , dateRangePickers : Dict PURL DateRangePicker
 
@@ -171,9 +165,10 @@ type alias Model =
     , dialogSearchInputVal : String
 
     -- Search result state
-    , doSearch : Bool
-    , searchStartTime : Int -- milliseconds
-    , isSearching : Bool
+    --, doSearch : Bool
+    --, searchStartTime : Int -- milliseconds
+    --, isSearching : Bool
+    , searchState : SearchState
     , sampleResults : Maybe (List SampleResult)
     , fileResults : Maybe (List FileResult)
     , mapResults : Encode.Value --List MapResult
@@ -182,7 +177,7 @@ type alias Model =
     , fileResultCount : Int
     , sampleTableState : SortableTable.State
     , fileTableState : SortableTable.State
-    , errorMsg : Maybe String
+    --, errorMsg : Maybe String
     , searchTab : String
     , resultTab : String
     , pageNum : Int
@@ -191,6 +186,14 @@ type alias Model =
     , mapLoaded : Bool
     , previousSearchParams : List (String, String)
     }
+
+
+type SearchState
+    = SearchNot          -- Idle
+    | SearchInit         -- Page loading
+    | SearchPending Int  -- Time elapsed in milliseconds
+    | Searching          -- Search request in progress
+    | SearchError String -- Search request failed
 
 
 type DialogState --TODO combine StringFilterDialog/ProjectFilterDialog/FileFilterDialog and FilterChartDialog/ProjectSummaryDialog/FileFilterDialog
@@ -218,14 +221,7 @@ init session =
         -- Search filters and selected values
         , allTerms = []
         --, selectedTerms = initialSelectedTerms
-        , filters = [] --initialFilters
-
-        --, locationVal = NoLocationValue
-        --, depthVal = NoValue
-        --, datetimeVal = NoValue
-        --, projectFilter = Filter projectSearchTerm NoValue
-
-        --, fileFilters = []
+        , filters = []
 
         , dateRangePickers = Dict.empty
 
@@ -237,9 +233,10 @@ init session =
         , dialogSearchInputVal = ""
 
         -- Search result state
-        , doSearch = False -- initial search is activated by GetSearchTermCompleted
-        , searchStartTime = 0
-        , isSearching = True
+        --, doSearch = False -- initial search is activated by GetSearchTermCompleted
+        --, searchStartTime = 0
+        --, isSearching = True
+        , searchState = SearchInit
         , sampleResults = Nothing
         , fileResults = Nothing
         , mapResults = Encode.object []
@@ -248,7 +245,7 @@ init session =
         , fileResultCount = 0
         , sampleTableState = SortableTable.initialState
         , fileTableState = SortableTable.initialState
-        , errorMsg = Nothing
+        --, errorMsg = Nothing
         , searchTab = "Samples"
         , resultTab = "Samples"
         , pageNum = 0
@@ -259,8 +256,8 @@ init session =
         }
     , Cmd.batch
         [ Date.today |> Task.perform InitDatePickers
-        , Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
-        , List.map Sample.fetchSearchTerm initialSelectedTerms |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
+        , Sample.fetchAllSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
+        , Sample.fetchSearchTerms initialSelectedSampleTerms |> Http.toTask |> Task.attempt GetSearchTermsCompleted
         , Project.fetchCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         , RemoteFile.fetchProperties |> Http.toTask |> Task.attempt GetFilePropertiesCompleted
         , GMap.removeMap "" -- workaround for blank map on navigating back to this page
@@ -291,7 +288,7 @@ type Msg
     = GetProjectCountsCompleted (Result Http.Error Distribution)
     | GetFilePropertiesCompleted (Result Http.Error (List (String, Distribution)))
     | GetAllSearchTermsCompleted (Result Http.Error (List SearchTerm))
-    | GetSearchTermCompleted (Result Http.Error SearchTerm)
+    | GetSearchTermsCompleted (Result Http.Error (List SearchTerm))
     | ClearFilters
     | AddFilter PURL
     | RemoveFilter PURL
@@ -340,7 +337,7 @@ update msg model =
             ( { model | filters = newFilters }, Cmd.none )
 
         GetProjectCountsCompleted (Err error) ->
-            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
+            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
 
         GetFilePropertiesCompleted (Ok props) ->
             let
@@ -357,49 +354,55 @@ update msg model =
             ( { model | filters = newFilters }, Cmd.none )
 
         GetFilePropertiesCompleted (Err error) ->
-            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
+            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
 
         GetAllSearchTermsCompleted (Ok terms) ->
             ( { model | allTerms = terms }, Cmd.none )
 
         GetAllSearchTermsCompleted (Err error) ->
-            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
+            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
 
-        GetSearchTermCompleted (Ok term) ->
+        GetSearchTermsCompleted (Ok terms) ->
             let
                 --selectedParams =
                 --    List.singleton term.id |> List.append model.selectedParams |> List.Extra.unique -- cannot use Set because it doesn't preserve order
 
-                val =
-                    case term.type_ of
-                        "number" ->
-                            RangeValue (String.fromFloat term.min) (String.fromFloat term.max)
+                newFilter term =
+                    { term = term
+                    , value =
+                        case term.type_ of
+                            "number" ->
+                                RangeValue (String.fromFloat term.min) (String.fromFloat term.max)
 
-                        _ ->
-                            NoValue
+                            _ ->
+                                NoValue
+                    }
 
                 --selectedVals =
                 --    Dict.insert term.id val model.selectedVals
 
                 newFilters =
                     --Dict.insert term.id term model.selectedTerms
-                    List.append model.filters [ Filter term val ]
+                    List.append model.filters (List.map newFilter terms)
             in
             --( { model | doSearch = True, selectedParams = selectedParams, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
-            ( { model | doSearch = True, filters = newFilters }, Cmd.none )
+            ( { model | searchState = SearchPending 0, filters = newFilters }, Cmd.none )
 
-        GetSearchTermCompleted (Err error) ->
-            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
+        GetSearchTermsCompleted (Err error) ->
+            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
 
         ClearFilters ->
             let
+                terms =
+                    permanentSampleTerms ++ initialSelectedSampleTerms ++ permanentFileTerms
+
                 newFilters =
                     model.filters
-                        |> List.filter (\f -> List.member f.term.id (sampleTerms ++ fileTerms ++ initialSelectedTerms))
+                        |> List.filter (\f -> List.member f.term.id terms)
                         |> List.map (\f -> { f | value = NoValue })
             in
             ( { model
-                | doSearch = True
+                | searchState = SearchPending 0
                 , filters = newFilters
                 , sampleTableState = SortableTable.initialState
                 , fileTableState = SortableTable.initialState
@@ -410,30 +413,19 @@ update msg model =
         AddFilter id ->
             let
                 getTerm =
-                    Sample.fetchSearchTerm id |> Http.toTask
+                    Sample.fetchSearchTerms [ id ] |> Http.toTask
             in
             ( { model | showParamSearchDropdown = False, paramSearchInputVal = "", dialogState = DialogClosed }
-            , Task.attempt GetSearchTermCompleted getTerm
+            , Task.attempt GetSearchTermsCompleted getTerm
             )
 
         RemoveFilter id ->
             let
-                --newParams =
-                --    model.selectedParams |> List.filter (\n -> n /= id) -- cannot use Set because it doesn't preserve order
-                --
-                --newTerms =
-                --    Dict.remove id model.selectedTerms
-                --
-                --newVals =
-                --    Dict.remove id model.selectedVals
                 newFilters =
                     model.filters |> List.filter (\f -> f.term.id == id)
             in
             ( { model
-                | doSearch = True
-                --, selectedParams = newParams
-                --, selectedTerms = newTerms
-                --, selectedVals = newVals
+                | searchState = SearchPending 0
                 , filters = newFilters
                 , sampleTableState = SortableTable.initialState
                 , fileTableState = SortableTable.initialState
@@ -492,8 +484,11 @@ update msg model =
 
         SetSearchFilterValue id val ->
             let
-                doSearch =
-                    val == "" || String.length val > 2
+                searchState =
+                    if val == "" || String.length val > 2 then
+                        SearchPending 0
+                    else
+                        SearchNot
 
                 newVal =
                     if val == "" then
@@ -504,7 +499,7 @@ update msg model =
                 newFilters =
                     Search.updateFilterValue id newVal model.filters
             in
-            ( { model | doSearch = doSearch, filters = newFilters }, Cmd.none )
+            ( { model | searchState = searchState, filters = newFilters }, Cmd.none )
 
         SetStringFilterValue id val selected ->
             let
@@ -538,80 +533,27 @@ update msg model =
                 newFilters =
                     Search.updateFilterValue id (newVal ) model.filters
             in
-            ( { model | doSearch = True, filters = newFilters }, Cmd.none )
+            ( { model | searchState = SearchPending 0, filters = newFilters }, Cmd.none )
 
         SetFilterValue id val ->
             let
                 newFilters =
                     Search.updateFilterValue id val model.filters
             in
-            ( { model | doSearch = True, filters = newFilters }, Cmd.none )
-
-        --SetLocationFilterValue val ->
-        --    let
-        --        cmd =
-        --            case val of
-        --                LatLngRadiusValue (lat,lng) radius ->
-        --                    let
-        --                        lat2 =
-        --                            String.toFloat lat |> Maybe.withDefault 0
-        --
-        --                        lng2 =
-        --                            String.toFloat lng |> Maybe.withDefault 0
-        --
-        --                        radius2 =
-        --                            String.toFloat radius |> Maybe.withDefault 0
-        --                    in
-        --                    GMap.setLocation (Just (GMap.Location lat2 lng2 radius2))
-        --
-        --                _ ->
-        --                    Cmd.none
-        --    in
-        --    ( { model | doSearch = True, locationVal = val }, cmd )
-
-        --SetProjectFilterValue val selected ->
-        --    let
-        --        newValues =
-        --            model.projectFilter.value
-        --                |> Set.fromList
-        --                |> (if selected then Set.insert val else Set.remove val)
-        --                |> Set.toList
-        --
-        --        projectFilter =
-        --            model.projectFilter
-        --    in
-        --    ( { model | doSearch = True, projectFilter = { projectFilter | values = newValues } }, Cmd.none )
-
-        --SetFileFilterValue id val selected ->
-        --    let
-        --        newValues vals =
-        --            vals
-        --                |> Set.fromList
-        --                |> (if selected then Set.insert val else Set.remove val)
-        --                |> Set.toList
-        --
-        --        fileFilters =
-        --            model.fileFilters
-        --                |> List.map
-        --                    (\f ->
-        --                        if f.id == id then -- should only be one filter with this id value
-        --                            { f | values = newValues f.values }
-        --                        else
-        --                            f
-        --                    )
-        --
-        --    in
-        --    ( { model | doSearch = True, fileFilters = fileFilters }, Cmd.none )
+            ( { model | searchState = SearchPending 0, filters = newFilters }, Cmd.none )
 
         SetSearchTab label ->
             ( { model | searchTab = label }, Cmd.none )
 
         SetResultTab label ->
             let
-                doSearch =
-                    (label == "Samples" && model.sampleResults == Nothing) || (label == "Files" && model.fileResults == Nothing)
+                searchState =
+                    if (label == "Samples" && model.sampleResults == Nothing) || (label == "Files" && model.fileResults == Nothing) then
+                        SearchPending 0
+                    else
+                        SearchNot
             in
-            ( { model | doSearch = doSearch, resultTab = label }, Cmd.none )
+            ( { model | searchState = searchState, resultTab = label }, Cmd.none )
 
         SetSampleSortPos pos ->
             let
@@ -625,7 +567,7 @@ update msg model =
                     SortableTable.State pos direction
 
             in
-            ( { model | doSearch = True, sampleTableState = newTableState }, Cmd.none )
+            ( { model | searchState = SearchPending 0, sampleTableState = newTableState }, Cmd.none )
 
         SetFileSortPos pos ->
             let
@@ -638,10 +580,10 @@ update msg model =
                 newTableState =
                     SortableTable.State pos direction
             in
-            ( { model | doSearch = True, fileTableState = newTableState }, Cmd.none )
+            ( { model | searchState = SearchPending 0, fileTableState = newTableState }, Cmd.none )
 
         SetPageSize size ->
-            ( { model | doSearch = True, pageSize = size }, Cmd.none )
+            ( { model | searchState = SearchPending 0, pageSize = size }, Cmd.none )
 
         SetPageNum num ->
             let
@@ -657,10 +599,18 @@ update msg model =
                 ( model, Cmd.none )
 
         InputTimerTick time ->
-            if model.doSearch && Time.posixToMillis time - model.searchStartTime >= 1000 then -- 1 second
-                update (Search 0 False) model
-            else
-                ( model, Cmd.none )
+            case model.searchState of
+                SearchPending elapsed ->
+                    if Time.posixToMillis time - elapsed >= 1000 then -- 1 second
+                        update (Search 0 False) model
+                    else
+                        ( model, Cmd.none )
+                _ ->
+                    ( model, Cmd.none )
+            --if model.doSearch && Time.posixToMillis time - model.searchStartTime >= 1000 then -- 1 second
+            --    update (Search 0 False) model
+            --else
+            --    ( model, Cmd.none )
 
         Search newPageNum download ->
             case generateQueryParams model.filters of
@@ -672,15 +622,27 @@ update msg model =
                             else
                                 ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
 
+                        summaryParams =
+                            ( "summary"
+                            , model.filters
+                                |> List.filter (\f -> not <| List.member f.term.id permanentSampleTerms)
+                                |> List.map (.term >> .id)
+                                |> String.join ","
+                            )
+
+                        controlParams =
+                            generateControlParams result [] sortPos model.pageSize (model.pageSize * newPageNum) model.showMap
+
                         allParams =
-                            ("summary", model.filters |> List.map (.term >> .id) |> String.join "," ) ::
+                            summaryParams ::
                             queryParams ++
-                            (generateControlParams result [] sortPos model.pageSize (model.pageSize * newPageNum) model.showMap)
+                            controlParams
                     in
                     if download || allParams /= model.previousSearchParams then
                         ( { model
-                            | doSearch = False
-                            , isSearching = True
+                            --| doSearch = False
+                            --, isSearching = True
+                            | searchState = Searching
                             , pageNum = newPageNum
                             , previousSearchParams = allParams
                           }
@@ -690,12 +652,7 @@ update msg model =
                             Search.searchRequest allParams |> Http.toTask |> Task.attempt cmd
                         )
                     else -- do nothing
-                        ( { model
-                            | doSearch = False
-                            , isSearching = False
-                            }
-                        , Cmd.none
-                        )
+                        ( { model | searchState = SearchNot }, Cmd.none )
 
                 Err error ->
 --                    let
@@ -718,14 +675,14 @@ update msg model =
                 , sampleResults = sampleResults
                 , summaryResults = Just response.summary
                 , mapResults = response.map
-                , errorMsg = response.error
-                , isSearching = False
+                --, errorMsg = response.error
+                , searchState = SearchNot
               }
             , GMap.loadMap response.map
             )
 
         SampleSearchCompleted (Err error) ->
-            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
+            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
 
         FileSearchCompleted (Ok response) ->
             let
@@ -741,21 +698,21 @@ update msg model =
                 | fileResultCount = response.count
                 , fileResults = fileResults
 --                , mapResults = response.map
-                , isSearching = False
+                , searchState = SearchNot
               }
             , Cmd.none
             )
 
         FileSearchCompleted (Err error) ->
-            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none ) --TODO
+            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none ) --TODO
 
         DownloadSearchCompleted (Ok response) ->
-            ( { model | isSearching = False }
+            ( { model | searchState = SearchNot }
             , Download.string "PM_Search_Results.tsv" "text/tab-separated-values" response
             )
 
         DownloadSearchCompleted (Err error) ->
-            ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
+            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
 
         ToggleMap ->
             let
@@ -780,7 +737,7 @@ update msg model =
                 newFilters =
                     Search.updateFilter purlLocation locationFilter model.filters
             in
-            ( { model | doSearch = True, filters = newFilters }, Cmd.none )
+            ( { model | searchState = SearchPending 0, filters = newFilters }, Cmd.none )
 
         MapLoaded _ ->
             ( { model | mapLoaded = True }, Cmd.none )
@@ -840,7 +797,7 @@ update msg model =
                             Search.updateFilterValue purlDateTimeISO newDateVal model.filters
                     in
                     ({ model
-                        | doSearch = newDate /= Nothing
+                        | searchState = if newDate /= Nothing then SearchPending 0 else SearchNot
                         , filters = newFilters
                         , dateRangePickers = Dict.insert id newDateRangePicker model.dateRangePickers
                     }
@@ -893,7 +850,7 @@ update msg model =
                             Search.updateFilterValue purlDateTimeISO newDateVal model.filters
                     in
                     ({ model
-                        | doSearch = newDate /= Nothing
+                        | searchState = if newDate /= Nothing then SearchPending 0 else SearchNot
                         , filters = newFilters
                         , dateRangePickers = Dict.insert id newDateRangePicker model.dateRangePickers
                     }
@@ -963,7 +920,8 @@ generateQueryParams termFilters =
         let
             termParams =
                 termFilters
-                    |> List.map (\f -> Tuple.pair f.term.id (Search.encodeFilterValue f.value))
+                    --|> List.filter (\f -> f.term.id == purlProject && f.value == NoValue) -- remove project if no value
+                    |> List.map (\f -> Tuple.pair f.term.id (Search.filterValueToString f.value))
 
             --locParam =
             --    if validLocationParam locationVal then
@@ -1101,7 +1059,7 @@ viewSearchPanel model =
         , if model.searchTab == "Samples" then
             viewSampleSearchPanel model
           else if model.searchTab == "Files" then
-            viewFileSearchPanel (model.filters |> List.filter (\f -> List.member f.term.id fileTerms))
+            viewFileSearchPanel (model.filters |> List.filter (\f -> List.member f.term.id permanentFileTerms))
           else
             text ""
         ]
@@ -1898,9 +1856,6 @@ viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChartMsg maybeBgColo
 viewResults : Model -> Html Msg
 viewResults model =
     let
-        isInitializing = -- page loading
-            model.sampleResults == Nothing && model.fileResults == Nothing
-
         (content, count) =
             case model.resultTab of
                 "Samples" ->
@@ -1919,50 +1874,45 @@ viewResults model =
                     )
     in
     div [ style "min-height" "50em" ]
-        [ if (model.doSearch || model.isSearching) && model.errorMsg == Nothing then
-            -- spinnner overlay
-            div [ style "position" "fixed"
-                , style "width" "100%"
-                , style "height" "100%"
-                , style "top" "0"
-                , style "left" "0"
-                , style "right" "0"
-                , style "bottom" "0"
-                , style "z-index" "2"
-                , style "background-color" "rgba(0,0,0,0.3)"
-                ]
-                [ div [ style "padding-top" "40vh" ] [ viewSpinner ] ]
-          else
-            text ""
-        , if model.errorMsg /= Nothing then
-            div [ class "alert alert-danger m-3" ]
-                [ p [] [ text "An error occurred:" ]
-                , p [] [ text (model.errorMsg |> Maybe.withDefault "") ]
-                ]
-          else if isInitializing then
-            text ""
-          else if count == 0 then
-            h1 [ class "text-center mt-5", style "min-height" "5.5em" ] [ text "No results" ]
-          else
-            div [ style "border" "1px solid lightgray" ]
-                [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                    ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
---                     ++ [ li [ class "nav-item ml-auto" ]
---                            [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
---                        ]
-                     ++ [ li [ class "nav-item ml-auto" ]
-                            [ a [ class "nav-link", href "", onClick (Search 0 True) ] [ Icon.fileDownload, text " Download" ] ]
-                        --, li [ class "nav-item" ]
-                        --    [ a [ class "nav-link", href "" ] [ Icon.cloudDownload ] ]
-                        ]
-                    )
-                ,
-                div []
-                    [ viewPageSummary model.pageNum model.pageSize count
-                    , content
-                    , viewPageControls model.pageNum model.pageSize count
+        [ case model.searchState of
+            SearchInit ->
+                Page.viewSpinnerOverlay
+
+            SearchError msg ->
+                div [ class "alert alert-danger m-3" ]
+                    [ p [] [ text "An error occurred:" ]
+                    , p [] [ text msg ]
                     ]
-                ]
+
+            SearchPending _ ->
+                Page.viewSpinnerOverlay
+
+            Searching ->
+                Page.viewSpinnerOverlay
+
+            SearchNot ->
+                if count == 0 then
+                    h1 [ class "text-center mt-5", style "min-height" "5.5em" ] [ text "No results" ]
+                else
+                    div [ style "border" "1px solid lightgray" ]
+                        [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                            ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
+                             --++ [ li [ class "nav-item ml-auto" ]
+                             --       [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+                             --   ]
+                             ++ [ li [ class "nav-item ml-auto" ]
+                                    [ a [ class "nav-link", href "", onClick (Search 0 True) ] [ Icon.fileDownload, text " Download" ] ]
+                                --, li [ class "nav-item" ]
+                                --    [ a [ class "nav-link", href "" ] [ Icon.cloudDownload ] ]
+                                ]
+                            )
+                        ,
+                        div []
+                            [ viewPageSummary model.pageNum model.pageSize count
+                            , content
+                            , viewPageControls model.pageNum model.pageSize count
+                            ]
+                        ]
         ]
 
 
@@ -2040,9 +1990,9 @@ viewSummary model =
                     List.tail results |> Maybe.withDefault []
 
                 termLabels =
-                    --model.selectedParams
-                    --    |> List.filterMap (\id -> Dict.get id model.termFilters |> Maybe.map .label)
-                    model.filters |> List.map (.term >> .label)
+                    model.filters
+                        |> List.filter (\f -> f.term.id /= purlProject)
+                        |> List.map (.term >> .label)
             in
             div [ style "margin" "1em" ]
                 (viewSearchTermSummaryChart "project" projectData ::
@@ -2117,6 +2067,61 @@ viewSampleResults model =
     let
         maxColWidth = "8em"
 
+        timeSpaceColHeaders = -- kinda kludgey, find a better way to order time/space headers
+            let
+                locationVal =
+                    Search.getFilterValue purlLocation model.filters
+
+                depthVal =
+                    Search.getFilterValue purlDepth model.filters
+
+                datetimeVal =
+                    Search.getFilterValue purlDateTimeISO model.filters
+            in
+            List.concat
+                [ if locationVal /= NoValue && Search.validFilterValue locationVal then
+                    [ "Location" ]
+                  else
+                    []
+                , if depthVal /= NoValue && Search.validFilterValue depthVal then
+                    [ "Depth" ] --, "Min Depth", "Max Depth" ]
+                  else
+                    []
+                , if datetimeVal /= NoValue && Search.validFilterValue datetimeVal then
+                    [ "Date", "Start Date", "End Date" ]
+                  else
+                    []
+                |> List.filter (\s -> Search.defined s)
+                ]
+
+        colHeaders =
+            "Project Name" ::
+            "Sample ID" ::
+            timeSpaceColHeaders ++
+            (model.filters
+                |> List.filter (\f -> f.term.id /= purlProject) -- redundant project
+                |> List.map
+                    (\f ->
+                        if f.term.unitLabel /= "" then
+                            f.term.label ++ " (" ++ f.term.unitLabel ++ ")"
+                        else
+                            f.term.label
+                    )
+            )
+
+        addToCartTh =
+            th [ class "text-right", style "min-width" "10em" ]
+                [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
+                    (model.sampleResults
+                        |> Maybe.withDefault []
+                        |> List.map .sampleId
+                    )
+                    |> Html.map CartMsg
+                ]
+
+        columns =
+            [ tr [] (List.indexedMap mkTh colHeaders ++ [ addToCartTh ]) ]
+
         mkTh index label =
             let
                 pos =
@@ -2132,145 +2137,29 @@ viewSampleResults model =
             in
             th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetSampleSortPos pos) ] [ text lbl ]
 
-        locationVal =
-            model.filters
-                |> List.filter (\f -> f.term.id == purlLocation)
-                |> List.head
-                |> Maybe.map .value
-                |> Maybe.withDefault NoValue
-
-        depthVal =
-            model.filters
-                |> List.filter (\f -> f.term.id == purlDepth)
-                |> List.head
-                |> Maybe.map .value
-                |> Maybe.withDefault NoValue
-
-        datetimeVal =
-            model.filters
-                |> List.filter (\f -> f.term.id == purlDateTimeISO)
-                |> List.head
-                |> Maybe.map .value
-                |> Maybe.withDefault NoValue
-
-        timeSpaceParamNames = -- kinda kludgey, find a better way to order time/space params
-            List.concat
-                [if locationVal /= NoValue && Search.validFilterValue locationVal then
-                    [ "Location" ]
-                  else
-                    []
-                , if depthVal /= NoValue && Search.validFilterValue depthVal then
-                    [ "Depth" ] --, "Min Depth", "Max Depth" ]
-                  else
-                    []
-                , if datetimeVal /= NoValue && Search.validFilterValue datetimeVal then
-                    [ "Date", "Start Date", "End Date" ]
-                  else
-                    []
-                |> List.filter (\s -> Search.defined s)
-                ]
-
-        paramNames =
-            List.concat
-                [ [ "Project Name"
-                  , "Sample ID"
-                  ]
-                , timeSpaceParamNames
-                , (model.filters
-                        |> List.map
-                            (\f ->
-                                if f.term.unitLabel /= "" then
-                                    f.term.label ++ " (" ++ f.term.unitLabel ++ ")"
-                                else
-                                    f.term.label
-                            )
-
-                    )
-                ]
-
-        addToCartTh =
-            th [ class "text-right", style "min-width" "10em" ]
-                [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
-                    (model.sampleResults
-                        |> Maybe.withDefault []
-                        |> List.map .sampleId
-                    )
-                    |> Html.map CartMsg
-                ]
-
-        --aliases =
-        --    model.selectedParams
-        --        |> List.filterMap
-        --            (\param ->
-        --                case Dict.get param model.selectedTerms of
-        --                    Nothing ->
-        --                        Nothing
-        --
-        --                    Just term ->
-        --                        Just term.aliases
-        --            )
-
-        --mkTh2 a =
-        --    if List.length a > 1 then
-        --        th [] [ text (List.map .name a |> String.join ", ") ]
-        --    else
-        --        th [] []
-
-        columns =
-            [ tr [] (List.indexedMap mkTh paramNames ++ [ addToCartTh ])
---            , tr [] ((List.repeat ((List.length timeSpaceParamNames) + 2) (th [] [])) ++ (List.map mkTh2 aliases)) --FIXME kludgey
-            ]
-
         mkTd label =
             td [ style "max-width" maxColWidth ] [ text label ]
 
-        formatVals vals =
-            case vals of
-                SingleResultValue v ->
-                    [ v ]
-
-                MultipleResultValues l ->
-                    l
-
-                NoResultValues ->
-                    []
-
-        formatVal val =
-            case val of
-                StringResultValue s ->
-                    s
-
---                MultipleStringResultValue l ->
---                    String.join ", " l
-
-                NumberResultValue n ->
-                    String.fromFloat n
-
---                MultipleNumberResultValue l ->
---                    l |> List.map String.fromFloat |> String.join ", "
-
-                NoResultValue ->
-                    ""
-
-        mkRow result =
+        mkTr result =
             tr []
-                (List.concat --FIXME kludgey
-                    [ [ td [] [ a [ Route.href (Route.Project result.projectId) ] [ text result.projectName ] ] ]
-                    , [ td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ] ]
-                    , result.values
-                        |> List.map formatVals
-                        |> List.map (\a -> List.map (formatVal) a |> String.join ", " |> mkTd)
-                    , [ td [ class "text-right", style "min-width" "10em" ]
-                        [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
-                      ]
-                    ]
-                )
+                ([ td [] [ a [ Route.href (Route.Project result.projectId) ] [ text result.projectName ] ]
+                , td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ]
+                ] ++
+                (result.values
+                    |> List.map
+                        (\vals ->
+                            Search.searchResultValuesToString vals |> mkTd
+                        )
+                ) ++
+                [ td [ class "text-right", style "min-width" "10em" ]
+                    [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
+                ])
     in
     SortableTable.view
         { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
         model.sampleTableState
         columns
-        (model.sampleResults |> Maybe.withDefault [] |> List.map mkRow)
+        (model.sampleResults |> Maybe.withDefault [] |> List.map mkTr)
         []
 
 

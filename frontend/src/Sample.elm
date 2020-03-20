@@ -1,4 +1,4 @@
-module Sample exposing (Sample, Metadata, fetch, fetchAll, fetchSome, fetchAllByProject, fetchAllBySamplingEvent, fetchAllByCampaign, fetchMetadata, fetchSearchTerms, fetchSearchTerm)
+module Sample exposing (..)
 
 {-| The interface to the Sample data structure.
 -}
@@ -141,8 +141,8 @@ fetchMetadata id =
         |> HttpBuilder.toRequest
 
 
-fetchSearchTerms : Http.Request (List SearchTerm)
-fetchSearchTerms =
+fetchAllSearchTerms : Http.Request (List SearchTerm)
+fetchAllSearchTerms =
     let
         url =
             apiBaseUrl ++ "/searchTerms" --FIXME change to samples/searchTerms
@@ -152,12 +152,12 @@ fetchSearchTerms =
         |> HttpBuilder.toRequest
 
 
-fetchSearchTerm : PURL -> Http.Request SearchTerm
-fetchSearchTerm id =
+fetchSearchTerms : List PURL -> Http.Request (List SearchTerm)
+fetchSearchTerms ids =
     let
         url =
-            apiBaseUrl ++ "/searchTerms/" ++ id --FIXME change to samples/searchTerms
+            apiBaseUrl ++ "/searchTerms/" ++ (String.join "," ids) --FIXME change to samples/searchTerms
     in
     HttpBuilder.get url
-        |> HttpBuilder.withExpect (Http.expectJson Search.searchTermDecoder)
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list Search.searchTermDecoder))
         |> HttpBuilder.toRequest
