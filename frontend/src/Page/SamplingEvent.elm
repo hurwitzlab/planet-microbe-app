@@ -7,7 +7,7 @@ import Page
 import Route
 import SamplingEvent exposing (SamplingEvent, Data)
 import Sample exposing (Sample)
-import SearchTerm
+import Search
 import LatLng
 import GMap
 import Time
@@ -272,13 +272,13 @@ viewData maybeData =
                         Nothing ->
                             ""
 
-                        Just (SearchTerm.StringValue v) ->
+                        Just (Search.StringValue v) ->
                             v
 
-                        Just (SearchTerm.IntValue i) ->
+                        Just (Search.IntValue i) ->
                             String.fromInt i
 
-                        Just (SearchTerm.FloatValue f) ->
+                        Just (Search.FloatValue f) ->
                             String.fromFloat f
 
                 mkRdf term =
@@ -320,7 +320,7 @@ viewData maybeData =
 
                 mkRow values =
                     tr []
-                        (values |> List.map (\val -> td [] [ val |> valueToString |> SearchTerm.viewValue ]))
+                        (values |> List.map (\val -> td [] [ val |> valueToString |> Search.viewValue ]))
             in
             div []
                 [ table [ class "table table-sm table-striped small" ]

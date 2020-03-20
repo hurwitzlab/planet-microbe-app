@@ -8,7 +8,7 @@ import HttpBuilder
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
 import LatLng exposing (LatLng)
-import SearchTerm exposing (SearchTerm, PURL, Value)
+import Search exposing (SearchTerm, PURL, Value)
 import Config exposing (apiBaseUrl)
 
 
@@ -62,8 +62,8 @@ dataDecoder : Decoder Data
 dataDecoder =
     Decode.succeed Data
         |> required "schema_id" Decode.int
-        |> required "terms" (Decode.list SearchTerm.searchTermDecoder)
-        |> required "values" (Decode.list (Decode.list SearchTerm.valueDecoder))
+        |> required "terms" (Decode.list Search.searchTermDecoder)
+        |> required "values" (Decode.list (Decode.list Search.valueDecoder))
 
 
 

@@ -1,10 +1,14 @@
-module Filter exposing (..)
+module Search exposing (..)
 
+import Http
+import HttpBuilder
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
+import Json.Encode as Encode exposing (null)
 import Dict exposing (Dict)
 import Html exposing (Html, a, text)
 import Html.Attributes exposing (href, target)
+import Config exposing (apiBaseUrl)
 
 
 
@@ -97,7 +101,7 @@ type alias SearchResponse =
     { count : Int
     , results : SearchResults
     , summary : List Distribution --List SummaryResult
-    , map : Value --List MapResult
+    , map : Encode.Value --List MapResult
     , error : Maybe String
     }
 
@@ -155,6 +159,21 @@ type alias FileResult =
 --    , projectName : String
 --    , sampleCount : Int
 --    }
+
+
+type alias Sample =
+    { sampleName : String
+    , projectName : String
+    , location : Location
+    , depth : Float
+    , date : String
+    }
+
+
+type alias Location =
+    { type_ : String
+    , coordinates : List Float
+    }
 
 
 type Value
@@ -299,7 +318,7 @@ decodeSearchResponse =
     Decode.succeed SearchResponse
         |> required "count" Decode.int
         |> required "results" decodeSearchResults
-        |> required "summary" (Decode.list Filter.distributionDecoder)
+        |> required "summary" (Decode.list distributionDecoder)
         |> optional "map" Decode.value null --(Decode.list decodeMapResult) []
         |> optional "error" (Decode.nullable Decode.string) Nothing
 
@@ -449,3 +468,48 @@ viewValue val =
     else
         text val
 
+
+
+-- HELPERS --
+
+
+getFilterValue : PURL -> List Filter -> FilterValue
+getFilterValue purl filters =
+    filters
+        |> List.filter (\f -> f.term.id == purl)
+        |> List.head
+        |> Maybe.map .value
+        |> Maybe.withDefault NoValue
+
+
+updateFilterValue : PURL -> FilterValue -> List Filter -> List Filter
+updateFilterValue purl newValue filters =
+    filters
+        |> List.map
+            (\f ->
+                if f.term.id == purl then
+                    { f | value = newValue }
+                else
+                    f
+            )
+
+
+updateFilter : PURL -> Filter -> List Filter -> List Filter
+updateFilter purl newFilter filters =
+    let
+        exists =
+            filters
+                |> List.map (.term >> .id)
+                |> List.member purl
+    in
+    if exists then
+        filters
+            |> List.map
+                (\f ->
+                    if f.term.id == purl then
+                        newFilter
+                    else
+                        f
+                )
+    else
+        newFilter :: filters

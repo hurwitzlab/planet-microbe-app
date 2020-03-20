@@ -9,7 +9,7 @@ import Page exposing (viewSpinner)
 import Route
 import Error
 import Sample exposing (Sample, Metadata)
-import SearchTerm exposing (PURL, Value(..), SearchTerm, Annotation)
+import Search exposing (PURL, Value(..), SearchTerm, Annotation)
 import SamplingEvent exposing (SamplingEvent)
 import Experiment exposing (Experiment)
 import LatLng
@@ -443,7 +443,7 @@ viewMetadata maybeMetadata showUnannotated =
                     tr []
                         [ td [] [ mkRdf term ]
                         , td [] [ text term.alias_ ]
-                        , td [] [ maybeValue |> valueToString |> SearchTerm.viewValue ]
+                        , td [] [ maybeValue |> valueToString |> Search.viewValue ]
                         , td [] [ mkUnit term ]
                         , td [] [ mkSourceUrl term.sourceUrl ]
                         ]

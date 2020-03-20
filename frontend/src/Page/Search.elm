@@ -5,10 +5,7 @@ import Html exposing (..)
 import Html.Attributes exposing (class, classList, style, href, disabled, type_, value, placeholder, target, checked, attribute)
 import Html.Events exposing (onClick, onInput, onCheck)
 import Http
-import HttpBuilder
-import Json.Encode as Encode exposing (Value, null)
-import Json.Decode as Decode exposing (Decoder)
-import Json.Decode.Pipeline exposing (optional, required)
+import Json.Encode as Encode
 import File.Download as Download
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (usLocale)
@@ -26,7 +23,7 @@ import Error
 import Page exposing (viewBlank, viewSpinner, viewDialog)
 import Project
 import Sample
-import SearchTerm exposing (SearchTerm, PURL, Distribution, defaultSearchTerm)
+import Search exposing (SearchResponse, SearchResults(..), SampleResult, FileResult, SearchResultValues(..), SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Distribution, defaultSearchTerm)
 import RemoteFile
 import SortableTable
 import BarChart
@@ -35,6 +32,9 @@ import Icon
 import Config exposing (apiBaseUrl, dataCommonsUrl)
 --import Debug exposing (toString)
 
+
+
+-- CONSTANTS --
 
 
 myLocale =
@@ -74,12 +74,12 @@ purlDateTimeISO =
     "http://purl.obolibrary.org/obo/OBI_0001619"
 
 
-purlDateTimeISOStart =
-    "http://purl.obolibrary.org/obo/PMO_00000008"
+--purlDateTimeISOStart =
+--    "http://purl.obolibrary.org/obo/PMO_00000008"
 
 
-purlDateTimeISOEnd =
-    "http://purl.obolibrary.org/obo/PMO_00000009"
+--purlDateTimeISOEnd =
+--    "http://purl.obolibrary.org/obo/PMO_00000009"
 
 
 purlBiome =
@@ -94,7 +94,47 @@ purlEnvironmentalMaterial =
     "http://purl.obolibrary.org/obo/ENVO_00010483"
 
 
-initialTerms =
+purlLocation = -- Not a real PURL, but a unique id for this term used in search query string
+    "location"
+
+
+purlProject = -- Not a real PURL, but a unique id for this term used in search query string
+    "project"
+
+
+purlFileSource =
+    "source"
+
+
+purlFileStrategy =
+    "strategy"
+
+
+purlFileSelection =
+    "selection"
+
+
+purlFileLayout =
+    "layout"
+
+
+sampleTerms =
+    [ purlLocation
+    , purlDepth
+    , purlDateTimeISO
+    , purlProject
+    ]
+
+
+fileTerms =
+    [ purlFileSource
+    , purlFileStrategy
+    , purlFileSelection
+    , purlFileLayout
+    ]
+
+
+initialSelectedTerms =
     [ purlBiome
     , purlEnvironmentalFeature
     , purlEnvironmentalMaterial
@@ -109,15 +149,19 @@ type alias Model =
     { session : Session
 
     -- Search terms and filters
-    , allTerms: List SearchTerm -- list of available terms to add
-    , selectedTerms : List PURL
-    , termFilters : List Filter
+    , allTerms: List SearchTerm -- list of available terms to add to search
+    --, selectedTerms : List PURL -- list of selected terms (needed to remember order added)
+    , filters : List Filter
 
-    , locationVal : LocationFilterValue
-    , projectFilter : Filter
-    , fileFilters : List Filter
-    , startDatePickers : Dict PURL DatePicker
-    , endDatePickers : Dict PURL DatePicker
+    -- 4D Search
+    --, locationVal : FilterValue --LocationFilterValue
+    --, depthVal : FilterValue
+    --, datetimeVal : FilterValue
+    --, projectFilter : Filter
+    --, fileFilters : List Filter
+
+    -- There could be additional datetime fields
+    , dateRangePickers : Dict PURL DateRangePicker
 
     , showParamSearchDropdown : Bool
     , paramSearchInputVal : String
@@ -132,7 +176,7 @@ type alias Model =
     , isSearching : Bool
     , sampleResults : Maybe (List SampleResult)
     , fileResults : Maybe (List FileResult)
-    , mapResults : Value --List MapResult
+    , mapResults : Encode.Value --List MapResult
     , summaryResults : Maybe (List Distribution)
     , sampleResultCount : Int
     , fileResultCount : Int
@@ -149,20 +193,6 @@ type alias Model =
     }
 
 
-type alias Filter =
-    { term : SearchTerm
-    , value : FilterValue
-    }
-
-
-projectSearchTerm : SearchTerm
-projectSearchTerm =
-    { defaultSearchTerm
-        | id = "project"
-        , label = "Project"
-    }
-
-
 type DialogState --TODO combine StringFilterDialog/ProjectFilterDialog/FileFilterDialog and FilterChartDialog/ProjectSummaryDialog/FileFilterDialog
     = DialogClosed
     | AddFilterDialog
@@ -174,31 +204,30 @@ type DialogState --TODO combine StringFilterDialog/ProjectFilterDialog/FileFilte
     | FileSummaryDialog Filter
 
 
+type alias DateRangePicker =
+    { start : DatePicker
+    , end : DatePicker
+    }
+
+
 init : Session -> ( Model, Cmd Msg )
 init session =
-    --let
-    --    ( startDatePicker, _ ) =
-    --        DatePicker.init
-    --
-    --    ( endDatePicker, _ ) =
-    --        DatePicker.init
-    --in
     (
         { session = session
 
         -- Search filters and selected values
         , allTerms = []
-        , selectedTerms = initialTerms
-        , termFilters = []
+        --, selectedTerms = initialSelectedTerms
+        , filters = [] --initialFilters
 
-        , locationVal = NoLocationValue
-        , depthVal = NoValue
-        , datetimeVal = NoValue
-        , projectFilter = Filter projectSearchTerm NoValue
+        --, locationVal = NoLocationValue
+        --, depthVal = NoValue
+        --, datetimeVal = NoValue
+        --, projectFilter = Filter projectSearchTerm NoValue
 
-        , fileFilters = []
-        --, startDatePickers = Dict.insert purlDateTimeISO startDatePicker Dict.empty
-        --, endDatePickers = Dict.insert purlDateTimeISO endDatePicker Dict.empty
+        --, fileFilters = []
+
+        , dateRangePickers = Dict.empty
 
         , showParamSearchDropdown = False
         , paramSearchInputVal = ""
@@ -229,8 +258,9 @@ init session =
         , previousSearchParams = []
         }
     , Cmd.batch
-        [ Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
-        , List.map Sample.fetchSearchTerm initialTerms |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
+        [ Date.today |> Task.perform InitDatePickers
+        , Sample.fetchSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
+        , List.map Sample.fetchSearchTerm initialSelectedTerms |> List.map Http.toTask |> List.map (Task.attempt GetSearchTermCompleted) |> Cmd.batch
         , Project.fetchCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
         , RemoteFile.fetchProperties |> Http.toTask |> Task.attempt GetFilePropertiesCompleted
         , GMap.removeMap "" -- workaround for blank map on navigating back to this page
@@ -273,9 +303,9 @@ type Msg
     | SetSearchFilterValue PURL String
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
-    | SetLocationFilterValue LocationFilterValue
-    | SetProjectFilterValue String Bool
-    | SetFileFilterValue String String Bool
+    --| SetLocationFilterValue LocationFilterValue
+    --| SetProjectFilterValue String Bool
+    --| SetFileFilterValue String String Bool
     | SetSearchTab String
     | SetResultTab String
     | SetSampleSortPos Int
@@ -290,6 +320,7 @@ type Msg
     | ToggleMap
     | UpdateLocationFromMap (Maybe GMap.Location)
     | MapLoaded Bool
+    | InitDatePickers Date
     | SetStartDatePicker PURL FilterValue DatePicker.Msg
     | SetEndDatePicker PURL FilterValue DatePicker.Msg
     | CartMsg Cart.Msg
@@ -301,12 +332,12 @@ update msg model =
         GetProjectCountsCompleted (Ok counts) ->
             let
                 projectFilter =
-                    model.projectFilter
+                    Filter { defaultSearchTerm | id = purlProject, label = "Project", distribution = counts } NoValue
 
-                projectTerm =
-                    model.projectFilter.term
+                newFilters =
+                    List.append model.filters [ projectFilter ]
             in
-            ( { model | projectFilter = { projectFilter | term = { projectTerm | distribution = counts } } }, Cmd.none )
+            ( { model | filters = newFilters }, Cmd.none )
 
         GetProjectCountsCompleted (Err error) ->
             ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
@@ -317,10 +348,13 @@ update msg model =
                     props
                         |> List.map
                             (\(id,dist) ->
-                                Filter { defaultSearchTerm | id = id, distribution = dist } NoValue
+                                Filter { defaultSearchTerm | id = id, label = id, distribution = dist } NoValue
                             )
+
+                newFilters =
+                    List.append model.filters fileFilters
             in
-            ( { model | fileFilters = fileFilters }, Cmd.none )
+            ( { model | filters = newFilters }, Cmd.none )
 
         GetFilePropertiesCompleted (Err error) ->
             ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
@@ -347,31 +381,26 @@ update msg model =
                 --selectedVals =
                 --    Dict.insert term.id val model.selectedVals
 
-                filters =
+                newFilters =
                     --Dict.insert term.id term model.selectedTerms
-                    List.append model.termFilters [ Filter term val ]
+                    List.append model.filters [ Filter term val ]
             in
             --( { model | doSearch = True, selectedParams = selectedParams, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
-            ( { model | doSearch = True, termFilters = filters }, Cmd.none )
+            ( { model | doSearch = True, filters = newFilters }, Cmd.none )
 
         GetSearchTermCompleted (Err error) ->
             ( { model | errorMsg = Just (Error.toString error), doSearch = False, isSearching = False }, Cmd.none )
 
         ClearFilters ->
-            --let
-            --    newVals =
-            --        model.selectedVals
-            --            |> Dict.remove purlDepth
-            --            |> Dict.remove purlDateTimeISO
-            --            |> Dict.map (\k v -> NoValue)
-            --in
+            let
+                newFilters =
+                    model.filters
+                        |> List.filter (\f -> List.member f.term.id (sampleTerms ++ fileTerms ++ initialSelectedTerms))
+                        |> List.map (\f -> { f | value = NoValue })
+            in
             ( { model
                 | doSearch = True
-                , selectedTerms = initialTerms
-                , termFilters = []
-                , locationVal = NoLocationValue
-                , projectFilter = Filter projectSearchTerm NoValue
-                , fileFilters = []
+                , filters = newFilters
                 , sampleTableState = SortableTable.initialState
                 , fileTableState = SortableTable.initialState
               }
@@ -398,14 +427,14 @@ update msg model =
                 --newVals =
                 --    Dict.remove id model.selectedVals
                 newFilters =
-                    model.termFilters |> List.filter (\f -> f.term.id == id)
+                    model.filters |> List.filter (\f -> f.term.id == id)
             in
             ( { model
                 | doSearch = True
                 --, selectedParams = newParams
                 --, selectedTerms = newTerms
                 --, selectedVals = newVals
-                , termFilters = newFilters
+                , filters = newFilters
                 , sampleTableState = SortableTable.initialState
                 , fileTableState = SortableTable.initialState
               }
@@ -472,25 +501,18 @@ update msg model =
                     else
                         SearchValue val
 
-                --newVals =
-                --    Dict.insert id newVal model.selectedVals
-
-                termFilters =
-                    model.termFilters
-                        |> List.map
-                            (\f ->
-                                if f.term.id == id then
-                                    { f | value = newVal }
-                                else
-                                    f
-                            )
+                newFilters =
+                    Search.updateFilterValue id newVal model.filters
             in
-            ( { model | doSearch = doSearch, termFilters = termFilters }, Cmd.none )
+            ( { model | doSearch = doSearch, filters = newFilters }, Cmd.none )
 
         SetStringFilterValue id val selected ->
             let
-                newVal termVal =
-                    case termVal of
+                curVal =
+                    Search.getFilterValue id model.filters
+
+                newVal =
+                    case curVal of
                         NoValue ->
                             if selected then
                                 SingleValue val
@@ -513,64 +535,44 @@ update msg model =
                         _ -> -- error
                             NoValue
 
-                termFilters =
-                    model.termFilters
-                        |> List.map
-                            (\f ->
-                                if f.term.id == id then
-                                    { f | value = newVal f.value }
-                                else
-                                    f
-                            )
-
-                --newVals =
-                --    Dict.insert id newVal model.selectedVals
+                newFilters =
+                    Search.updateFilterValue id (newVal ) model.filters
             in
-            ( { model | doSearch = True, termFilters = termFilters }, Cmd.none )
+            ( { model | doSearch = True, filters = newFilters }, Cmd.none )
 
         SetFilterValue id val ->
             let
-                --newVals =
-                --    Dict.insert id val model.selectedVals
-
-                termFilters =
-                    model.termFilters
-                        |> List.map
-                            (\f ->
-                                if f.term.id == id then
-                                    { f | value = val }
-                                else
-                                    f
-                            )
+                newFilters =
+                    Search.updateFilterValue id val model.filters
             in
-            ( { model | doSearch = True, termFilters = termFilters }, Cmd.none )
+            ( { model | doSearch = True, filters = newFilters }, Cmd.none )
 
-        SetLocationFilterValue val ->
-            let
-                cmd =
-                    case val of
-                        LatLngRadiusValue (lat,lng) radius ->
-                            let
-                                lat2 =
-                                    String.toFloat lat |> Maybe.withDefault 0
-
-                                lng2 =
-                                    String.toFloat lng |> Maybe.withDefault 0
-
-                                radius2 =
-                                    String.toFloat radius |> Maybe.withDefault 0
-                            in
-                            GMap.setLocation (Just (GMap.Location lat2 lng2 radius2))
-
-                        _ ->
-                            Cmd.none
-            in
-            ( { model | doSearch = True, locationVal = val }, cmd )
+        --SetLocationFilterValue val ->
+        --    let
+        --        cmd =
+        --            case val of
+        --                LatLngRadiusValue (lat,lng) radius ->
+        --                    let
+        --                        lat2 =
+        --                            String.toFloat lat |> Maybe.withDefault 0
+        --
+        --                        lng2 =
+        --                            String.toFloat lng |> Maybe.withDefault 0
+        --
+        --                        radius2 =
+        --                            String.toFloat radius |> Maybe.withDefault 0
+        --                    in
+        --                    GMap.setLocation (Just (GMap.Location lat2 lng2 radius2))
+        --
+        --                _ ->
+        --                    Cmd.none
+        --    in
+        --    ( { model | doSearch = True, locationVal = val }, cmd )
 
         --SetProjectFilterValue val selected ->
         --    let
         --        newValues =
-        --            model.projectFilter.values
+        --            model.projectFilter.value
         --                |> Set.fromList
         --                |> (if selected then Set.insert val else Set.remove val)
         --                |> Set.toList
@@ -579,7 +581,7 @@ update msg model =
         --            model.projectFilter
         --    in
         --    ( { model | doSearch = True, projectFilter = { projectFilter | values = newValues } }, Cmd.none )
-        --
+
         --SetFileFilterValue id val selected ->
         --    let
         --        newValues vals =
@@ -661,7 +663,7 @@ update msg model =
                 ( model, Cmd.none )
 
         Search newPageNum download ->
-            case generateQueryParams model.locationVal model.projectFilter model.fileFilters model.termFilters of
+            case generateQueryParams model.filters of
                 Ok queryParams ->
                     let
                         ( result, sortPos, cmd ) =
@@ -671,7 +673,7 @@ update msg model =
                                 ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
 
                         allParams =
-                            ("summary", model.termFilters |> List.map (.term >> .label) |> String.join "," ) ::
+                            ("summary", model.filters |> List.map (.term >> .id) |> String.join "," ) ::
                             queryParams ++
                             (generateControlParams result [] sortPos model.pageSize (model.pageSize * newPageNum) model.showMap)
                     in
@@ -683,9 +685,9 @@ update msg model =
                             , previousSearchParams = allParams
                           }
                         , if download then
-                            searchDownloadRequest allParams |> Http.toTask |> Task.attempt DownloadSearchCompleted
+                            Search.searchDownloadRequest allParams |> Http.toTask |> Task.attempt DownloadSearchCompleted
                           else
-                            searchRequest allParams |> Http.toTask |> Task.attempt cmd
+                            Search.searchRequest allParams |> Http.toTask |> Task.attempt cmd
                         )
                     else -- do nothing
                         ( { model
@@ -770,23 +772,45 @@ update msg model =
                             LatLngRadiusValue (String.fromFloat loc.lat, String.fromFloat loc.lng) (String.fromFloat loc.radius)
 
                         Nothing ->
-                            NoLocationValue
-            in
-            ( { model | doSearch = True, locationVal = newLocationVal }, Cmd.none )
+                            NoValue
 
-        MapLoaded success ->
+                locationFilter =
+                    Filter { defaultSearchTerm | id = purlLocation } newLocationVal
+
+                newFilters =
+                    Search.updateFilter purlLocation locationFilter model.filters
+            in
+            ( { model | doSearch = True, filters = newFilters }, Cmd.none )
+
+        MapLoaded _ ->
             ( { model | mapLoaded = True }, Cmd.none )
 
-        SetStartDatePicker id val subMsg ->
+        InitDatePickers date ->
             let
-                startDatePicker =
-                    Dict.get id model.startDatePickers
+                dateRangePicker =
+                    { start = DatePicker.initFromDate date
+                    , end = DatePicker.initFromDate date
+                    }
             in
-            case startDatePicker of
-                Just datePicker ->
+            ( { model | dateRangePickers = Dict.insert purlDateTimeISO dateRangePicker Dict.empty }
+            , Cmd.none
+            )
+
+        SetStartDatePicker id val subMsg -> --TODO merge code in common with SetEndDatePicker into function
+            let
+                dateRangePicker =
+                    Dict.get id model.dateRangePickers
+            in
+            case dateRangePicker of
+                Just picker ->
                     let
                         ( newDatePicker, dateEvent ) =
-                            DatePicker.update startDatePickerSettings subMsg datePicker
+                            DatePicker.update startDatePickerSettings subMsg picker.start
+
+                        newDateRangePicker =
+                            { start = newDatePicker
+                            , end = picker.end
+                            }
 
                         newDate =
                             case dateEvent of
@@ -812,20 +836,13 @@ update msg model =
                                 Nothing ->
                                     val
 
-                        termFilters =
-                            model.termFilters
-                                |> List.map
-                                    (\f ->
-                                        if f.term.id == purlDateTimeISO then
-                                            { f | value = newDateVal }
-                                        else
-                                            f
-                                    )
+                        newFilters =
+                            Search.updateFilterValue purlDateTimeISO newDateVal model.filters
                     in
                     ({ model
                         | doSearch = newDate /= Nothing
-                        , termFilters = termFilters
-                        , startDatePickers = Dict.insert id newDatePicker model.startDatePickers
+                        , filters = newFilters
+                        , dateRangePickers = Dict.insert id newDateRangePicker model.dateRangePickers
                     }
                     , Cmd.none)
 
@@ -834,14 +851,19 @@ update msg model =
 
         SetEndDatePicker id val subMsg ->
             let
-                endDatePicker =
-                    Dict.get id model.endDatePickers
+                dateRangePicker =
+                    Dict.get id model.dateRangePickers
             in
-            case endDatePicker of
-                Just datePicker ->
+            case dateRangePicker of
+                Just picker ->
                     let
                         ( newDatePicker, dateEvent ) =
-                            DatePicker.update endDatePickerSettings subMsg datePicker
+                            DatePicker.update endDatePickerSettings subMsg picker.end
+
+                        newDateRangePicker =
+                            { start = picker.start
+                            , end = newDatePicker
+                            }
 
                         newDate =
                             case dateEvent of
@@ -867,20 +889,13 @@ update msg model =
                                 Nothing ->
                                     val
 
-                        termFilters =
-                            model.termFilters
-                                |> List.map
-                                    (\f ->
-                                        if f.term.id == purlDateTimeISO then
-                                            { f | value = newDateVal }
-                                        else
-                                            f
-                                    )
+                        newFilters =
+                            Search.updateFilterValue purlDateTimeISO newDateVal model.filters
                     in
                     ({ model
                         | doSearch = newDate /= Nothing
-                        , termFilters = termFilters
-                        , endDatePickers = Dict.insert id newDatePicker model.endDatePickers
+                        , filters = newFilters
+                        , dateRangePickers = Dict.insert id newDateRangePicker model.dateRangePickers
                     }
                     , Cmd.none)
 
@@ -903,169 +918,104 @@ update msg model =
             )
 
 
-defined : String -> Bool
-defined s =
-    s /= ""
+--validLocationParam : FilterValue -> Bool
+--validLocationParam val =
+--    case val of
+--        LatLngRadiusValue (lat,lng) radius ->
+--            defined lat && defined lng
+--
+--        LonghurstValue s ->
+--            defined s
+--
+--        NoValue ->
+--            True
+--
+--        _ ->
+--            False
 
 
-validParam : FilterValue -> Bool
-validParam val =
-   case val of
-        RangeValue min max ->
-            defined min || defined max -- Either/both can defined --TODO check for valid number
-
-        OffsetValue value ofs ->
-            defined value && defined ofs --TODO check for valid number
-
-        SearchValue s ->
-            defined s
-
-        SingleValue s ->
-            defined s --True --TODO check for valid number
-
-        MultipleValues vals ->
-            List.all defined vals --TODO check for valid numbers
-
-        DateTimeValue dt ->
-            defined dt --TODO check for valid date format
-
-        DateTimeRangeValue dt1 dt2 ->
-            defined dt1 || defined dt2 --TODO check for valid date format
-
-        NoValue ->
-            True
-
-
-encodeFilterValue : FilterValue -> String
-encodeFilterValue val =
-    let
-        range from to =
-            "[" ++ from ++ "," ++ to ++ "]"
-
-        offset val2 ofs =
-            val2 ++ "," ++ ofs
-    in
-    case val of
-        RangeValue min max ->
-            range min max
-
-        OffsetValue value ofs ->
-            offset value ofs --FIXME
-
-        SearchValue s ->
-            "~" ++ s
-
-        SingleValue s ->
-            s
-
-        MultipleValues values ->
-            String.join "|" values
-
-        DateTimeValue dt ->
-            dt
-
-        DateTimeRangeValue dt1 dt2 ->
-            range dt1 dt2
-
-        NoValue ->
-            ""
-
-
-validLocationParam : LocationFilterValue -> Bool
-validLocationParam val =
-    case val of
-        LatLngRadiusValue (lat,lng) radius ->
-            defined lat && defined lng
-
-        LonghurstValue s ->
-            defined s
-
-        NoLocationValue ->
-            True
-
-
-encodeLocationParam : LocationFilterValue -> String
-encodeLocationParam val =
-    case val of
-        LatLngRadiusValue (lat,lng) radius ->
-            let
-                r =
-                    if radius == "" then
-                        "0"
-                    else
-                        radius
-            in
-            "[" ++ lat ++ "," ++ lng ++ "," ++ r ++ "]"
-
-        LonghurstValue s ->
-            s
-
-        NoLocationValue ->
-            ""
+--encodeLocationParam : FilterValue -> String
+--encodeLocationParam val =
+--    case val of
+--        LatLngRadiusValue (lat,lng) radius ->
+--            let
+--                r =
+--                    if radius == "" then
+--                        "0"
+--                    else
+--                        radius
+--            in
+--            "[" ++ lat ++ "," ++ lng ++ "," ++ r ++ "]"
+--
+--        LonghurstValue s ->
+--            s
+--
+--        _ ->
+--            ""
 
 
 -- TODO refactor/simplify
-generateQueryParams : LocationFilterValue -> Filter -> List Filter -> List Filter -> Result String (List (String, String))
-generateQueryParams locationVal projectFilter fileFilters termFilters =
+generateQueryParams : List Filter -> Result String (List (String, String))
+generateQueryParams termFilters =
     --if locationVal == NoLocationValue && projectFilter.value == NoValue && Dict.isEmpty vals then
     --    Ok []
     --else
         let
             termParams =
                 termFilters
-                    |> List.map (\f -> Tuple.pair f.term.id (encodeFilterValue f.value))
+                    |> List.map (\f -> Tuple.pair f.term.id (Search.encodeFilterValue f.value))
 
-            locParam =
-                if validLocationParam locationVal then
-                    [ ("location", encodeLocationParam locationVal) ]
-                else
-                    []
+            --locParam =
+            --    if validLocationParam locationVal then
+            --        [ ("location", encodeLocationParam locationVal) ]
+            --    else
+            --        []
 
-            depthParam =
-                case List.filter (\f -> f.term.id == purlDepth) termFilters of
-                    [ filter ] ->
-                        if validParam filter.value then
-                            [ ( purlDepth, encodeFilterValue filter.value )
-                            --, ( "|" ++ purlDepthMin, encodeFilterValue term.value )
-                            --, ( "|" ++ purlDepthMax, encodeFilterValue term.value )
-                            ]
-                        else
-                            []
+            --depthParam =
+            --    case List.filter (\f -> f.term.id == purlDepth) termFilters of
+            --        [ filter ] ->
+            --            if validParam filter.value then
+            --                [ ( purlDepth, encodeFilterValue filter.value )
+            --                --, ( "|" ++ purlDepthMin, encodeFilterValue term.value )
+            --                --, ( "|" ++ purlDepthMax, encodeFilterValue term.value )
+            --                ]
+            --            else
+            --                []
+            --
+            --        _ ->
+            --            []
 
-                    _ ->
-                        []
+            --datetimeParam =
+            --    case List.filter (\f -> f.term.id == purlDateTimeISO) termFilters of
+            --        [ filter ] ->
+            --            if validParam filter.value then
+            --                let
+            --                    encodedVal =
+            --                        encodeFilterValue filter.value
+            --                in
+            --                [ ( "|" ++ purlDateTimeISO, encodedVal )
+            --                , ( "|" ++ purlDateTimeISOStart, encodedVal )
+            --                , ( "|" ++ purlDateTimeISOEnd, encodedVal )
+            --                ]
+            --            else
+            --                []
+            --
+            --        _ ->
+            --            []
 
-            datetimeParam =
-                case List.filter (\f -> f.term.id == purlDateTimeISO) termFilters of
-                    [ filter ] ->
-                        if validParam filter.value then
-                            let
-                                encodedVal =
-                                    encodeFilterValue filter.value
-                            in
-                            [ ( "|" ++ purlDateTimeISO, encodedVal )
-                            , ( "|" ++ purlDateTimeISOStart, encodedVal )
-                            , ( "|" ++ purlDateTimeISOEnd, encodedVal )
-                            ]
-                        else
-                            []
+            --projectParam =
+            --    if projectFilter.value /= NoValue then
+            --        [ ("project", encodeFilterValue projectFilter.value) ]
+            --    else
+            --        []
 
-                    _ ->
-                        []
-
-            projectParam =
-                if projectFilter.value /= NoValue then
-                    [ ("project", encodeFilterValue projectFilter.value) ]
-                else
-                    []
-
-            fileParams =
-                fileFilters
-                    |> List.filter (\f -> f.value /= NoValue)
-                    |> List.map (\f -> Tuple.pair f.term.id (encodeFilterValue f.value))
+            --fileParams =
+            --    fileFilters
+            --        |> List.filter (\f -> f.value /= NoValue)
+            --        |> List.map (\f -> Tuple.pair f.term.id (encodeFilterValue f.value))
         in
-        List.concat [ projectParam, fileParams, locParam, depthParam, datetimeParam, termParams ]
-            |> Ok
+        --List.concat [ projectParam, fileParams, locParam, depthParam, datetimeParam, termParams ] |> Ok
+        Ok termParams
 --    else
 --        Err "Invalid query parameter"
 
@@ -1079,232 +1029,6 @@ generateControlParams result columns sortPos limit offset showMap =
     , ("offset", String.fromInt offset)
     , ("map", if showMap then "1" else "0")
     ]
-
-
-searchRequest : List (String, String) -> Http.Request SearchResponse
-searchRequest queryParams =
-    let
-        url =
-            apiBaseUrl ++ "/search"
-    in
-    HttpBuilder.get url
-        |> HttpBuilder.withQueryParams queryParams
-        |> HttpBuilder.withExpect (Http.expectJson decodeSearchResponse)
-        |> HttpBuilder.toRequest
-
-
-searchDownloadRequest : List (String, String) -> Http.Request String
-searchDownloadRequest queryParams =
-    let
-        url =
-            apiBaseUrl ++ "/search/download"
-    in
-    HttpBuilder.get url
-        |> HttpBuilder.withQueryParams queryParams
-        |> HttpBuilder.withExpect Http.expectString
-        |> HttpBuilder.toRequest
-
-
-type alias SearchResponse =
-    { count : Int
-    , results : SearchResults
-    , summary : List Distribution --List SummaryResult
-    , map : Value --List MapResult
-    , error : Maybe String
-    }
-
-
-type SearchResults
-    = SampleSearchResults (List SampleResult)
-    | FileSearchResults (List FileResult)
-
-
-type alias SampleResult =
-    { schemaId : Int
-    , sampleId : Int
-    , sampleAccn : String
-    , projectId : Int
-    , projectName : String
-    , values : List SearchResultValues
-    }
-
-
-type SearchResultValues
-    = NoResultValues
-    | SingleResultValue SearchResultValue
-    | MultipleResultValues (List SearchResultValue)
-
-
-type SearchResultValue
-    = NoResultValue
-    | NumberResultValue Float
-    | StringResultValue String
-
-
-type alias FileResult =
-    { fileId : Int
-    , fileUrl : String
-    , fileFormat : String
-    , fileType : String
-    , sampleId : Int
-    , sampleAccn : String
-    , projectId : Int
-    , projectName : String
-    }
-
-
---type alias MapResult =
---    { centroid : String
---    , circle : String
---    , collection : String
---    , radius : Float
---    , count : Int
---    }
-
-
---type alias SummaryResult =
---    { projectId : Int
---    , projectName : String
---    , sampleCount : Int
---    }
-
-
-type alias Sample =
-    { sampleName : String
-    , projectName : String
-    , location : Location
-    , depth : Float 
-    , date : String
-    }
-
-
-type alias Location =
-    { type_ : String
-    , coordinates : List Float
-    }
-
-
-type FilterValue
-    = NoValue
-    | SingleValue String -- numeric/string value
-    | RangeValue String String -- numeric min/max
-    | OffsetValue String String -- numeric +/-
-    | SearchValue String -- string value for partial match
-    | MultipleValues (List String) -- multiple string literal values
-    | DateTimeValue DatePicker --String -- single datetime value
-    | DateTimeRangeValue DatePicker DatePicker --String String -- start/end datetime values
-
-
-type LocationFilterValue
-    = NoLocationValue
-    | LatLngRadiusValue (String, String) String -- latitude/longitude with radius
-    | LonghurstValue String -- Longhurst province
-
-
-decodeSearchResponse : Decoder SearchResponse
-decodeSearchResponse =
-    Decode.succeed SearchResponse
-        |> required "count" Decode.int
-        |> required "results" decodeSearchResults
-        |> required "summary" (Decode.list SearchTerm.distributionDecoder)
-        |> optional "map" Decode.value null --(Decode.list decodeMapResult) []
-        |> optional "error" (Decode.nullable Decode.string) Nothing
-
-
-decodeSearchResults : Decoder SearchResults
-decodeSearchResults =
-    Decode.oneOf
-        [ Decode.map SampleSearchResults (Decode.list decodeSampleResult)
-        , Decode.map FileSearchResults (Decode.list decodeFileResult)
-        ]
-
-
-decodeSampleResult : Decoder SampleResult
-decodeSampleResult =
-    Decode.succeed SampleResult
-        |> required "schemaId" Decode.int
-        |> required "sampleId" Decode.int
-        |> required "sampleAccn" Decode.string
-        |> required "projectId" Decode.int
-        |> required "projectName" Decode.string
-        |> required "values" (Decode.list decodeSearchResultValues)
-
-
-decodeSearchResultValues : Decoder SearchResultValues
-decodeSearchResultValues =
-    Decode.oneOf
-        [ Decode.map SingleResultValue decodeSearchResultValue
-        , Decode.map MultipleResultValues (Decode.list decodeSearchResultValue)
-        , Decode.map (\a -> NoResultValues) (Decode.null a)
-        ]
-
-
-decodeSearchResultValue : Decoder SearchResultValue
-decodeSearchResultValue =
-    Decode.oneOf
-        [ Decode.map NumberResultValue Decode.float
-        , Decode.map StringResultValue Decode.string
-        , Decode.map (\a -> NoResultValue) (Decode.null a)
-        ]
-
-
-decodeFileResult : Decoder FileResult
-decodeFileResult =
-    Decode.succeed FileResult
-        |> required "fileId" Decode.int
-        |> optional "fileUrl" Decode.string ""
-        |> optional "fileFormat" Decode.string ""
-        |> optional "fileType" Decode.string ""
-        |> required "sampleId" Decode.int
-        |> required "sampleAccn" Decode.string
-        |> required "projectId" Decode.int
-        |> required "projectName" Decode.string
-
-
---decodeMapResult : Decoder MapResult
---decodeMapResult =
---    Decode.succeed MapResult
---        |> required "centroid" Decode.string
---        |> required "circle" Decode.string
---        |> required "collection" Decode.string
---        |> required "radius" Decode.float
---        |> required "count" Decode.int
-
-
---encodeMapResult : MapResult -> Encode.Value
---encodeMapResult result =
---    Encode.object
---        [ ("centroid", Encode.string result.centroid)
---        , ("circle", Encode.string result.circle)
---        , ("collection", Encode.string result.collection)
---        , ("radius", Encode.float result.radius)
---        , ("count", Encode.int result.count)
---        ]
-
-
---decodeSummaryResult : Decoder SummaryResult
---decodeSummaryResult =
---    Decode.succeed SummaryResult
---        |> required "project_id" Decode.int
---        |> required "name" Decode.string
---        |> required "count" Decode.int
-
-
-decodeSample : Decoder Sample
-decodeSample =
-    Decode.succeed Sample
-        |> required "sample" Decode.string
-        |> required "project" Decode.string
-        |> required "location" decodeLocation
-        |> required "depth" Decode.float
-        |> required "collected" Decode.string
-
-
-decodeLocation : Decoder Location
-decodeLocation =
-    Decode.succeed Location
-        |> required "type" Decode.string
-        |> required "coordinates" (Decode.list Decode.float)
 
 
 
@@ -1341,10 +1065,20 @@ viewDialogs model =
             viewSearchTermSummaryDialog term
 
         ProjectFilterDialog ->
-            viewStringFilterDialog model.projectFilter
+            case model.filters |> List.filter (\f -> f.term.id == purlProject) |> List.head of
+                Just projectFilter ->
+                    viewStringFilterDialog projectFilter
+
+                Nothing ->
+                    viewBlank
 
         ProjectSummaryDialog ->
-            viewSearchTermSummaryDialog model.projectFilter.term
+            case model.filters |> List.filter (\f -> f.term.id == purlProject) |> List.head of
+                Just projectFilter ->
+                    viewSearchTermSummaryDialog projectFilter.term
+
+                Nothing ->
+                    viewBlank
 
         FileFilterDialog filter ->
             viewStringFilterDialog filter
@@ -1367,7 +1101,7 @@ viewSearchPanel model =
         , if model.searchTab == "Samples" then
             viewSampleSearchPanel model
           else if model.searchTab == "Files" then
-            viewFileSearchPanel model
+            viewFileSearchPanel (model.filters |> List.filter (\f -> List.member f.term.id fileTerms))
           else
             text ""
         ]
@@ -1377,16 +1111,15 @@ viewSampleSearchPanel : Model -> Html Msg
 viewSampleSearchPanel model =
     div []
         [ view4DPanel model
-        , viewStringFilterPanel model.projectFilter
-        , viewAddedFiltersPanel model model.selectedParams model.termFilters
-        , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allParams model.selectedParams
+        , viewAddedFiltersPanel model.filters model.dateRangePickers
+        , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allTerms model.filters
         ]
 
 
-viewFileSearchPanel : Model -> Html Msg
-viewFileSearchPanel model =
+viewFileSearchPanel : List Filter -> Html Msg
+viewFileSearchPanel fileFilters =
     div []
-        (List.map viewStringFilterPanel model.fileFilters)
+        (List.map viewStringFilterPanel fileFilters)
 
 
 viewTab : String -> Bool -> (String -> Msg) -> Html Msg
@@ -1400,23 +1133,17 @@ viewTab label isSelected msg =
 view4DPanel : Model -> Html Msg
 view4DPanel model =
     let
+        locationVal =
+            Search.getFilterValue purlLocation model.filters
+
         depthVal =
-            model.termFilters
-                |> List.filter (\f -> f.term.id == purlDepth)
-                |> List.head
-                |> Maybe.map .value
-                |> Maybe.withDefault NoValue
+            Search.getFilterValue purlDepth model.filters
 
-        datetimeFilter =
-            model.termFilters
-                |> List.filter (\f -> f.term.id == purlDateTimeISO)
-                |> List.head
+        datetimeVal =
+            Search.getFilterValue purlDateTimeISO model.filters
 
-        startDatePicker =
-            Dict.get purlDateTimeISO model.startDatePickers
-
-        endDatePicker =
-            Dict.get purlDateTimeISO model.endDatePickers
+        dateRangePicker =
+            Dict.get purlDateTimeISO model.dateRangePickers
     in
     div []
         [ div [ class "card", style "font-size" "0.85em" ]
@@ -1431,12 +1158,14 @@ view4DPanel model =
                     [ div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
                             ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "5em" ] [ text "Location"] ])
-                                :: (viewLocationFilterInput model.locationVal)
+                                :: (viewLocationFilterInput locationVal)
                                 ++ [ div [ class "input-group-append" ]
                                     [ viewFormatButton
                                     , div [ class "dropdown-menu" ]
-                                        [ a [ class "dropdown-item active", href "", onClick (SetLocationFilterValue (LatLngRadiusValue ("","") "")) ] [ text "Lat, Lng (deg), Radius (km)" ]
-                                        , a [ class "dropdown-item disabled", href "", disabled True, onClick (SetLocationFilterValue (LonghurstValue "")) ] [ text "Longhurst Province - coming soon" ]
+                                        [ a [ class "dropdown-item active", href "", onClick (SetFilterValue purlLocation (LatLngRadiusValue ("","") "")) ]
+                                            [ text "Lat, Lng (deg), Radius (km)" ]
+                                        , a [ class "dropdown-item disabled", href "", disabled True, onClick (SetFilterValue purlLocation (LonghurstValue "")) ]
+                                            [ text "Longhurst Province - coming soon" ]
                                         ]
                                     ]
                                 ]
@@ -1454,15 +1183,15 @@ view4DPanel model =
                     , div [ class "form-row" ]
                         [ div [ class "input-group input-group-sm" ]
                             ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "5em" ] [ text "Date"] ]) ::
-                                (case (startDatePicker, endDatePicker, datetimeFilter) of
-                                    (Just d1, Just d2, Just filter) ->
+                                (case dateRangePicker of
+                                    Just picker ->
                                         List.concat
-                                        [ viewDateTimeFilterInput d1 d2 filter
-                                        , [ viewDateTimeFilterFormatOptions filter ]
+                                        [ viewDateTimeFilterInput picker purlDateTimeISO datetimeVal
+                                        , [ viewDateTimeFilterFormatOptions purlDateTimeISO datetimeVal ]
                                         ]
 
-                                    (_, _, _) -> -- error, shouldn't happen
-                                        [ viewBlank ]
+                                    _ -> -- error, shouldn't happen
+                                        [ text "Error" ]
                                 )
                             )
                         ]
@@ -1484,13 +1213,16 @@ redundantTerms =
     ]
 
 
-viewAddFilterPanel : Bool -> String -> List SearchTerm -> List PURL -> Html Msg
-viewAddFilterPanel showDropdown searchVal allTerms selectedIDs =
+viewAddFilterPanel : Bool -> String -> List SearchTerm -> List Filter -> Html Msg
+viewAddFilterPanel showDropdown searchVal allTerms filters =
     let
+        filterIDs =
+            List.map (.term >> .id) filters
+
         makeOption term =
             let
                 dis =
-                    List.member term.id selectedIDs
+                    List.member term.id filterIDs
             in
             a [ classList [ ("dropdown-item", True), ("disabled", dis) ], href "", onClick (AddFilter term.id) ] [ term.label |> String.Extra.toSentenceCase |> text ]
 
@@ -1596,8 +1328,8 @@ viewAddFilterDialog allTerms searchVal =
         CloseDialog
 
 
-viewAddedFiltersPanel : Model -> List PURL -> List Filter -> Html Msg
-viewAddedFiltersPanel model selectedTerms filters  =
+viewAddedFiltersPanel : List Filter -> Dict PURL DateRangePicker -> Html Msg
+viewAddedFiltersPanel filters dateRangePickers =
     div []
         (filters
             |> List.map
@@ -1614,13 +1346,15 @@ viewAddedFiltersPanel model selectedTerms filters  =
 
                         "datetime" ->
                             let
-                                startDatePicker =
-                                    Dict.get f.term.id model.startDatePickers
-
-                                endDatePicker =
-                                    Dict.get f.term.id model.endDatePickers
+                                dateRangePicker =
+                                    Dict.get f.term.id dateRangePickers
                             in
-                            viewDateTimeFilterPanel startDatePicker endDatePicker f
+                            case dateRangePicker of
+                                Just picker ->
+                                    viewDateTimeFilterPanel picker f
+
+                                _ ->
+                                    text "Error"
 
                         _ ->
                             text "Error"
@@ -1908,21 +1642,6 @@ isStringFilterSelected name val =
 
 viewStringFilterDialog : Filter -> Html Msg
 viewStringFilterDialog filter =
-    --let
-    --    sortByName a b =
-    --        let
-    --            -- Translate purl to label (for Biome and Env Material terms)
-    --            purlToLabel s =
-    --                Dict.get s term.purlLabels |> Maybe.withDefault s
-    --        in
-    --        case compare (String.toLower (Tuple.first b |> purlToLabel)) (String.toLower (Tuple.first a |> purlToLabel)) of
-    --            GT -> LT
-    --            EQ -> EQ
-    --            LT -> GT
-    --
-    --    options =
-    --        term.distribution |> List.sortWith sortByName
-    --in
     viewDialog (String.Extra.toTitleCase filter.term.label)
         [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions filter) ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
@@ -2000,19 +1719,19 @@ viewNumberFilterFormatOptions id val =
         ]
 
 
-viewDateTimeFilterPanel : DatePicker -> DatePicker -> Filter -> Html Msg
-viewDateTimeFilterPanel startDatePicker endDatePicker filter =
+viewDateTimeFilterPanel : DateRangePicker -> Filter -> Html Msg
+viewDateTimeFilterPanel dateRangePicker filter =
     viewTermPanel filter.term
         [ div [ class "input-group input-group-sm" ]
-            (List.append (viewDateTimeFilterInput startDatePicker endDatePicker filter)
-                [ viewDateTimeFilterFormatOptions filter
+            (List.append (viewDateTimeFilterInput dateRangePicker filter.term.id filter.value)
+                [ viewDateTimeFilterFormatOptions filter.term.id filter.value
                 ]
             )
         ]
 
 
-viewDateTimeFilterInput : DatePicker -> DatePicker -> Filter -> List (Html Msg)
-viewDateTimeFilterInput startDatePicker endDatePicker filter =
+viewDateTimeFilterInput : DateRangePicker -> PURL -> FilterValue -> List (Html Msg)
+viewDateTimeFilterInput dateRangePicker id val =
     let
         singleInput dt =
             let
@@ -2022,8 +1741,8 @@ viewDateTimeFilterInput startDatePicker endDatePicker filter =
             [ DatePicker.view
                 date
                 defaultDatePickerSettings
-                startDatePicker
-                |> Html.map (SetStartDatePicker filter.term.id filter.value)
+                dateRangePicker.start
+                |> Html.map (SetStartDatePicker id val)
             ]
 
         rangeInput dt1 dt2 =
@@ -2037,16 +1756,16 @@ viewDateTimeFilterInput startDatePicker endDatePicker filter =
             [ DatePicker.view
                 date1
                 startDatePickerSettings
-                startDatePicker
-                |> Html.map (SetStartDatePicker filter.term.id filter.value)
+                dateRangePicker.start
+                |> Html.map (SetStartDatePicker id val)
             , DatePicker.view
                 date2
                 endDatePickerSettings
-                endDatePicker
-                |> Html.map (SetEndDatePicker filter.term.id filter.value)
+                dateRangePicker.end
+                |> Html.map (SetEndDatePicker id val)
             ]
     in
-    case filter.value of
+    case val of
         DateTimeValue dt ->
             singleInput dt
 
@@ -2077,13 +1796,13 @@ endDatePickerSettings =
     { defaultDatePickerSettings | placeholder = "end" }
 
 
-viewDateTimeFilterFormatOptions : Filter -> Html Msg
-viewDateTimeFilterFormatOptions filter =
+viewDateTimeFilterFormatOptions : PURL -> FilterValue -> Html Msg
+viewDateTimeFilterFormatOptions id val =
     let
         viewOption (label, filterVal) =
             let
                 isSelected =
-                    case (filter.value, filterVal) of --FIXME kludgey
+                    case (val, filterVal) of --FIXME kludgey
                         (DateTimeValue _, DateTimeValue _) ->
                             True
 
@@ -2093,7 +1812,7 @@ viewDateTimeFilterFormatOptions filter =
                         _ ->
                             False
             in
-            a [ class "dropdown-item", classList [ ( "active", isSelected ) ], href "", onClick (SetFilterValue filter.term.id filterVal) ]
+            a [ class "dropdown-item", classList [ ( "active", isSelected ) ], href "", onClick (SetFilterValue id filterVal) ]
                 [ label |> String.Extra.toSentenceCase |> text ]
 
         options =
@@ -2108,13 +1827,13 @@ viewDateTimeFilterFormatOptions filter =
         ]
 
 
-viewLocationFilterInput : LocationFilterValue -> List (Html Msg)
+viewLocationFilterInput : FilterValue -> List (Html Msg)
 viewLocationFilterInput val =
     let
         latLngRadiusInput lat lng radius =
-            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (p,lng) radius)) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (lat,p) radius)) ] []
-            , input [ type_ "text", class "form-control", placeholder "radius", value radius, onInput (\p -> SetLocationFilterValue (LatLngRadiusValue (lat,lng) p)) ] []
+            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetFilterValue purlLocation (LatLngRadiusValue (p,lng) radius)) ] []
+            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> SetFilterValue purlLocation (LatLngRadiusValue (lat,p) radius)) ] []
+            , input [ type_ "text", class "form-control", placeholder "radius", value radius, onInput (\p -> SetFilterValue purlLocation (LatLngRadiusValue (lat,lng) p)) ] []
             ]
     in
     case val of
@@ -2122,10 +1841,9 @@ viewLocationFilterInput val =
             latLngRadiusInput lat lng radius
 
         LonghurstValue s ->
-            [ input [ type_ "text", class "form-control", placeholder "Longhurst province", value s, onInput (SetLocationFilterValue << LonghurstValue) ] []
-            ]
+            [ input [ type_ "text", class "form-control", placeholder "Longhurst province", value s, onInput (\p -> SetFilterValue purlLocation (LonghurstValue p)) ] [] ]
 
-        NoLocationValue ->
+        _ ->
             latLngRadiusInput "" "" ""
 
 
@@ -2324,7 +2042,7 @@ viewSummary model =
                 termLabels =
                     --model.selectedParams
                     --    |> List.filterMap (\id -> Dict.get id model.termFilters |> Maybe.map .label)
-                    model.termFilters |> List.map (.term >> .label)
+                    model.filters |> List.map (.term >> .label)
             in
             div [ style "margin" "1em" ]
                 (viewSearchTermSummaryChart "project" projectData ::
@@ -2414,15 +2132,22 @@ viewSampleResults model =
             in
             th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetSampleSortPos pos) ] [ text lbl ]
 
+        locationVal =
+            model.filters
+                |> List.filter (\f -> f.term.id == purlLocation)
+                |> List.head
+                |> Maybe.map .value
+                |> Maybe.withDefault NoValue
+
         depthVal =
-            model.termFilters
+            model.filters
                 |> List.filter (\f -> f.term.id == purlDepth)
                 |> List.head
                 |> Maybe.map .value
                 |> Maybe.withDefault NoValue
 
         datetimeVal =
-            model.termFilters
+            model.filters
                 |> List.filter (\f -> f.term.id == purlDateTimeISO)
                 |> List.head
                 |> Maybe.map .value
@@ -2430,19 +2155,19 @@ viewSampleResults model =
 
         timeSpaceParamNames = -- kinda kludgey, find a better way to order time/space params
             List.concat
-                [if model.locationVal /= NoLocationValue && validLocationParam model.locationVal then
+                [if locationVal /= NoValue && Search.validFilterValue locationVal then
                     [ "Location" ]
                   else
                     []
-                , if depthVal /= NoValue && validParam depthVal then
+                , if depthVal /= NoValue && Search.validFilterValue depthVal then
                     [ "Depth" ] --, "Min Depth", "Max Depth" ]
                   else
                     []
-                , if datetimeVal /= NoValue && validParam datetimeVal then
+                , if datetimeVal /= NoValue && Search.validFilterValue datetimeVal then
                     [ "Date", "Start Date", "End Date" ]
                   else
                     []
-                |> List.filter (\s -> defined s)
+                |> List.filter (\s -> Search.defined s)
                 ]
 
         paramNames =
@@ -2451,7 +2176,7 @@ viewSampleResults model =
                   , "Sample ID"
                   ]
                 , timeSpaceParamNames
-                , (model.termFilters
+                , (model.filters
                         |> List.map
                             (\f ->
                                 if f.term.unitLabel /= "" then

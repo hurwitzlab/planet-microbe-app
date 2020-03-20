@@ -9,7 +9,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
 import Json.Encode as Encode
 import LatLng exposing (LatLng)
-import SearchTerm exposing (SearchTerm, PURL, Value)
+import Search exposing (SearchTerm, PURL, Value)
 import Config exposing (apiBaseUrl)
 
 
@@ -51,8 +51,8 @@ metadataDecoder : Decoder Metadata
 metadataDecoder =
     Decode.succeed Metadata
         |> required "schema_id" Decode.int
-        |> required "terms" (Decode.list SearchTerm.searchTermDecoder)
-        |> required "values" (Decode.list SearchTerm.valueDecoder)
+        |> required "terms" (Decode.list Search.searchTermDecoder)
+        |> required "values" (Decode.list Search.valueDecoder)
 
 
 
@@ -148,7 +148,7 @@ fetchSearchTerms =
             apiBaseUrl ++ "/searchTerms" --FIXME change to samples/searchTerms
     in
     HttpBuilder.get url
-        |> HttpBuilder.withExpect (Http.expectJson (Decode.list SearchTerm.searchTermDecoder))
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list Search.searchTermDecoder))
         |> HttpBuilder.toRequest
 
 
@@ -159,5 +159,5 @@ fetchSearchTerm id =
             apiBaseUrl ++ "/searchTerms/" ++ id --FIXME change to samples/searchTerms
     in
     HttpBuilder.get url
-        |> HttpBuilder.withExpect (Http.expectJson SearchTerm.searchTermDecoder)
+        |> HttpBuilder.withExpect (Http.expectJson Search.searchTermDecoder)
         |> HttpBuilder.toRequest
