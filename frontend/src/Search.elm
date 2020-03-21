@@ -493,6 +493,20 @@ getFilterValue purl filters =
         |> Maybe.withDefault NoValue
 
 
+isStringFilterSelected : String -> FilterValue -> Bool
+isStringFilterSelected name val =
+    (case val of
+        SingleValue s ->
+            List.singleton s
+
+        MultipleValues l ->
+            l
+
+        _ ->
+            []
+    ) |> List.member name
+
+
 updateFilterValue : PURL -> FilterValue -> List Filter -> List Filter
 updateFilterValue purl newValue filters =
     filters

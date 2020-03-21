@@ -149,25 +149,14 @@ permanentFileTerms =
 type alias Model =
     { session : Session
 
-    -- Search terms and filters
+    -- Search filter state
     , allTerms: List SearchTerm -- list of available terms to add to search
-    --, selectedTerms : List PURL -- list of selected terms (needed to remember order added)
     , filters : List Filter
-
-    -- There could be additional datetime fields
-    , dateRangePickers : Dict PURL DateRangePicker
-
+    , dateRangePickers : Dict PURL DateRangePicker -- there could be datetime fields in addition to 4D
     , showParamSearchDropdown : Bool
     , paramSearchInputVal : String
 
-    -- Dialog states
-    , dialogState : DialogState
-    , dialogSearchInputVal : String
-
     -- Search result state
-    --, doSearch : Bool
-    --, searchStartTime : Int -- milliseconds
-    --, isSearching : Bool
     , searchState : SearchState
     , sampleResults : Maybe (List SampleResult)
     , fileResults : Maybe (List FileResult)
@@ -177,7 +166,6 @@ type alias Model =
     , fileResultCount : Int
     , sampleTableState : SortableTable.State
     , fileTableState : SortableTable.State
-    --, errorMsg : Maybe String
     , searchTab : String
     , resultTab : String
     , pageNum : Int
@@ -185,6 +173,10 @@ type alias Model =
     , showMap : Bool
     , mapLoaded : Bool
     , previousSearchParams : List (String, String)
+
+    -- Dialog states
+    , dialogState : DialogState
+    , dialogSearchInputVal : String
     }
 
 
@@ -218,24 +210,14 @@ init session =
     (
         { session = session
 
-        -- Search filters and selected values
+        -- Search filter state
         , allTerms = []
-        --, selectedTerms = initialSelectedTerms
         , filters = []
-
         , dateRangePickers = Dict.empty
-
         , showParamSearchDropdown = False
         , paramSearchInputVal = ""
 
-        -- Dialog states
-        , dialogState = DialogClosed
-        , dialogSearchInputVal = ""
-
         -- Search result state
-        --, doSearch = False -- initial search is activated by GetSearchTermCompleted
-        --, searchStartTime = 0
-        --, isSearching = True
         , searchState = SearchInit
         , sampleResults = Nothing
         , fileResults = Nothing
@@ -245,7 +227,6 @@ init session =
         , fileResultCount = 0
         , sampleTableState = SortableTable.initialState
         , fileTableState = SortableTable.initialState
-        --, errorMsg = Nothing
         , searchTab = "Samples"
         , resultTab = "Samples"
         , pageNum = 0
@@ -253,6 +234,10 @@ init session =
         , showMap = True
         , mapLoaded = False
         , previousSearchParams = []
+
+        -- Dialog states
+        , dialogState = DialogClosed
+        , dialogSearchInputVal = ""
         }
     , Cmd.batch
         [ Date.today |> Task.perform InitDatePickers
@@ -300,9 +285,6 @@ type Msg
     | SetSearchFilterValue PURL String
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
-    --| SetLocationFilterValue LocationFilterValue
-    --| SetProjectFilterValue String Bool
-    --| SetFileFilterValue String String Bool
     | SetSearchTab String
     | SetResultTab String
     | SetSampleSortPos Int
@@ -364,9 +346,6 @@ update msg model =
 
         GetSearchTermsCompleted (Ok terms) ->
             let
-                --selectedParams =
-                --    List.singleton term.id |> List.append model.selectedParams |> List.Extra.unique -- cannot use Set because it doesn't preserve order
-
                 newFilter term =
                     { term = term
                     , value =
@@ -378,14 +357,9 @@ update msg model =
                                 NoValue
                     }
 
-                --selectedVals =
-                --    Dict.insert term.id val model.selectedVals
-
                 newFilters =
-                    --Dict.insert term.id term model.selectedTerms
                     List.append model.filters (List.map newFilter terms)
             in
-            --( { model | doSearch = True, selectedParams = selectedParams, selectedTerms = selectedTerms, selectedVals = selectedVals }, Cmd.none )
             ( { model | searchState = SearchPending 0, filters = newFilters }, Cmd.none )
 
         GetSearchTermsCompleted (Err error) ->
@@ -439,48 +413,14 @@ update msg model =
         CloseDialog ->
             ( { model | dialogState = DialogClosed }, Cmd.none )
 
-        --OpenFilterChartDialog id ->
-        --    let
-        --        maybeTerm =
-        --            Dict.get id model.selectedTerms
-        --    in
-        --    ( { model | chartFilterDialogTerm = maybeTerm }, Cmd.none )
-        --
-        --CloseFilterChartDialog ->
-        --    ( { model | chartFilterDialogTerm = Nothing }, Cmd.none )
-        --
-        --OpenProjectChartDialog ->
-        --    ( { model | showProjectSummaryDialog = True }, Cmd.none )
-        --
-        --CloseProjectChartDialog ->
-        --    ( { model | showProjectSummaryDialog = False }, Cmd.none )
-
         SetParamSearchInput val ->
             ( { model | paramSearchInputVal = val }, Cmd.none )
 
         ShowParamSearchDropdown ->
             ( { model | showParamSearchDropdown = not model.showParamSearchDropdown }, Cmd.none )
 
-        --OpenAddFilterDialog ->
-        --    ( { model | showAddFilterDialog = True, dialogSearchInputVal = "" }, Cmd.none )
-        --
-        --CloseAddFilterDialog ->
-        --    ( { model | showAddFilterDialog = False }, Cmd.none )
-
         SetDialogSearchInput val ->
             ( { model | dialogSearchInputVal = val }, Cmd.none )
-
-        --OpenStringFilterDialog term ->
-        --    ( { model | stringFilterDialogTerm = Just term }, Cmd.none )
-        --
-        --CloseStringFilterDialog ->
-        --    ( { model | stringFilterDialogTerm = Nothing }, Cmd.none )
-        --
-        --OpenProjectFilterDialog ->
-        --    ( { model | showProjectFilterDialog = True }, Cmd.none )
-        --
-        --CloseProjectFilterDialog ->
-        --    ( { model | showProjectFilterDialog = False }, Cmd.none )
 
         SetSearchFilterValue id val ->
             let
@@ -640,8 +580,6 @@ update msg model =
                     in
                     if download || allParams /= model.previousSearchParams then
                         ( { model
-                            --| doSearch = False
-                            --, isSearching = True
                             | searchState = Searching
                             , pageNum = newPageNum
                             , previousSearchParams = allParams
@@ -655,10 +593,7 @@ update msg model =
                         ( { model | searchState = SearchNot }, Cmd.none )
 
                 Err error ->
---                    let
---                        _ = Debug.log "Error generating query params" "" --(toString error)
---                    in
-                    ( model, Cmd.none )
+                    ( { model | searchState = SearchError error }, Cmd.none )
 
         SampleSearchCompleted (Ok response) ->
             let
@@ -675,7 +610,6 @@ update msg model =
                 , sampleResults = sampleResults
                 , summaryResults = Just response.summary
                 , mapResults = response.map
-                --, errorMsg = response.error
                 , searchState = SearchNot
               }
             , GMap.loadMap response.map
@@ -715,11 +649,7 @@ update msg model =
             ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
 
         ToggleMap ->
-            let
-                showMap =
-                    not model.showMap
-            in
-            ( { model | showMap = showMap }, Cmd.none )
+            ( { model | showMap = not model.showMap }, Cmd.none )
 
         UpdateLocationFromMap maybeLoc ->
             let
@@ -873,42 +803,6 @@ update msg model =
                 Cart.store newCart
                 ]
             )
-
-
---validLocationParam : FilterValue -> Bool
---validLocationParam val =
---    case val of
---        LatLngRadiusValue (lat,lng) radius ->
---            defined lat && defined lng
---
---        LonghurstValue s ->
---            defined s
---
---        NoValue ->
---            True
---
---        _ ->
---            False
-
-
---encodeLocationParam : FilterValue -> String
---encodeLocationParam val =
---    case val of
---        LatLngRadiusValue (lat,lng) radius ->
---            let
---                r =
---                    if radius == "" then
---                        "0"
---                    else
---                        radius
---            in
---            "[" ++ lat ++ "," ++ lng ++ "," ++ r ++ "]"
---
---        LonghurstValue s ->
---            s
---
---        _ ->
---            ""
 
 
 -- TODO refactor/simplify
@@ -1341,177 +1235,6 @@ viewSearchFilterPanel filter =
         ]
 
 
---viewProjectPanel : Filter -> Html Msg --TODO merge with viewFileFormatPanel/viewStringFilterPanel
---viewProjectPanel filter =
---    let
---        viewRow vals ( lbl, num ) =
---            let
---                isChecked =
---                    List.member lbl vals
---            in
---            div []
---                [ div [ class "form-check form-check-inline" ]
---                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetProjectFilterValue lbl) ] []
---                    , label [ class "form-check-label" ] [ text lbl ]
---                    ]
---                , div [ class "badge badge-secondary float-right" ]
---                    [ num |> toFloat |> format myLocale |> text ]
---                ]
---
---        truncatedOptions =
---            filter.distribution
---                |> List.sortWith sortBySelected --|> List.sortBy Tuple.second
---                |> List.take maxNumPanelOptions
---
---        sortBySelected a b =
---            case ( isSelected (Tuple.first a), isSelected (Tuple.first b) ) of
---                (True, False) ->
---                    LT
---
---                (False, True) ->
---                    GT
---
---                (_, _) ->
---                    sortByCount a b
---
---        sortByCount a b =
---            case compare (Tuple.second a) (Tuple.second b) of
---                LT -> GT
---                EQ -> EQ
---                GT -> LT
---
---        isSelected lbl =
---            List.member lbl filter.values
---
---        numOptions =
---            List.length filter.distribution
---
---        numMore =
---            numOptions - maxNumPanelOptions
---    in
---    viewPanel "" "Project" "" "" Nothing (Just (OpenDialog ProjectSummaryDialog)) Nothing
---        [ div [] (List.map (viewRow filter.values) truncatedOptions)
---        , if numMore > 0 then
---            button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog ProjectFilterDialog) ]
---                [ String.fromInt numMore ++ " More ..." |> text ]
---          else
---            viewBlank
---        ]
-
-
---viewProjectFilterDialog : Filter -> Html Msg --TODO merge with viewStringFilterDialog/viewFileFilterDialog
---viewProjectFilterDialog filter =
---    let
---        options =
---            filter.term.distribution |> List.sortBy Tuple.first
---
---        isSelected lbl =
---            List.member lbl filter.value
---
---        viewRow (lbl, count) =
---            div []
---                [ div [ class "form-check form-check-inline" ]
---                    [ input [ class "form-check-input", type_ "checkbox", checked (isSelected lbl), onCheck (SetProjectFilterValue lbl) ] []
---                    , label [ class "form-check-label" ] [ text lbl ]
---                    ]
---                , div [ class "badge badge-secondary float-right" ]
---                    [ count |> toFloat |> format myLocale |> text ]
---                ]
---    in
---    viewDialog "Project"
---        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map viewRow options) ]
---        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
---        CloseDialog
-
-
---viewFilePropertyPanel : Filter -> Html Msg --TODO merge with viewProjectPanel/viewStringFilterPanel
---viewFilePropertyPanel filter =
---    let
---        viewRow vals ( lbl, num ) =
---            let
---                isChecked =
---                    List.member lbl vals
---            in
---            div []
---                [ div [ class "form-check form-check-inline" ]
---                    [ input [ class "form-check-input", type_ "checkbox", checked isChecked, onCheck (SetFileFilterValue filter.id lbl) ] []
---                    , label [ class "form-check-label" ] [ text lbl ]
---                    ]
---                , div [ class "badge badge-secondary float-right" ]
---                    [ num |> toFloat |> format myLocale |> text ]
---                ]
---
---        truncatedOptions =
---            filter.distribution
---                |> List.sortWith sortBySelected --|> List.sortBy Tuple.second
---                |> List.take maxNumPanelOptions
---
---        sortBySelected a b =
---            case ( isSelected (Tuple.first a), isSelected (Tuple.first b) ) of
---                (True, False) ->
---                    LT
---
---                (False, True) ->
---                    GT
---
---                (_, _) ->
---                    sortByCount a b
---
---        sortByCount a b =
---            case compare (Tuple.second a) (Tuple.second b) of
---                LT -> GT
---                EQ -> EQ
---                GT -> LT
---
---        isSelected lbl =
---            List.member lbl filter.values
---
---        numOptions =
---            List.length filter.distribution
---
---        numMore =
---            numOptions - maxNumPanelOptions
---    in
---    viewPanel "" filter.id "" "" Nothing (Just (OpenDialog ProjectSummaryDialog)) Nothing
---        [ div [] (List.map (viewRow filter.values) truncatedOptions)
---        , if numMore > 0 then
---            button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog (FileFilterDialog filter)) ]
---                [ String.fromInt numMore ++ " More ..." |> text ]
---          else
---            viewBlank
---        ]
-
-
---viewFileFilterDialog : Filter -> Html Msg --TODO merge with viewStringFilterDialog/viewProjectFilterDialog
---viewFileFilterDialog filter =
---    let
---        options =
---            filter.term.distribution |> List.sortBy Tuple.first
---
---        isSelected lbl =
---            case filter.value of
---                MultipleValues vals ->
---                    List.member lbl vals
---
---                _ ->
---                    False
---
---        viewRow (lbl, count) =
---            div []
---                [ div [ class "form-check form-check-inline" ]
---                    [ input [ class "form-check-input", type_ "checkbox", checked (isSelected lbl), onCheck (SetFileFilterValue filter.term.id lbl) ] []
---                    , label [ class "form-check-label" ] [ text lbl ]
---                    ]
---                , div [ class "badge badge-secondary float-right" ]
---                    [ count |> toFloat |> format myLocale |> text ]
---                ]
---    in
---    viewDialog filter.term.id
---        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (List.map viewRow options) ]
---        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
---        CloseDialog
-
-
 viewStringFilterPanel : Filter -> Html Msg
 viewStringFilterPanel filter =
     let
@@ -1539,7 +1262,7 @@ viewStringFilterOptions filter =
                 GT -> LT
 
         sortBySelected a b =
-            case ( isStringFilterSelected (Tuple.first a) filter.value, isStringFilterSelected (Tuple.first b) filter.value ) of
+            case ( Search.isStringFilterSelected (Tuple.first a) filter.value, Search.isStringFilterSelected (Tuple.first b) filter.value ) of
                 (True, False) ->
                     LT
 
@@ -1551,7 +1274,7 @@ viewStringFilterOptions filter =
 
         numSelected =
             filter.term.distribution
-                |> List.filter (\a -> isStringFilterSelected (Tuple.first a) filter.value)
+                |> List.filter (\a -> Search.isStringFilterSelected (Tuple.first a) filter.value)
                 |> List.length
 
         truncatedOptions =
@@ -1570,7 +1293,7 @@ viewStringFilterOptions filter =
                 [ tr []
                     [ td []
                         [ div [ class "form-check form-check-inline" ]
-                            [ input [ class "form-check-input", type_ "checkbox", checked (isStringFilterSelected name filter.value), onCheck (SetStringFilterValue filter.term.id name) ] []
+                            [ input [ class "form-check-input", type_ "checkbox", checked (Search.isStringFilterSelected name filter.value), onCheck (SetStringFilterValue filter.term.id name) ] []
                             , label [ class "form-check-label" ] [ name |> purlToLabel |> String.Extra.toSentenceCase |> text]
                             ]
                         ]
@@ -1582,20 +1305,6 @@ viewStringFilterOptions filter =
                 ]
     in
     List.map viewRow truncatedOptions
-
-
-isStringFilterSelected : String -> FilterValue -> Bool
-isStringFilterSelected name val =
-    (case val of
-        SingleValue s ->
-            List.singleton s
-
-        MultipleValues l ->
-            l
-
-        _ ->
-            []
-    ) |> List.member name
 
 
 viewStringFilterDialog : Filter -> Html Msg
@@ -2050,18 +1759,6 @@ viewSearchTermSummaryDialog term =
         CloseDialog
 
 
---viewProjectSummaryDialog : Distribution -> Html Msg
---viewProjectSummaryDialog dist =
---    viewDialog "Project"
---        [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
---            [ viewSearchTermSummaryChart "Project" dist ]
---        ]
---        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ]
---            [ text "Close" ]
---        ]
---        CloseDialog
-
-
 viewSampleResults : Model -> Html Msg
 viewSampleResults model =
     let
@@ -2226,6 +1923,7 @@ viewFileResults model =
         []
 
 
+--TODO integrate into SortableTable
 viewUpDownArrow : SortableTable.Direction -> String
 viewUpDownArrow sortDir =
     if sortDir == SortableTable.ASC then
