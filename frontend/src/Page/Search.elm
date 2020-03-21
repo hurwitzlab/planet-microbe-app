@@ -142,6 +142,21 @@ permanentFileTerms =
     ]
 
 
+-- To be removed from "Add Filter" list because they are included in 4D filters already
+redundantTerms =
+    [ "http://purl.obolibrary.org/obo/OBI_0001620"  -- latitude coordinate measurement datum
+    , "http://purl.obolibrary.org/obo/OBI_0001621"  -- longitude coordinate measurement datum
+    , "http://purl.obolibrary.org/obo/PMO_00000076" -- latitude coordinate measurement datum start
+    , "http://purl.obolibrary.org/obo/PMO_00000077" -- longitude coordinate measurement datum start
+    , "http://purl.obolibrary.org/obo/PMO_00000079" -- latitude coordinate measurement datum stop
+    , "http://purl.obolibrary.org/obo/PMO_00000078" -- longitude coordinate measurement datum stop
+    , "http://purl.obolibrary.org/obo/BFO_0000148"  -- zero-dimensional temporal region
+    , "http://purl.obolibrary.org/obo/ENVO_3100031" -- depth of water
+    , "http://purl.obolibrary.org/obo/OBI_0001619"  -- specimen collection time measurement datum
+    , "http://purl.obolibrary.org/obo/PMO_00000008" -- specimen collection time measurement datum start
+    ]
+
+
 
 -- MODEL --
 
@@ -1054,17 +1069,6 @@ view4DPanel model =
         ]
 
 
-redundantTerms =
-    [ "latitude coordinate measurement datum"
-    , "longitude coordinate measurement datum"
-    , "latitude coordinate measurement datum start"
-    , "latitude coordinate measurement datum stop"
-    , "zero-dimensional temporal region"
-    , "depth of water"
-    , "specimen collection time measurement datum start"
-    ]
-
-
 viewAddFilterPanel : Bool -> String -> List SearchTerm -> List Filter -> Html Msg
 viewAddFilterPanel showDropdown searchVal allTerms filters =
     let
@@ -1080,7 +1084,7 @@ viewAddFilterPanel showDropdown searchVal allTerms filters =
 
         removeRedundantTerms term =
             redundantTerms
-                |> List.member (String.toLower term.label)
+                |> List.member term.id
                 |> not
 
         filterOnSearch term =
@@ -1118,7 +1122,7 @@ viewAddFilterDialog allTerms searchVal =
     let
         removeRedundantTerms term =
             redundantTerms
-                |> List.member (String.toLower term.label)
+                |> List.member term.id
                 |> not
 
         filterOnSearch term =
