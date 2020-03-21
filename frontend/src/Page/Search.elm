@@ -21,7 +21,7 @@ import GMap
 import Dict exposing (Dict)
 import Route
 import Error
-import Page exposing (viewBlank, viewSpinner, viewDialog)
+import Page exposing (viewBlank, viewDialog)
 import Project
 import Sample
 import Search exposing (SearchResponse, SearchResults(..), SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Distribution, defaultSearchTerm)
@@ -195,7 +195,6 @@ type alias Model =
 
     -- Dialog states
     , dialogState : DialogState
-    , dialogSearchInputVal : String
     }
 
 
@@ -209,13 +208,9 @@ type SearchState
 
 type DialogState
     = NoDialog
-    | AddFilterDialog
+    | AddFilterDialog String
     | StringFilterDialog Filter
     | FilterSummaryDialog SearchTerm
-    --| ProjectFilterDialog
-    --| ProjectSummaryDialog
-    --| FileFilterDialog Filter
-    --| FileSummaryDialog Filter
 
 
 type alias DateRangePicker =
@@ -256,7 +251,6 @@ init session =
 
         -- Dialog states
         , dialogState = NoDialog
-        , dialogSearchInputVal = ""
         }
     , Cmd.batch
         [ Date.today |> Task.perform InitDatePickers
@@ -439,7 +433,7 @@ update msg model =
             ( { model | showParamSearchDropdown = not model.showParamSearchDropdown }, Cmd.none )
 
         SetDialogSearchInput val ->
-            ( { model | dialogSearchInputVal = val }, Cmd.none )
+            ( { model | dialogState = AddFilterDialog val }, Cmd.none )
 
         SetSearchFilterValue id val ->
             let
@@ -491,8 +485,17 @@ update msg model =
 
                 newFilters =
                     Search.updateFilterValue id newVal model.filters
+
+                dialogState =
+                    case model.dialogState of
+                        StringFilterDialog f ->
+                            StringFilterDialog {f | value = newVal }
+
+                        _ ->
+                            model.dialogState
+
             in
-            ( { model | searchState = SearchPending 0, filters = newFilters }, Cmd.none )
+            ( { model | searchState = SearchPending 0, filters = newFilters, dialogState = dialogState }, Cmd.none )
 
         SetFilterValue id val ->
             let
@@ -926,36 +929,14 @@ viewDialogs model =
         NoDialog ->
             viewBlank
 
-        AddFilterDialog ->
-            viewAddFilterDialog model.allTerms model.dialogSearchInputVal
+        AddFilterDialog searchStr ->
+            viewAddFilterDialog model.allTerms searchStr
 
         StringFilterDialog filter ->
             viewStringFilterDialog filter
 
         FilterSummaryDialog term ->
             viewSearchTermSummaryDialog term
-
-        --ProjectFilterDialog ->
-        --    case model.filters |> List.filter (\f -> f.term.id == purlProject) |> List.head of
-        --        Just projectFilter ->
-        --            viewStringFilterDialog projectFilter
-        --
-        --        Nothing ->
-        --            viewBlank
-        --
-        --ProjectSummaryDialog ->
-        --    case model.filters |> List.filter (\f -> f.term.id == purlProject) |> List.head of
-        --        Just projectFilter ->
-        --            viewSearchTermSummaryDialog projectFilter.term
-        --
-        --        Nothing ->
-        --            viewBlank
-        --
-        --FileFilterDialog filter ->
-        --    viewStringFilterDialog filter
-        --
-        --FileSummaryDialog filter ->
-        --    viewBlank --viewFilleSummaryDialog model.projectCounts --TODO
 
 
 viewSearchPanel : Model -> Html Msg
@@ -1113,7 +1094,7 @@ viewAddFilterPanel showDropdown searchVal allTerms filters =
         [ div [ class "input-group input-group-sm", style "position" "relative" ]
             [ input [ type_ "text", class "form-control", placeholder "Search parameters", value searchVal, onInput SetParamSearchInput ] []
             , div [ class "input-group-append" ]
-                [ button [ class "btn btn-outline-secondary", type_ "button", onClick (OpenDialog AddFilterDialog) ] [ text "?" ]
+                [ button [ class "btn btn-outline-secondary", type_ "button", onClick (OpenDialog (AddFilterDialog "")) ] [ text "?" ]
                 , button [ class "btn btn-outline-secondary dropdown-toggle", type_ "button", onClick ShowParamSearchDropdown ] []
                 , div [ class "dropdown-menu", classList [("show", show)], style "position" "absolute", style "left" "0px", style "max-height" "30vh", style "overflow-y" "auto" ] options
                 ]
@@ -1251,7 +1232,7 @@ viewStringFilterPanel filter =
     in
     viewTermPanel filter.term
         [ div []
-            (viewStringFilterOptions filter maxNumPanelOptions)
+            (viewStringFilterOptions filter maxNumPanelOptions True)
         , if numOptions > maxNumPanelOptions then
             button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog (StringFilterDialog filter)) ]
                 [ String.fromInt (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
@@ -1260,8 +1241,16 @@ viewStringFilterPanel filter =
         ]
 
 
-viewStringFilterOptions : Filter -> Int -> List (Html Msg)
-viewStringFilterOptions filter maxNum =
+viewStringFilterDialog : Filter -> Html Msg
+viewStringFilterDialog filter =
+    viewDialog (String.Extra.toTitleCase filter.term.label)
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions filter 9999 False) ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
+        CloseDialog
+
+
+viewStringFilterOptions : Filter -> Int -> Bool -> List (Html Msg)
+viewStringFilterOptions filter maxNum sortSelected =
     let
         sortByCount a b =
             case compare (Tuple.second a) (Tuple.second b) of
@@ -1280,6 +1269,9 @@ viewStringFilterOptions filter maxNum =
                 (_, _) ->
                     sortByCount a b
 
+        sortByName a b =
+            compare (Tuple.first a |> purlToLabel filter.term) (Tuple.first b |> purlToLabel filter.term)
+
         numSelected =
             filter.term.distribution
                 |> List.filter (\a -> Search.isStringFilterSelected (Tuple.first a) filter.value)
@@ -1287,22 +1279,22 @@ viewStringFilterOptions filter maxNum =
 
         truncatedOptions =
             filter.term.distribution
-                |> List.sortWith sortBySelected
+                |> List.sortWith
+                    (if sortSelected then
+                        sortBySelected
+                    else
+                        sortByName
+                    )
                 |> List.take (Basics.max maxNum numSelected)
 
         viewRow (name, count) =
-            let
-                -- Translate purl to label (for Biome and Env Material terms)
-                purlToLabel s =
-                    Dict.get s filter.term.purlLabels |> Maybe.withDefault s
-            in
             -- Using table layout to fix issue with wrapping rows
             table [ style "width" "100%" ]
                 [ tr []
                     [ td []
                         [ div [ class "form-check form-check-inline" ]
                             [ input [ class "form-check-input", type_ "checkbox", checked (Search.isStringFilterSelected name filter.value), onCheck (SetStringFilterValue filter.term.id name) ] []
-                            , label [ class "form-check-label" ] [ name |> purlToLabel |> String.Extra.toSentenceCase |> text]
+                            , label [ class "form-check-label" ] [ name |> purlToLabel filter.term |> String.Extra.toSentenceCase |> text]
                             ]
                         ]
                     , td [ style "max-width" "3em" ]
@@ -1313,14 +1305,6 @@ viewStringFilterOptions filter maxNum =
                 ]
     in
     List.map viewRow truncatedOptions
-
-
-viewStringFilterDialog : Filter -> Html Msg
-viewStringFilterDialog filter =
-    viewDialog (String.Extra.toTitleCase filter.term.label)
-        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions filter 9999) ]
-        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
-        CloseDialog
 
 
 viewNumberFilterPanel : Filter -> Html Msg
@@ -1752,14 +1736,9 @@ viewSearchTermSummaryChart label data =
 
 viewSearchTermSummaryDialog : SearchTerm -> Html Msg
 viewSearchTermSummaryDialog term =
-    let
-        -- Translate purl to label (for Biome and Env Material terms)
-        purlToLabel s =
-            Dict.get s term.purlLabels |> Maybe.withDefault s
-    in
     viewDialog (String.Extra.toTitleCase term.label)
         [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
-            [ viewSearchTermSummaryChart term.label (term.distribution |> List.map (Tuple.mapFirst purlToLabel)) ]
+            [ viewSearchTermSummaryChart term.label (term.distribution |> List.map (Tuple.mapFirst (purlToLabel term))) ]
         ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ]
             [ text "Close" ]
@@ -1957,3 +1936,9 @@ viewFormatButton : Html Msg
 viewFormatButton =
     button [ type_ "button", class "btn", style "border" "1px solid lightgray", style "color" "gray", attribute "data-toggle" "dropdown" ]
         [ Icon.cog ]
+
+
+-- Translate purl to label (for Biome and Env Material terms) if argument is a PURL
+purlToLabel : SearchTerm -> String -> String
+purlToLabel term s =
+    Dict.get s term.purlLabels |> Maybe.withDefault s
