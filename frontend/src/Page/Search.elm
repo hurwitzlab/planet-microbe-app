@@ -119,6 +119,7 @@ purlFileLayout =
     "layout"
 
 
+-- Terms that should always appear in the "Sample" filter tab
 permanentSampleTerms =
     [ purlLocation
     , purlDepth
@@ -127,6 +128,7 @@ permanentSampleTerms =
     ]
 
 
+-- Removable terms to start with in the "Sample" filter tab
 initialSelectedSampleTerms =
     [ purlBiome
     , purlEnvironmentalFeature
@@ -134,6 +136,7 @@ initialSelectedSampleTerms =
     ]
 
 
+-- Terms that should always appear in the "File" filter tab
 permanentFileTerms =
     [ purlFileSource
     , purlFileStrategy
@@ -154,6 +157,7 @@ redundantTerms =
     , "http://purl.obolibrary.org/obo/ENVO_3100031" -- depth of water
     , "http://purl.obolibrary.org/obo/OBI_0001619"  -- specimen collection time measurement datum
     , "http://purl.obolibrary.org/obo/PMO_00000008" -- specimen collection time measurement datum start
+    , "http://purl.obolibrary.org/obo/PMO_00000009" -- specimen collection time measurement datum stop
     ]
 
 
@@ -203,15 +207,15 @@ type SearchState
     | SearchError String -- Search request failed
 
 
-type DialogState --TODO combine StringFilterDialog/ProjectFilterDialog/FileFilterDialog and FilterChartDialog/ProjectSummaryDialog/FileFilterDialog
-    = DialogClosed
+type DialogState
+    = NoDialog
     | AddFilterDialog
     | StringFilterDialog Filter
-    | FilterChartDialog SearchTerm
-    | ProjectFilterDialog
-    | ProjectSummaryDialog
-    | FileFilterDialog Filter
-    | FileSummaryDialog Filter
+    | FilterSummaryDialog SearchTerm
+    --| ProjectFilterDialog
+    --| ProjectSummaryDialog
+    --| FileFilterDialog Filter
+    --| FileSummaryDialog Filter
 
 
 type alias DateRangePicker =
@@ -251,7 +255,7 @@ init session =
         , previousSearchParams = []
 
         -- Dialog states
-        , dialogState = DialogClosed
+        , dialogState = NoDialog
         , dialogSearchInputVal = ""
         }
     , Cmd.batch
@@ -404,7 +408,7 @@ update msg model =
                 getTerm =
                     Sample.fetchSearchTerms [ id ] |> Http.toTask
             in
-            ( { model | showParamSearchDropdown = False, paramSearchInputVal = "", dialogState = DialogClosed }
+            ( { model | showParamSearchDropdown = False, paramSearchInputVal = "", dialogState = NoDialog }
             , Task.attempt GetSearchTermsCompleted getTerm
             )
 
@@ -426,7 +430,7 @@ update msg model =
             ( { model | dialogState = state }, Cmd.none )
 
         CloseDialog ->
-            ( { model | dialogState = DialogClosed }, Cmd.none )
+            ( { model | dialogState = NoDialog }, Cmd.none )
 
         SetParamSearchInput val ->
             ( { model | paramSearchInputVal = val }, Cmd.none )
@@ -469,9 +473,9 @@ update msg model =
                             else
                                 NoValue
 
-                        SingleValue val1 -> --FIXME merge into MultipleValues case?
+                        SingleValue val2 ->
                             if selected then
-                                MultipleValues [val1, val]
+                                MultipleValues [val2, val]
                             else
                                 NoValue
 
@@ -486,7 +490,7 @@ update msg model =
                             NoValue
 
                 newFilters =
-                    Search.updateFilterValue id (newVal ) model.filters
+                    Search.updateFilterValue id newVal model.filters
             in
             ( { model | searchState = SearchPending 0, filters = newFilters }, Cmd.none )
 
@@ -919,7 +923,7 @@ view model =
 viewDialogs : Model -> Html Msg
 viewDialogs model =
     case model.dialogState of
-        DialogClosed ->
+        NoDialog ->
             viewBlank
 
         AddFilterDialog ->
@@ -928,30 +932,30 @@ viewDialogs model =
         StringFilterDialog filter ->
             viewStringFilterDialog filter
 
-        FilterChartDialog term ->
+        FilterSummaryDialog term ->
             viewSearchTermSummaryDialog term
 
-        ProjectFilterDialog ->
-            case model.filters |> List.filter (\f -> f.term.id == purlProject) |> List.head of
-                Just projectFilter ->
-                    viewStringFilterDialog projectFilter
-
-                Nothing ->
-                    viewBlank
-
-        ProjectSummaryDialog ->
-            case model.filters |> List.filter (\f -> f.term.id == purlProject) |> List.head of
-                Just projectFilter ->
-                    viewSearchTermSummaryDialog projectFilter.term
-
-                Nothing ->
-                    viewBlank
-
-        FileFilterDialog filter ->
-            viewStringFilterDialog filter
-
-        FileSummaryDialog filter ->
-            viewBlank --viewFilleSummaryDialog model.projectCounts --TODO
+        --ProjectFilterDialog ->
+        --    case model.filters |> List.filter (\f -> f.term.id == purlProject) |> List.head of
+        --        Just projectFilter ->
+        --            viewStringFilterDialog projectFilter
+        --
+        --        Nothing ->
+        --            viewBlank
+        --
+        --ProjectSummaryDialog ->
+        --    case model.filters |> List.filter (\f -> f.term.id == purlProject) |> List.head of
+        --        Just projectFilter ->
+        --            viewSearchTermSummaryDialog projectFilter.term
+        --
+        --        Nothing ->
+        --            viewBlank
+        --
+        --FileFilterDialog filter ->
+        --    viewStringFilterDialog filter
+        --
+        --FileSummaryDialog filter ->
+        --    viewBlank --viewFilleSummaryDialog model.projectCounts --TODO
 
 
 viewSearchPanel : Model -> Html Msg
@@ -1247,7 +1251,7 @@ viewStringFilterPanel filter =
     in
     viewTermPanel filter.term
         [ div []
-            (viewStringFilterOptions filter)
+            (viewStringFilterOptions filter maxNumPanelOptions)
         , if numOptions > maxNumPanelOptions then
             button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog (StringFilterDialog filter)) ]
                 [ String.fromInt (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
@@ -1256,8 +1260,8 @@ viewStringFilterPanel filter =
         ]
 
 
-viewStringFilterOptions : Filter -> List (Html Msg)
-viewStringFilterOptions filter =
+viewStringFilterOptions : Filter -> Int -> List (Html Msg)
+viewStringFilterOptions filter maxNum =
     let
         sortByCount a b =
             case compare (Tuple.second a) (Tuple.second b) of
@@ -1284,7 +1288,7 @@ viewStringFilterOptions filter =
         truncatedOptions =
             filter.term.distribution
                 |> List.sortWith sortBySelected
-                |> List.take (Basics.max maxNumPanelOptions numSelected)
+                |> List.take (Basics.max maxNum numSelected)
 
         viewRow (name, count) =
             let
@@ -1314,7 +1318,7 @@ viewStringFilterOptions filter =
 viewStringFilterDialog : Filter -> Html Msg
 viewStringFilterDialog filter =
     viewDialog (String.Extra.toTitleCase filter.term.label)
-        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions filter) ]
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ] (viewStringFilterOptions filter 9999) ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ] [ text "Close" ] ]
         CloseDialog
 
@@ -1520,7 +1524,7 @@ viewLocationFilterInput val =
 
 viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
 viewTermPanel term nodes =
-    viewPanel term.id term.label term.unitId term.unitLabel (Just RemoveFilter) (Just (OpenDialog (FilterChartDialog term))) Nothing nodes
+    viewPanel term.id term.label term.unitId term.unitLabel (Just RemoveFilter) (Just (OpenDialog (FilterSummaryDialog term))) Nothing nodes
 
 
 --TODO move coniguration params into type alias (like "type alias PanelConfig = {}")

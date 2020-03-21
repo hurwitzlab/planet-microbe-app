@@ -186,93 +186,6 @@ type Value
 -- SERIALIZATION --
 
 
-defined : String -> Bool
-defined s =
-    s /= ""
-
-
-validFilterValue : FilterValue -> Bool
-validFilterValue val =
-   case val of
-        RangeValue min max ->
-            defined min || defined max -- Either/both can defined --TODO check for valid number
-
-        OffsetValue value ofs ->
-            defined value && defined ofs --TODO check for valid number
-
-        SearchValue s ->
-            defined s
-
-        SingleValue s ->
-            defined s --TODO check for valid number
-
-        MultipleValues vals ->
-            List.all defined vals --TODO check for valid numbers
-
-        DateTimeValue dt ->
-            defined dt --TODO check for valid date format
-
-        DateTimeRangeValue dt1 dt2 ->
-            defined dt1 || defined dt2 --TODO check for valid date format
-
-        LatLngRadiusValue (lat,lng) radius ->
-            defined lat && defined lng
-
-        LonghurstValue s ->
-            defined s
-
-        NoValue ->
-            True
-
-
-filterValueToString : FilterValue -> String
-filterValueToString val =
-    let
-        range items =
-            "[" ++ (String.join "," items) ++ "]"
-
-        offset val2 ofs =
-            val2 ++ "," ++ ofs
-    in
-    case val of
-        RangeValue min max ->
-            range [ min, max ]
-
-        OffsetValue value ofs ->
-            offset value ofs --FIXME
-
-        SearchValue s ->
-            "~" ++ s
-
-        SingleValue s ->
-            s
-
-        MultipleValues values ->
-            String.join "|" values
-
-        DateTimeValue dt ->
-            dt
-
-        DateTimeRangeValue dt1 dt2 ->
-            range [ dt1, dt2 ]
-
-        LatLngRadiusValue (lat,lng) radius ->
-            let
-                r =
-                    if radius == "" then
-                        "0"
-                    else
-                        radius
-            in
-            range [ lat, lng, r ]
-
-        LonghurstValue s ->
-            s
-
-        NoValue ->
-            ""
-
-
 searchTermDecoder : Decoder SearchTerm
 searchTermDecoder =
     Decode.succeed SearchTerm
@@ -484,6 +397,93 @@ viewValue val =
 -- HELPERS --
 
 
+defined : String -> Bool
+defined s =
+    s /= ""
+
+
+validFilterValue : FilterValue -> Bool
+validFilterValue val =
+   case val of
+        RangeValue min max ->
+            defined min || defined max -- Either/both can defined --TODO check for valid number
+
+        OffsetValue value ofs ->
+            defined value && defined ofs --TODO check for valid number
+
+        SearchValue s ->
+            defined s
+
+        SingleValue s ->
+            defined s --TODO check for valid number
+
+        MultipleValues vals ->
+            List.all defined vals --TODO check for valid numbers
+
+        DateTimeValue dt ->
+            defined dt --TODO check for valid date format
+
+        DateTimeRangeValue dt1 dt2 ->
+            defined dt1 || defined dt2 --TODO check for valid date format
+
+        LatLngRadiusValue (lat,lng) radius ->
+            defined lat && defined lng
+
+        LonghurstValue s ->
+            defined s
+
+        NoValue ->
+            True
+
+
+filterValueToString : FilterValue -> String
+filterValueToString val =
+    let
+        range items =
+            "[" ++ (String.join "," items) ++ "]"
+
+        offset val2 ofs =
+            val2 ++ "," ++ ofs
+    in
+    case val of
+        RangeValue min max ->
+            range [ min, max ]
+
+        OffsetValue value ofs ->
+            offset value ofs --FIXME
+
+        SearchValue s ->
+            "~" ++ s
+
+        SingleValue s ->
+            s
+
+        MultipleValues values ->
+            String.join "|" values
+
+        DateTimeValue dt ->
+            dt
+
+        DateTimeRangeValue dt1 dt2 ->
+            range [ dt1, dt2 ]
+
+        LatLngRadiusValue (lat,lng) radius ->
+            let
+                r =
+                    if radius == "" then
+                        "0"
+                    else
+                        radius
+            in
+            range [ lat, lng, r ]
+
+        LonghurstValue s ->
+            s
+
+        NoValue ->
+            ""
+
+
 getFilterValue : PURL -> List Filter -> FilterValue
 getFilterValue purl filters =
     filters
@@ -497,14 +497,15 @@ isStringFilterSelected : String -> FilterValue -> Bool
 isStringFilterSelected name val =
     (case val of
         SingleValue s ->
-            List.singleton s
+            [ s ]
 
         MultipleValues l ->
             l
 
         _ ->
             []
-    ) |> List.member name
+    )
+    |> List.member name
 
 
 updateFilterValue : PURL -> FilterValue -> List Filter -> List Filter
