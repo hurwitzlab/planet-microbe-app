@@ -140,6 +140,10 @@ type alias FileResult =
     , sampleAccn : String
     , projectId : Int
     , projectName : String
+    , source : String
+    , strategy : String
+    , selection : String
+    , layout : String
     }
 
 
@@ -280,6 +284,10 @@ decodeFileResult =
         |> required "sampleAccn" Decode.string
         |> required "projectId" Decode.int
         |> required "projectName" Decode.string
+        |> required "source" Decode.string
+        |> required "selection" Decode.string
+        |> required "strategy" Decode.string
+        |> required "layout" Decode.string
 
 
 --decodeMapResult : Decoder MapResult

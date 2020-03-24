@@ -1873,11 +1873,13 @@ viewFileResults model =
             in
             th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetFileSortPos pos) ] [ text lbl ]
 
-        paramNames =
+        colHeaders =
             [ "Project Name"
             , "Sample ID"
-            , "File Format"
-            , "File Type"
+            , "Source"
+            , "Strategy"
+            , "Selection"
+            , "Layout"
             , "Path"
             ]
 
@@ -1892,7 +1894,7 @@ viewFileResults model =
 --                ]
 
         columns =
-            List.indexedMap mkTh paramNames
+            List.indexedMap mkTh colHeaders
 --                ++ [ addToCartTh ]
 
         mkTd label =
@@ -1902,6 +1904,10 @@ viewFileResults model =
             tr []
                 [ mkTd result.projectName
                 , td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ]
+                , mkTd result.source
+                , mkTd result.strategy
+                , mkTd result.selection
+                , mkTd result.layout
                 , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text result.fileUrl ] ]
 --                , td [] [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
                 ]

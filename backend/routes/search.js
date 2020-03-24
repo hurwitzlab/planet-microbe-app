@@ -334,8 +334,9 @@ async function search(db, termIndex, params) {
         projectClause = "LOWER(project.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")"; //FIXME use bind param instead
     }
 
+    let libraryParams = [ 'source', 'strategy', 'selection', 'layout' ];
     let libraryClauses =
-        [ 'source', 'strategy', 'selection', 'layout' ]
+        libraryParams
             .filter(field => params[field]) // make sure value is defined
             .map(field => {
                 let vals = params[field].split("|");
@@ -689,8 +690,8 @@ async function search(db, termIndex, params) {
         let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
         let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+1) + " " + sortDir : "");
 
-        let fileClause = " AND file.file_id IS NOT NULL ";
-        let groupByStr = " GROUP BY file.file_id,sample.sample_id,project.project_id ";
+        let fileClause = "AND file.file_id IS NOT NULL";
+        let groupByStr = "GROUP BY file.file_id,sample.sample_id,project.project_id,library.source,library.strategy,library.selection,library.layout";
 
         let countQueryStr =
             `SELECT COUNT(foo) FROM (SELECT file.file_id
@@ -698,35 +699,22 @@ async function search(db, termIndex, params) {
             ${clauseStr} ${fileClause} ${groupByStr}) AS foo`;
 
         let queryStr =
-            "SELECT file.file_id,project.name,sample.accn,file.url,sample.sample_id,project.project_id " + //FIXME order of fields should match sample query above in order for sorting to work
-            tableStr +
-            clauseStr + fileClause +
-            groupByStr + sortStr +
-            offsetStr + limitStr;
+            //FIXME order of first six fields should match sample query above for sorting to work
+            `SELECT file.file_id AS "fileId",project.name AS "projectName",sample.accn AS "sampleAccn",sample.sample_id AS "sampleId",project.project_id AS "projectId",
+            library.source,library.strategy,library.selection,library.layout,file.url AS "fileUrl"
+            ${tableStr}
+            ${clauseStr} ${fileClause}
+            ${groupByStr} ${sortStr}
+            ${offsetStr} ${limitStr}`;
 
         count = await db.query({
             text: countQueryStr,
-            values: [],
             rowMode: 'array'
         });
         count = count.rows[0][0]*1;
 
-        results = await db.query({
-            text: queryStr,
-            values: [],
-            rowMode: 'array'
-        });
-
-        results = results.rows.map(r => {
-            return {
-                fileId: r[0],
-                sampleId: r[4],
-                projectId: r[5],
-                projectName: r[1],
-                sampleAccn: r[2],
-                fileUrl: r[3]
-            }
-        })
+        results = await db.query(queryStr);
+        results = results.rows;
     }
     else {
         console.log("Error: invalid result specifier:", result);
