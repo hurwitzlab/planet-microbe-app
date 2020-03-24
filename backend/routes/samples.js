@@ -242,7 +242,6 @@ router.get('/samples/files/properties', async (req, res) => {
     let dist = {};
 
     results.forEach(result => {
-        console.log(result.rows);
         result.rows.forEach(row => {
             if (!(row[0] in dist))
                 dist[row[0]] = [];

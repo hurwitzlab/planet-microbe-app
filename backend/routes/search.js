@@ -232,7 +232,8 @@ async function getSearchTerm(id, termIndex) {
     }
 }
 
-// Support POST and GET for search endpoints -- POST is easier to debug in browser debugger, GET is easier with curl
+// Support POST and GET methods for search endpoint
+// POST is easier to debug in browser debugger, GET is easier to use with curl
 router.get('/search', async (req, res) => {
     handleSearchRequest(req, res, req.query);
 });
@@ -271,7 +272,7 @@ async function handleSearchRequest(req, res, params) {
     }
 }
 
-// TODO refactor/simplify this ugly af code
+//FIXME refactor this ugly af code
 async function search(db, termIndex, params) {
     console.log("params:", params);
 
@@ -330,29 +331,24 @@ async function search(db, termIndex, params) {
     if (params['project']) {
         let vals = params['project'].split("|");
         console.log("project match", vals);
-        projectClause = "LOWER(p.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
+        projectClause = "LOWER(project.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")"; //FIXME use bind param instead
     }
 
-    let fileFormatClause;
-    if (params['fileFormat']) {
-        let vals = params['fileFormat'].split("|");
-        console.log("fileFormat match", vals);
-        fileFormatClause = "LOWER(ff.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
-    }
-
-    let fileTypeClause;
-    if (params['fileType']) {
-        let vals = params['fileType'].split("|");
-        console.log("fileType match", vals);
-        fileTypeClause = "LOWER(ft.name) IN (" + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")";
-    }
+    let libraryClauses =
+        [ 'source', 'strategy', 'selection', 'layout' ]
+            .filter(field => params[field]) // make sure value is defined
+            .map(field => {
+                let vals = params[field].split("|");
+                console.log(field, "match", vals);
+                return `LOWER(library.${field}) IN (` + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")"; //FIXME use bind param instead
+            });
 
     let termIds = Object.keys(params).filter(p => p.startsWith("http") || p.startsWith("|http"));
     let orTerms = [], andTerms = [];
     let terms = {}, termOrder = [];
     let termsById = {};
     for (let param of termIds) {
-        param = param.replace(/\+/gi, ''); // workaround for Elm uri encoding
+        param = param.replace(/\+/gi, ''); // workaround for Elm URI encoding
         let val = params[param];
 
         let orFlag = false;
@@ -379,7 +375,6 @@ async function search(db, termIndex, params) {
             orTerms.push(term);
         else
             andTerms.push(term);
-        //console.log("term:", term);
     }
 
     console.log("andTerms:", andTerms.map(t => t.id).join(","));
@@ -515,7 +510,7 @@ async function search(db, termIndex, params) {
         )
         .join(" OR ");
 
-    [gisClause, projectClause, fileFormatClause, fileTypeClause].forEach(clause => {
+    [gisClause, projectClause].concat(libraryClauses).forEach(clause => {
         if (clause)
             clauseStr = clause + (clauseStr ? " AND (" + clauseStr + ")" : "");
     });
@@ -525,31 +520,33 @@ async function search(db, termIndex, params) {
 
     // Build query
     let tableStr =
-        `FROM sample s
-        JOIN project_to_sample pts ON pts.sample_id=s.sample_id
-        JOIN project p ON p.project_id=pts.project_id `;
-// Temporarily removed until Tara SRA files are finished loading. Move to into file query block when uncommented.
-//        LEFT JOIN experiment e ON e.sample_id=s.sample_id \
-//        LEFT JOIN run r ON r.experiment_id=e.experiment_id \
-//        LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id \
-//        LEFT JOIN file f ON f.file_id=rtf.file_id \
-//        LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id \
-//        LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id ";
+        `FROM sample
+        JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id
+        JOIN project ON project.project_id=project_to_sample.project_id
+        LEFT JOIN experiment ON experiment.sample_id=sample.sample_id
+        LEFT JOIN library ON library.experiment_id=experiment.experiment_id
+        LEFT JOIN run ON run.experiment_id=experiment.experiment_id
+        LEFT JOIN run_to_file ON run_to_file.run_id=run.run_id
+        LEFT JOIN file ON file.file_id=run_to_file.file_id `;
 
     let results = [], count = 0, summaries = [], clusters = [];
 
     if (result == "sample") {
-        let groupByStr = " GROUP BY s.sample_id,p.project_id ";
+        let groupByStr = " GROUP BY sample.sample_id,project.project_id ";
 
         // Build total count query
         let countQueryStr =
-            `SELECT COUNT(foo) FROM (SELECT s.sample_id ${tableStr} ${clauseStr} ${groupByStr}) AS foo`;
+            `SELECT COUNT(foo) FROM (SELECT sample.sample_id ${tableStr} ${clauseStr} ${groupByStr}) AS foo`;
 
         // Build summary queries (for charts)
         let projectSummaryQueryStr =
-            `SELECT p.name,COUNT(pts.sample_id)::int
-            FROM project p JOIN project_to_sample pts ON pts.project_id=p.project_id JOIN sample s ON pts.sample_id=s.sample_id
-            ${clauseStr} GROUP BY p.project_id ORDER BY p.name`;
+            `SELECT project.name,COUNT(project_to_sample.sample_id)::int
+            FROM project
+            JOIN project_to_sample ON project_to_sample.project_id=project.project_id
+            JOIN sample ON project_to_sample.sample_id=sample.sample_id
+            LEFT JOIN experiment ON experiment.sample_id=sample.sample_id
+            LEFT JOIN library ON library.experiment_id=experiment.experiment_id
+            ${clauseStr} GROUP BY project.project_id ORDER BY project.name`;
 
         let summaryQueryStrs = [ projectSummaryQueryStr ];
         for (let termId of termIds) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
@@ -604,7 +601,7 @@ async function search(db, termIndex, params) {
         let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort) + 3) + " " + sortDir : "");
 
         let sampleQueryStr =
-            "SELECT " + ["schema_id", "s.sample_id", "p.project_id", "p.name", "s.accn"].concat(selections2).join(",") + " " +
+            "SELECT " + ["schema_id", "sample.sample_id", "project.project_id", "project.name", "sample.accn"].concat(selections2).join(",") + " " +
             tableStr +
             clauseStr + groupByStr + sortStr + offsetStr + limitStr;
 
@@ -678,7 +675,7 @@ async function search(db, termIndex, params) {
         // Build and execute location query (for map)
         let locationClusterQuery =
             `SELECT
-                s.sample_id,s.accn as sample_accn,p.name AS project_name,
+                sample.sample_id,sample.accn as sample_accn,project.name AS project_name,
                 ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude,
                 ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude
             ${tableStr}
@@ -688,50 +685,49 @@ async function search(db, termIndex, params) {
         //if (map)
             clusters = await db.query(locationClusterQuery);
     }
-// Temporarily removed until Tara SRA files are finished loading
-//    else if (result == "file") {
-//        let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-//        let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+1) + " " + sortDir : "");
-//
-//        let fileClause = " AND f.file_id IS NOT NULL ";
-//        let groupByStr = " GROUP BY f.file_id,ff.file_format_id,ft.file_type_id,s.sample_id,p.project_id ";
-//
-//        let countQueryStr =
-//            "SELECT COUNT(foo) FROM (SELECT f.file_id " +
-//            tableStr +
-//            clauseStr + fileClause + groupByStr + ") AS foo";
-//
-//        let queryStr =
-//            "SELECT f.file_id,p.name,s.accn,ff.name,ft.name,f.url,s.sample_id,p.project_id " + // FIXME order of fields should match sample query above in order for sorting to work
-//            tableStr +
-//            clauseStr + fileClause + groupByStr + sortStr + offsetStr + limitStr;
-//
-//        count = await query({
-//            text: countQueryStr,
-//            values: [],
-//            rowMode: 'array'
-//        });
-//        count = count.rows[0][0]*1;
-//
-//        results = await query({
-//            text: queryStr,
-//            values: [],
-//            rowMode: 'array'
-//        });
-//
-//        results = results.rows.map(r => {
-//            return {
-//                fileId: r[0],
-//                sampleId: r[6],
-//                projectId: r[7],
-//                projectName: r[1],
-//                sampleAccn: r[2],
-//                fileFormat: r[3],
-//                fileType: r[4],
-//                fileUrl: r[5]
-//            }
-//        })
-//    }
+    else if (result == "file") { //-------------------------------------------------------------------------------------
+        let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
+        let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+1) + " " + sortDir : "");
+
+        let fileClause = " AND file.file_id IS NOT NULL ";
+        let groupByStr = " GROUP BY file.file_id,sample.sample_id,project.project_id ";
+
+        let countQueryStr =
+            `SELECT COUNT(foo) FROM (SELECT file.file_id
+            ${tableStr}
+            ${clauseStr} ${fileClause} ${groupByStr}) AS foo`;
+
+        let queryStr =
+            "SELECT file.file_id,project.name,sample.accn,file.url,sample.sample_id,project.project_id " + //FIXME order of fields should match sample query above in order for sorting to work
+            tableStr +
+            clauseStr + fileClause +
+            groupByStr + sortStr +
+            offsetStr + limitStr;
+
+        count = await db.query({
+            text: countQueryStr,
+            values: [],
+            rowMode: 'array'
+        });
+        count = count.rows[0][0]*1;
+
+        results = await db.query({
+            text: queryStr,
+            values: [],
+            rowMode: 'array'
+        });
+
+        results = results.rows.map(r => {
+            return {
+                fileId: r[0],
+                sampleId: r[4],
+                projectId: r[5],
+                projectName: r[1],
+                sampleAccn: r[2],
+                fileUrl: r[3]
+            }
+        })
+    }
     else {
         console.log("Error: invalid result specifier:", result);
     }

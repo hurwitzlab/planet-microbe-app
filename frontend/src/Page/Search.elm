@@ -170,8 +170,8 @@ type alias Model =
 
     -- Search filter state
     , allTerms: List SearchTerm -- list of available terms to add to search
-    , filters : List Filter
-    , dateRangePickers : Dict PURL DateRangePicker -- there could be datetime fields in addition to 4D
+    , filters : List Filter -- list of current filters
+    , dateRangePickers : Dict PURL DateRangePicker -- Datepicker UI elements (there could be datetime fields in addition to start/end in 4D)
     , showParamSearchDropdown : Bool
     , paramSearchInputVal : String
 
@@ -204,6 +204,11 @@ type SearchState
     | SearchPending Int  -- Time elapsed in milliseconds
     | Searching          -- Search request in progress
     | SearchError String -- Search request failed
+
+
+--type SearchType
+--    = SampleSearch
+--    | FileSearch
 
 
 type DialogState
@@ -1784,6 +1789,7 @@ viewSampleResults model =
             timeSpaceColHeaders ++
             (model.filters
                 |> List.filter (\f -> f.term.id /= purlProject) -- redundant project
+                |> List.filter (\f -> not <| List.member f.term.id permanentFileTerms)
                 |> List.map
                     (\f ->
                         if f.term.unitLabel /= "" then
@@ -1896,8 +1902,6 @@ viewFileResults model =
             tr []
                 [ mkTd result.projectName
                 , td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ]
-                , td [] [ text (String.Extra.toSentenceCase result.fileFormat) ]
-                , td [] [ text (String.Extra.toSentenceCase result.fileType) ]
                 , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text result.fileUrl ] ]
 --                , td [] [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
                 ]

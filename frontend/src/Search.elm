@@ -136,8 +136,6 @@ type SearchResultValue
 type alias FileResult =
     { fileId : Int
     , fileUrl : String
-    , fileFormat : String
-    , fileType : String
     , sampleId : Int
     , sampleAccn : String
     , projectId : Int
@@ -278,8 +276,6 @@ decodeFileResult =
     Decode.succeed FileResult
         |> required "fileId" Decode.int
         |> optional "fileUrl" Decode.string ""
-        |> optional "fileFormat" Decode.string ""
-        |> optional "fileType" Decode.string ""
         |> required "sampleId" Decode.int
         |> required "sampleAccn" Decode.string
         |> required "projectId" Decode.int
