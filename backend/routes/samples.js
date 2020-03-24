@@ -165,35 +165,35 @@ router.post('/samples/runs', async (req, res) => {
 });
 
 router.post('/samples/files', async (req, res) => {
-    let ids;
+    let ids; // file IDs
     if (req.body.ids) {
         ids = req.body.ids.split(',');
         console.log("ids:", ids);
     }
 
+    let query =
+        `SELECT f.file_id,f.url AS file_url,ff.name AS file_format,ft.name AS file_type,r.accn AS run_accn,
+            l.layout,l.source,l.strategy,l.selection,e.experiment_id,e.accn AS experiment_accn,
+            s.sample_id,s.accn AS sample_accn,p.project_id,p.name AS project_name
+        FROM project p
+        JOIN project_to_sample pts ON pts.project_id=p.project_id
+        JOIN sample s ON s.sample_id=pts.sample_id
+        JOIN experiment e ON e.sample_id=s.sample_id
+        JOIN library l ON l.experiment_id=e.experiment_id
+        JOIN run r ON r.experiment_id=e.experiment_id
+        JOIN run_to_file rtf ON rtf.run_id=r.run_id
+        JOIN file f ON f.file_id=rtf.file_id
+        LEFT JOIN file_format ff ON f.file_format_id=ff.file_format_id
+        LEFT JOIN file_type ft ON f.file_type_id=ft.file_type_id`;
+
     let result;
     if (ids)
         result = await db.query({
-            text: `SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
-                FROM experiment e
-                JOIN run r ON (r.experiment_id=e.experiment_id)
-                JOIN run_to_file rtf ON rtf.run_id=r.run_id
-                JOIN file f ON f.file_id=rtf.file_id
-                LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
-                LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
-                WHERE e.sample_id = ANY($1)`,
+            text: query + ' WHERE f.file_id = ANY($1)',
             values: [ids]
         });
     else
-        result = await db.query(
-            `SELECT e.sample_id,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
-            FROM experiment e
-            JOIN run r ON (r.experiment_id=e.experiment_id)
-            JOIN run_to_file rtf ON rtf.run_id=r.run_id
-            JOIN file f ON f.file_id=rtf.file_id
-            LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
-            LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id`
-        );
+        result = await db.query(query);
 
     res.json(result.rows);
 });

@@ -2,11 +2,13 @@ module Page.Cart exposing (Model, Msg(..), ExternalMsg(..), init, toSession, upd
 
 import Session exposing (Session)
 import Cart exposing (Cart)
-import Sample exposing (Sample)--, SampleGroup)
+import Sample exposing (Sample)
+import RemoteFile exposing (File)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
 import Http
+import RemoteData exposing (RemoteData(..))
 import Route
 import Task exposing (Task)
 import Set
@@ -21,7 +23,7 @@ import Icon
 
 type alias Model =
     { session : Session
-    , samples : Maybe (List Sample)
+    , files : RemoteData Http.Error (List File)
 --    , sampleGroups : List SampleGroup
 --    , showSaveCartDialog : Bool
 --    , showSaveCartBusy : Bool
@@ -35,7 +37,7 @@ type alias Model =
 init : Session -> ( Model, Cmd Msg ) --Maybe Int -> ( Model, Cmd Msg )
 init session = --id =
     let
-        id_list =
+        idList =
             Cart.toList (Session.getCart session)
 
 --        loadSampleList =
@@ -81,10 +83,10 @@ init session = --id =
 --            )
 --            |> Task.mapError Error.handleLoadError
     ( { session = session
-      , samples = Nothing
+      , files = Loading
       }
     , Cmd.batch
-        [ Sample.fetchSome id_list |> Http.toTask |> Task.attempt GetSamplesCompleted
+        [ RemoteFile.fetchSome idList |> Http.toTask |> Task.attempt GetFilesCompleted
         ]
     )
 
@@ -100,7 +102,7 @@ toSession model =
 
 type Msg
     = CartMsg Cart.Msg
-    | GetSamplesCompleted (Result Http.Error (List Sample))
+    | GetFilesCompleted (Result Http.Error (List File))
 --    | RemoveSampleCompleted (Result Http.Error SampleGroup)
 --    | OpenSaveCartDialog
 --    | CloseSaveCartDialog
@@ -127,14 +129,11 @@ type ExternalMsg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GetSamplesCompleted (Ok samples) ->
-            ( { model | samples = Just samples }, Cmd.none )
+        GetFilesCompleted (Ok files) ->
+            ( { model | files = Success files }, Cmd.none )
 
-        GetSamplesCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSamplesCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetFilesCompleted (Err error) -> --TODO
+            ( { model | files = Failure error }, Cmd.none )
 
 --        CartMsg subMsg ->
 --            let
@@ -261,7 +260,7 @@ update msg model =
                         newSession =
                             Session.setCart model.session Cart.empty
                     in
-                    ( { model | session = newSession, samples = Just [] }
+                    ( { model | session = newSession, files = Success [] }
                     , Cart.store Cart.empty
                     ) -- => SetCart newCart
 
@@ -385,11 +384,8 @@ view model =
         isEmpty =
             count == 0
     in
-    case model.samples of
-        Nothing ->
-            text ""
-
-        Just samples ->
+    case model.files of
+        Success files ->
             div [ class "container" ]
                 [ div [ class "pb-2 mt-5 mb-2", style "width" "100%" ]
                     [ h1 [ class "font-weight-bold d-inline" ]
@@ -403,7 +399,7 @@ view model =
 --                            ]
                         ]
                     ]
-                , viewCart cart samples
+                , viewCart cart files
                 ]
         --            , Dialog.view
         --                (if model.showSaveCartDialog then
@@ -413,6 +409,9 @@ view model =
         --                else
         --                    Nothing
         --                )
+
+        _ ->
+            text ""
 
 
 viewCartControls : Bool -> Bool -> Html Msg -- -> Maybe Int -> List SampleGroup -> Html Msg
@@ -472,12 +471,12 @@ viewCartControls isEmpty isLoggedIn = -- selectedCartId sampleGroups =
         ]
 
 
-viewCart : Cart -> List Sample -> Html Msg
-viewCart cart samples =
+viewCart : Cart -> List File -> Html Msg
+viewCart cart files =
     if Cart.size cart == 0 then
         div [ class "alert alert-secondary" ] [ text "The cart is empty" ]
     else
-        Cart.view cart samples Cart.Editable |> Html.map CartMsg
+        Cart.view cart files Cart.Editable |> Html.map CartMsg
 
 
 --saveCartDialogConfig : Model -> Dialog.Config Msg

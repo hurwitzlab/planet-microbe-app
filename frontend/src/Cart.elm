@@ -4,10 +4,8 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode exposing (Value)
 import Set exposing (Set)
---import Session exposing (Session)
 import Html exposing (..)
-import Html.Keyed
-import Html.Attributes exposing (class, type_, checked)
+import Html.Attributes exposing (class, type_, checked, href, target)
 import Html.Events exposing (onClick)
 import Icon
 import Route
@@ -22,8 +20,8 @@ type Cart =
 
 
 type alias Model =
-    { contents : Set Int -- Set of IDs for all samples in cart
-    , selected : Set Int -- Set of IDs for selected samples in cart
+    { contents : Set Int -- Set of IDs for all files in cart
+    , selected : Set Int -- Set of IDs for selected files in cart
     }
 
 
@@ -226,22 +224,23 @@ update msg cart =
 --    ]
 
 
-view : Cart -> List { a | id : Int, accn : String, projectId : Int, projectName : String } -> CartType -> Html Msg
-view cart samples cartType =
+view : Cart -> List { a | id : Int, url : String, sampleId : Int, sampleAccn : String, projectId : Int, projectName : String } -> CartType -> Html Msg
+view cart files cartType =
 --    Table.view (config model) model.tableState (samplesInCart model.cart samples)
     let
-        row sample =
+        row file =
             tr []
                 [ if cartType == Selectable then
                     td []
-                        [ input [ type_ "checkbox", checked (selected cart sample.id), onClick (ToggleSelectInCart sample.id) ] [] ]
+                        [ input [ type_ "checkbox", checked (selected cart file.id), onClick (ToggleSelectInCart file.id) ] [] ]
                   else
                     td [] []
-                , td [] [ a [ Route.href (Route.Project sample.projectId) ] [ text sample.projectName ] ]
-                , td [] [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
+                , td [] [ a [ Route.href (Route.Project file.projectId) ] [ text file.projectName ] ]
+                , td [] [ a [ Route.href (Route.Sample file.sampleId) ] [ text file.sampleAccn ] ]
+                , td [] [ a [ href file.url, target "_blank" ] [ text file.url ] ]
                 , if cartType == Editable then
                     td []
-                        [ button [ class "btn btn-outline-secondary btn-sm float-right", onClick (RemoveFromCart sample.id) ] [ text "Remove" ] ]
+                        [ button [ class "btn btn-outline-secondary btn-sm float-right", onClick (RemoveFromCart file.id) ] [ text "Remove" ] ]
                   else
                     td [] []
                 ]
@@ -254,7 +253,7 @@ view cart samples cartType =
             , th [] []
             ]
         , tbody []
-            (samplesInCart cart samples |> List.map row)
+            []--(samplesInCart cart samples |> List.map row)
         ]
 
 
@@ -395,9 +394,9 @@ addAllToCartButton (Cart cart) optionalLabels ids =
         btn removeLbl (RemoveAllFromCart ids)
 
 
-samplesInCart : Cart -> List { a | id : Int } -> List { a | id : Int }
-samplesInCart (Cart cart) samples =
-    List.filter (\sample -> Set.member sample.id cart.contents) samples
+--samplesInCart : Cart -> List { a | id : Int } -> List { a | id : Int }
+--samplesInCart (Cart cart) samples =
+--    List.filter (\sample -> Set.member sample.id cart.contents) samples
 
 
 --size : Model -> Int

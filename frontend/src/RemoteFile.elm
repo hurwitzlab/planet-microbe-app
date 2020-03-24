@@ -25,7 +25,17 @@ type alias File =
     , url : String
     , type_ : String
     , format : String
+    , layout : String
+    , source : String
+    , strategy : String
+    , selection : String
+    , runAccn : String
+    , experimentId : Int
+    , experimentAccn : String
     , sampleId : Int
+    , sampleAccn : String
+    , projectId : Int
+    , projectName : String
     }
 
 
@@ -37,25 +47,46 @@ fileDecoder : Decoder File
 fileDecoder =
     Decode.succeed File
         |> required "file_id" Decode.int
-        |> required "url" Decode.string
+        |> required "file_url" Decode.string
         |> required "file_type" Decode.string
         |> required "file_format" Decode.string
-        |> optional "sample_id" Decode.int 0
+        |> required "layout" Decode.string
+        |> required "source" Decode.string
+        |> required "strategy" Decode.string
+        |> required "selection" Decode.string
+        |> required "run_accn" Decode.string
+        |> required "experiment_id" Decode.int
+        |> required "experiment_accn" Decode.string
+        |> required "sample_id" Decode.int
+        |> required "sample_accn" Decode.string
+        |> required "project_id" Decode.int
+        |> required "project_name" Decode.string
 
 
 
 -- REQUESTS --
 
 
-fetchAllBySamples : List Int -> Http.Request (List File)
-fetchAllBySamples sampleIds =
+fetchAll : Http.Request (List File)
+fetchAll =
+    let
+        url =
+            apiBaseUrl ++ "/samples/files"
+    in
+    HttpBuilder.post url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list fileDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchSome : List Int -> Http.Request (List File)
+fetchSome idList =
     let
         url =
             apiBaseUrl ++ "/samples/files"
 
         body =
             Encode.object
-                [ ( "ids", Encode.string (sampleIds |> List.map String.fromInt |> String.join ",") ) ]
+                [ ( "ids", Encode.string (idList |> List.map String.fromInt |> String.join ",") ) ]
     in
     HttpBuilder.post url
         |> HttpBuilder.withJsonBody body
