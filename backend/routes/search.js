@@ -537,7 +537,7 @@ async function search(db, termIndex, params) {
 
         // Build total count query
         let countQueryStr =
-            `SELECT COUNT(foo) FROM (SELECT sample.sample_id ${tableStr} ${clauseStr} ${groupByStr}) AS foo`;
+            `SELECT COUNT(foo)::int FROM (SELECT sample.sample_id ${tableStr} ${clauseStr} ${groupByStr}) AS foo`;
 
         // Build summary queries (for charts)
         let projectSummaryQueryStr =
@@ -612,7 +612,7 @@ async function search(db, termIndex, params) {
             text: countQueryStr,
             rowMode: 'array'
         });
-        count = count.rows[0][0]*1;
+        count = count.rows[0][0];
 
         console.log("Summary Queries:");
         summaries = await Promise.all(summaryQueryStrs.map(s =>
@@ -642,6 +642,25 @@ async function search(db, termIndex, params) {
             rowMode: 'array'
         });
 
+        console.log("Sample File Query:");
+        let files = await db.query({
+            text:
+                `SELECT sample.sample_id,file.file_id
+                FROM sample
+                JOIN experiment ON experiment.sample_id=sample.sample_id
+                JOIN run ON run.experiment_id=experiment.experiment_id
+                JOIN run_to_file ON run_to_file.run_id=run.run_id
+                JOIN file ON file.file_id=run_to_file.file_id
+                WHERE sample.sample_id = ANY($1)`,
+            values: [ results.rows.map(r => r[1]) ]
+        });
+        let filesBySampleId = {};
+        for (let row of files.rows) {
+            if (!(row.sample_id in filesBySampleId))
+                filesBySampleId[row.sample_id] = [];
+            filesBySampleId[row.sample_id].push(row.file_id);
+        }
+
         results = results.rows.map(r => {
             return {
                 schemaId: r[0],
@@ -649,6 +668,7 @@ async function search(db, termIndex, params) {
                 projectId: r[2],
                 projectName: r[3],
                 sampleAccn: r[4],
+                files: filesBySampleId[r[1]],
                 values: r.slice(5).map(val => { //TODO move into function
                     if (typeof val == "undefined")
                         return ""; // kludge to convert null to empty string
@@ -656,7 +676,7 @@ async function search(db, termIndex, params) {
                         return val.map(v => {
                             if (typeof v == "number" && isNaN(v))
                                 return "Below Detection Limit" // kludge to convert NaN to "Below Detection Limit"
-                            else if (typeof v == "string" && v.startsWith("http://")) { // is this a purl? //TODO move into funtion (dup'ed elsewhere)
+                            else if (typeof v == "string" && v.startsWith("http://")) { // is this a purl? //TODO move into function (dup'ed elsewhere)
                                 let term = termIndex.getTerm(v);
                                 if (!term)
                                     return v;
@@ -694,7 +714,7 @@ async function search(db, termIndex, params) {
         let groupByStr = "GROUP BY file.file_id,sample.sample_id,project.project_id,library.source,library.strategy,library.selection,library.layout";
 
         let countQueryStr =
-            `SELECT COUNT(foo) FROM (SELECT file.file_id
+            `SELECT COUNT(foo)::int FROM (SELECT file.file_id
             ${tableStr}
             ${clauseStr} ${fileClause} ${groupByStr}) AS foo`;
 
@@ -711,7 +731,7 @@ async function search(db, termIndex, params) {
             text: countQueryStr,
             rowMode: 'array'
         });
-        count = count.rows[0][0]*1;
+        count = count.rows[0][0];
 
         results = await db.query(queryStr);
         results = results.rows;

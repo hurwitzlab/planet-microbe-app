@@ -1804,7 +1804,8 @@ viewSampleResults model =
                 [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
                     (model.sampleResults
                         |> Maybe.withDefault []
-                        |> List.map .sampleId
+                        |> List.map .files
+                        |> List.concat
                     )
                     |> Html.map CartMsg
                 ]

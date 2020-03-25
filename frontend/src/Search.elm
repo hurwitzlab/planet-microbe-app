@@ -117,6 +117,7 @@ type alias SampleResult =
     , sampleAccn : String
     , projectId : Int
     , projectName : String
+    , files : List Int -- list of file IDs
     , values : List SearchResultValues
     }
 
@@ -254,6 +255,7 @@ decodeSampleResult =
         |> required "sampleAccn" Decode.string
         |> required "projectId" Decode.int
         |> required "projectName" Decode.string
+        |> optional "files" (Decode.list Decode.int) []
         |> required "values" (Decode.list decodeSearchResultValues)
 
 
