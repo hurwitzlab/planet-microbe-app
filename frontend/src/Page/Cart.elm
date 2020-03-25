@@ -166,10 +166,16 @@ update msg model =
                 newCart =
                     Cart.update subMsg (Session.getCart model.session)
 
+                newFiles =
+                    model.files
+                        |> RemoteData.toMaybe
+                        |> Maybe.withDefault []
+                        |> List.filter (\f -> Cart.contains newCart f.id)
+
                 newSession =
                     Session.setCart model.session newCart
             in
-            ( { model | session = newSession }
+            ( { model | session = newSession, files = Success newFiles }
             , Cmd.batch
                 [ --Cmd.map CartMsg subCmd
                 Cart.store newCart

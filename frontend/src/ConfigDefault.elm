@@ -39,6 +39,11 @@ discoveryEnvironmentUrl =
     "https://de.cyverse.org/de/?type=data&folder="
 
 
+sraUrl : String
+sraUrl =
+    "https://www.ncbi.nlm.nih.gov/sra/?term="
+
+
 
 ---- Agave API ----
 

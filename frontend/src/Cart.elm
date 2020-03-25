@@ -9,6 +9,7 @@ import Html.Attributes exposing (class, type_, checked, href, target)
 import Html.Events exposing (onClick)
 import Icon
 import Route
+import Config exposing (sraUrl)
 
 
 
@@ -174,8 +175,8 @@ update msg cart =
 -- VIEW --
 
 
---config : Model -> Table.Config { a | sample_id : Int, sample_name : String, project : { b | project_id : Int, project_name : String } } Msg
---config model =
+--tableConfig : Model -> Table.Config { a | sample_id : Int, sample_name : String, project : { b | project_id : Int, project_name : String } } Msg
+--tableConfig model =
 --    let
 --        columns =
 --            case model.cartType of
@@ -206,9 +207,9 @@ update msg cart =
 --    ]
 
 
-view : Cart -> List { a | id : Int, url : String, sampleId : Int, sampleAccn : String, projectId : Int, projectName : String } -> CartType -> Html Msg
+view : Cart -> List { a | id : Int, url : String, sampleId : Int, sampleAccn : String, experimentId : Int, experimentAccn : String, runAccn : String, projectId : Int, projectName : String } -> CartType -> Html Msg
 view cart files cartType =
---    Table.view (config model) model.tableState (samplesInCart model.cart samples)
+--    Table.view (tableConfig model) model.tableState (samplesInCart model.cart samples)
     let
         row file =
             tr []
@@ -219,6 +220,8 @@ view cart files cartType =
                     td [] []
                 , td [] [ a [ Route.href (Route.Project file.projectId) ] [ text file.projectName ] ]
                 , td [] [ a [ Route.href (Route.Sample file.sampleId) ] [ text file.sampleAccn ] ]
+                , td [] [ a [ Route.href (Route.Experiment file.experimentId) ] [ text file.experimentAccn ] ]
+                , td [] [ a [ href (sraUrl ++ file.runAccn), target "_blank" ] [ text file.runAccn ] ]
                 , td [] [ a [ href file.url, target "_blank" ] [ text file.url ] ]
                 , if cartType == Editable then
                     td []
@@ -232,10 +235,13 @@ view cart files cartType =
             [ th [] []
             , th [] [ text "Project" ]
             , th [] [ text "Sample" ]
+            , th [] [ text "Experiment" ]
+            , th [] [ text "Run ", Icon.externalLink ]
+            , th [] [ text "Link ", Icon.externalLink ]
             , th [] []
             ]
         , tbody []
-            []--(samplesInCart cart samples |> List.map row)
+            (List.map row files) --(samplesInCart cart samples |> List.map row)
         ]
 
 

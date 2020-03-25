@@ -16,7 +16,7 @@ import String.Extra
 import Json.Encode as Encode
 --import Debug exposing (toString)
 import Icon
-import Config exposing (dataCommonsUrl)
+import Config exposing (dataCommonsUrl, sraUrl)
 
 
 
@@ -192,7 +192,7 @@ viewRuns maybeRuns =
         mkRow run =
             tr []
                 [ td [ class "text-nowrap" ]
-                    [ a [ href ("https://www.ncbi.nlm.nih.gov/sra/?term=" ++ run.accn), target "_blank" ] [ text run.accn ] ]
+                    [ a [ href (sraUrl ++ run.accn), target "_blank" ] [ text run.accn ] ]
                 , td [] [ run.totalSpots |> toFloat |> format myLocale |> text ]
                 , td [] [ run.totalBases |> toFloat |> format myLocale |> text ]
                 , td []
