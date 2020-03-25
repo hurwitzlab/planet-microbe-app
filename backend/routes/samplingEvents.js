@@ -9,13 +9,16 @@ router.get('/sampling_events/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
     let result = await db.query({
         text:
-            `SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations)::json->'coordinates' AS locations,se.start_time,se.end_time,c.campaign_id,c.campaign_type,c.name AS campaign_name,p.project_id,p.name AS project_name
+            `SELECT se.sampling_event_id,se.sampling_event_type,se.name,se.start_time,se.end_time,
+                ST_AsGeoJson(se.locations)::json->'coordinates' AS locations,
+                c.campaign_id,c.campaign_type,c.name AS campaign_name,
+                p.project_id,p.name AS project_name
             FROM sampling_event se
-            LEFT JOIN campaign c ON c.campaign_id=se.campaign_id
-            JOIN sample_to_sampling_event stse ON stse.sampling_event_id=se.sampling_event_id
-            JOIN sample s ON s.sample_id=stse.sample_id
-            JOIN project_to_sample pts ON pts.sample_id=s.sample_id
-            JOIN project p ON p.project_id=pts.project_id
+            LEFT JOIN campaign c USING(campaign_id)
+            JOIN sample_to_sampling_event USING(sampling_event_id)
+            JOIN sample USING(sample_id)
+            JOIN project_to_sample USING(sample_id)
+            JOIN project p USING(project_id)
             WHERE se.sampling_event_id=$1`,
         values: [id]
     });
@@ -29,7 +32,7 @@ router.get('/sampling_events/:id(\\d+)/samples', async (req, res) => {
         text:
             `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations
             FROM sample s
-            JOIN sample_to_sampling_event stse ON stse.sample_id=s.sample_id
+            JOIN sample_to_sampling_event stse USING(sample_id)
             WHERE stse.sampling_event_id=$1`,
         values: [id]
     });
@@ -46,8 +49,8 @@ router.get('/sampling_events/:id(\\d+)/data/(:type(\\w+))', async (req, res) => 
         text:
             `SELECT s.schema_id,s.type,s.fields->'fields' AS fields,sed.number_vals,sed.string_vals,sed.datetime_vals
             FROM sampling_event se
-            JOIN sampling_event_data sed ON sed.sampling_event_id=se.sampling_event_id
-            JOIN schema s ON s.schema_id=sed.schema_id
+            JOIN sampling_event_data sed USING(sampling_event_id)
+            JOIN schema s USING(schema_id)
             WHERE se.sampling_event_id=$1 AND s.type=$2`,
         values: [id, type]
     });

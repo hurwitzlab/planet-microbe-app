@@ -19,8 +19,8 @@ router.post('/samples', async (req, res) => {
             text:
                 `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name
                 FROM sample s
-                JOIN project_to_sample pts ON pts.sample_id=s.sample_id
-                JOIN project p ON p.project_id=pts.project_id
+                JOIN project_to_sample USING(sample_id)
+                JOIN project p USING(project_id)
                 WHERE s.sample_id = ANY($1)`,
             values: [ids]
         });
@@ -29,8 +29,8 @@ router.post('/samples', async (req, res) => {
         result = await db.query(
             `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name
             FROM sample s
-            JOIN project_to_sample pts ON pts.sample_id=s.sample_id
-            JOIN project p ON p.project_id=pts.project_id`
+            JOIN project_to_sample USING(sample_id)
+            JOIN project p USING(project_id)`
         );
     }
 
@@ -74,11 +74,12 @@ router.get('/samples/:id(\\d+)/sampling_events', async (req, res) => {
     let id = req.params.id;
     let result = await db.query({
         text:
-            `SELECT se.sampling_event_id,se.sampling_event_type,se.name,c.campaign_id,c.campaign_type,c.name AS campaign_name
+            `SELECT se.sampling_event_id,se.sampling_event_type,se.name,
+                c.campaign_id,c.campaign_type,c.name AS campaign_name
             FROM sample s
-            JOIN sample_to_sampling_event stse ON stse.sample_id=s.sample_id
-            JOIN sampling_event se ON se.sampling_event_id=stse.sampling_event_id
-            LEFT JOIN campaign c ON c.campaign_id=se.campaign_id
+            JOIN sample_to_sampling_event USING(sample_id)
+            JOIN sampling_event se USING(sampling_event_id)
+            LEFT JOIN campaign c USING(campaign_id)
             WHERE s.sample_id=$1`,
         values: [id]
     });
@@ -111,7 +112,7 @@ router.post('/samples/experiments', async (req, res) => {
         result = await db.query({
             text: `SELECT e.experiment_id,e.name,e.accn,l.name AS library_name,l.strategy AS library_strategy, l.source AS library_source, l.selection AS library_selection, l.protocol AS library_protocol, l.layout AS library_layout, l.length AS library_length
                 FROM experiment e
-                LEFT JOIN library l ON l.experiment_id=e.experiment_id
+                LEFT JOIN library l USING(experiment_id)
                 WHERE e.sample_id = ANY($1)`,
             values: [ids]
         });
@@ -134,13 +135,14 @@ router.post('/samples/runs', async (req, res) => {
     let id = req.params.id;
     let result = await db.query({
         text:
-            `SELECT r.run_id,r.accn,r.total_spots,r.total_bases,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
+            `SELECT r.run_id,r.accn,r.total_spots,r.total_bases,
+                f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
             FROM experiment e
-            LEFT JOIN run r ON r.experiment_id=e.experiment_id
-            LEFT JOIN run_to_file rtf ON rtf.run_id=r.run_id
-            LEFT JOIN file f ON f.file_id=rtf.file_id
-            LEFT JOIN file_type ft ON ft.file_type_id=f.file_type_id
-            LEFT JOIN file_format ff ON ff.file_format_id=f.file_format_id
+            LEFT JOIN run r USING(experiment_id)
+            LEFT JOIN run_to_file USING(run_id)
+            LEFT JOIN file f USING(file_id)
+            LEFT JOIN file_type ft USING(file_type_id)
+            LEFT JOIN file_format ff USING(file_format_id)
             WHERE e.sample_id = ANY($1)`,
         values: [ids]
     });
@@ -183,15 +185,15 @@ router.post('/samples/files', async (req, res) => {
             l.layout,l.source,l.strategy,l.selection,e.experiment_id,e.accn AS experiment_accn,
             s.sample_id,s.accn AS sample_accn,p.project_id,p.name AS project_name
         FROM project p
-        JOIN project_to_sample pts ON pts.project_id=p.project_id
-        JOIN sample s ON s.sample_id=pts.sample_id
-        JOIN experiment e ON e.sample_id=s.sample_id
-        JOIN library l ON l.experiment_id=e.experiment_id
-        JOIN run r ON r.experiment_id=e.experiment_id
-        JOIN run_to_file rtf ON rtf.run_id=r.run_id
-        JOIN file f ON f.file_id=rtf.file_id
-        LEFT JOIN file_format ff ON f.file_format_id=ff.file_format_id
-        LEFT JOIN file_type ft ON f.file_type_id=ft.file_type_id`;
+        JOIN project_to_sample USING(project_id)
+        JOIN sample s USING(sample_id)
+        JOIN experiment e USING(sample_id)
+        JOIN library l USING(experiment_id)
+        JOIN run r USING(experiment_id)
+        JOIN run_to_file USING(run_id)
+        JOIN file f USING(file_id)
+        LEFT JOIN file_format ff USING(file_format_id)
+        LEFT JOIN file_type ft USING(file_type_id)`;
 
     let result;
     if (ids)
@@ -237,9 +239,9 @@ router.get('/samples/files/properties', async (req, res) => {
                     text:
                         `SELECT '${col}' AS field,COALESCE(${col},'none'),COUNT(rtf.file_id)::int
                         FROM experiment e
-                        JOIN library l ON l.experiment_id=e.experiment_id
-                        JOIN run r ON r.experiment_id=e.experiment_id
-                        JOIN run_to_file rtf ON rtf.run_id=r.run_id
+                        JOIN library USING(experiment_id)
+                        JOIN run USING(experiment_id)
+                        JOIN run_to_file rtf USING(run_id)
                         GROUP BY ${col}`,
                     rowMode: 'array'
                 })
@@ -267,7 +269,7 @@ router.get('/samples/:id(\\d+)/metadata', async (req, res) => {
         text:
             `SELECT s.schema_id,schema.fields->'fields' AS fields,s.number_vals,s.string_vals,s.datetime_vals
             FROM sample s
-            JOIN schema ON schema.schema_id=s.schema_id
+            JOIN schema USING(schema_id)
             WHERE s.sample_id=$1`,
         values: [id]
     });

@@ -522,13 +522,13 @@ async function search(db, termIndex, params) {
     // Build query
     let tableStr =
         `FROM sample
-        JOIN project_to_sample ON project_to_sample.sample_id=sample.sample_id
-        JOIN project ON project.project_id=project_to_sample.project_id
-        LEFT JOIN experiment ON experiment.sample_id=sample.sample_id
-        LEFT JOIN library ON library.experiment_id=experiment.experiment_id
-        LEFT JOIN run ON run.experiment_id=experiment.experiment_id
-        LEFT JOIN run_to_file ON run_to_file.run_id=run.run_id
-        LEFT JOIN file ON file.file_id=run_to_file.file_id `;
+        JOIN project_to_sample USING(sample_id)
+        JOIN project USING(project_id)
+        LEFT JOIN experiment USING(sample_id)
+        LEFT JOIN library USING(experiment_id)
+        LEFT JOIN run USING(experiment_id)
+        LEFT JOIN run_to_file USING(run_id)
+        LEFT JOIN file USING(file_id) `;
 
     let results = [], count = 0, summaries = [], clusters = [];
 
@@ -543,10 +543,10 @@ async function search(db, termIndex, params) {
         let projectSummaryQueryStr =
             `SELECT project.name,COUNT(project_to_sample.sample_id)::int
             FROM project
-            JOIN project_to_sample ON project_to_sample.project_id=project.project_id
-            JOIN sample ON project_to_sample.sample_id=sample.sample_id
-            LEFT JOIN experiment ON experiment.sample_id=sample.sample_id
-            LEFT JOIN library ON library.experiment_id=experiment.experiment_id
+            JOIN project_to_sample USING(project_id)
+            JOIN sample USING(sample_id)
+            LEFT JOIN experiment USING(sample_id)
+            LEFT JOIN library USING(experiment_id)
             ${clauseStr} GROUP BY project.project_id ORDER BY project.name`;
 
         let summaryQueryStrs = [ projectSummaryQueryStr ];
@@ -647,10 +647,10 @@ async function search(db, termIndex, params) {
             text:
                 `SELECT sample.sample_id,file.file_id
                 FROM sample
-                JOIN experiment ON experiment.sample_id=sample.sample_id
-                JOIN run ON run.experiment_id=experiment.experiment_id
-                JOIN run_to_file ON run_to_file.run_id=run.run_id
-                JOIN file ON file.file_id=run_to_file.file_id
+                JOIN experiment USING(sample_id)
+                JOIN run USING(experiment_id)
+                JOIN run_to_file USING(run_id)
+                JOIN file USING(file_id)
                 WHERE sample.sample_id = ANY($1)`,
             values: [ results.rows.map(r => r[1]) ]
         });
