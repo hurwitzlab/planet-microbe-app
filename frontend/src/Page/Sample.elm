@@ -253,7 +253,7 @@ view model =
                         , small [ class "ml-3", style "color" "gray" ] [ text sample.accn ]
                         ]
                     , span [ class "float-right" ]
-                        [ Cart.addToCartButton2 (Session.getCart model.session) sample.id |> Html.map CartMsg ]
+                        [ Cart.addToCartButton2 (Session.getCart model.session) sample.files |> Html.map CartMsg ]
                     ]
                 , div []
                     [ viewSample sample (model.samplingEvents |> Maybe.withDefault []) ]

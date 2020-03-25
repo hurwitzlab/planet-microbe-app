@@ -23,6 +23,7 @@ type alias Sample  =
     , locations : List LatLng
     , projectId : Int
     , projectName : String
+    , files : List Int
     }
 
 
@@ -45,6 +46,7 @@ sampleDecoder =
         |> optional "locations" (Decode.list LatLng.decoder) []
         |> optional "project_id" Decode.int 0
         |> optional "project_name" Decode.string ""
+        |> optional "files" (Decode.list Decode.int) []
 
 
 metadataDecoder : Decoder Metadata

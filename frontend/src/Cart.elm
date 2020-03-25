@@ -76,33 +76,23 @@ size (Cart cart) =
     Set.size cart.contents
 
 
-contains : Cart -> Int -> Bool
-contains (Cart cart) id =
-    Set.member id cart.contents
-
-
-add : Cart -> Int -> Cart
-add (Cart cart) id =
-    Cart { cart | contents = Set.insert id cart.contents }
-
-
 toList : Cart -> List Int
 toList (Cart cart) =
     cart.contents |> Set.toList
 
 
-addList : Cart -> List Int -> Cart
-addList (Cart cart) ids =
+contains : Cart -> Int -> Bool
+contains (Cart cart) id =
+    Set.member id cart.contents
+
+
+add : Cart -> List Int -> Cart
+add (Cart cart) ids =
     Cart { cart | contents = Set.union (Set.fromList ids) cart.contents }
 
 
-remove : Cart -> Int -> Cart
-remove (Cart cart) id =
-    Cart { cart | contents = Set.remove id cart.contents }
-
-
-removeList : Cart -> List Int -> Cart
-removeList (Cart cart) ids =
+remove : Cart -> List Int -> Cart
+remove (Cart cart) ids =
     Cart { cart | contents = Set.diff cart.contents (Set.fromList ids) }
 
 
@@ -151,10 +141,8 @@ unselectList (Cart cart) ids =
 
 
 type Msg
-    = AddToCart Int
-    | RemoveFromCart Int
-    | AddAllToCart (List Int)
-    | RemoveAllFromCart (List Int)
+    = AddToCart (List Int)
+    | RemoveFromCart (List Int)
     | ToggleSelectInCart Int
     | SelectAllInCart
     | UnselectAllInCart
@@ -163,17 +151,11 @@ type Msg
 update : Msg -> Cart -> Cart
 update msg cart =
     case msg of
-        AddToCart id ->
-            add cart id
+        AddToCart idList ->
+            add cart idList
 
-        RemoveFromCart id ->
-            remove cart id
-
-        AddAllToCart ids ->
-            addList cart ids
-
-        RemoveAllFromCart ids ->
-            removeList cart ids
+        RemoveFromCart idList ->
+            remove cart idList
 
         ToggleSelectInCart id ->
             if selected cart id then
@@ -240,7 +222,7 @@ view cart files cartType =
                 , td [] [ a [ href file.url, target "_blank" ] [ text file.url ] ]
                 , if cartType == Editable then
                     td []
-                        [ button [ class "btn btn-outline-secondary btn-sm float-right", onClick (RemoveFromCart file.id) ] [ text "Remove" ] ]
+                        [ button [ class "btn btn-outline-secondary btn-sm float-right", onClick (RemoveFromCart [ file.id ]) ] [ text "Remove" ] ]
                   else
                     td [] []
                 ]
@@ -337,22 +319,22 @@ view cart files cartType =
 --    button [ class "btn btn-default btn-xs", onClick (RemoveFromCart id) ] [ text "Remove" ]
 
 
-addToCartButton : Cart -> Int -> Html Msg
-addToCartButton cart id =
+addToCartButton : Cart -> List Int -> Html Msg
+addToCartButton cart idList =
     let
         btn label clickMsg =
             button [ class "btn btn-xs btn-outline-secondary", onClick clickMsg ]
                 [ text label ]
     in
-    if contains cart id then
-        btn "Remove" (RemoveFromCart id)
+    if List.any (\id -> contains cart id) idList then
+        btn "Remove" (RemoveFromCart idList)
     else
-        btn "Add" (AddToCart id)
+        btn "Add" (AddToCart idList)
 
 
--- Kludge, merge with addToCartButton
-addToCartButton2 : Cart -> Int -> Html Msg
-addToCartButton2 cart id =
+--FIXME merge with addToCartButton
+addToCartButton2 : Cart -> List Int -> Html Msg
+addToCartButton2 cart idList =
     let
         btn label clickMsg =
             button [ class "btn btn-sm btn-outline-secondary", onClick clickMsg ]
@@ -361,14 +343,14 @@ addToCartButton2 cart id =
                 , text label
                 ]
     in
-    if contains cart id then
-        btn "Remove from Cart" (RemoveFromCart id)
+    if List.any (\id -> contains cart id) idList then
+        btn "Remove from Cart" (RemoveFromCart idList)
     else
-        btn "Add to Cart" (AddToCart id)
+        btn "Add to Cart" (AddToCart idList)
 
 
 addAllToCartButton : Cart -> Maybe (String, String) -> List Int -> Html Msg
-addAllToCartButton (Cart cart) optionalLabels ids =
+addAllToCartButton (Cart cart) optionalLabels idList =
     let
         (addLbl, removeLbl) =
             case optionalLabels of
@@ -379,7 +361,7 @@ addAllToCartButton (Cart cart) optionalLabels ids =
                     ( "Add All", "Remove All" )
 
         intersection =
-            Set.intersect (Set.fromList ids) cart.contents |> Set.toList
+            Set.intersect (Set.fromList idList) cart.contents |> Set.toList
 
         btn label clickMsg =
             button [ class "btn btn-xs btn-outline-secondary align-middle", onClick clickMsg ]
@@ -389,9 +371,9 @@ addAllToCartButton (Cart cart) optionalLabels ids =
                 ]
     in
     if intersection == [] then
-        btn addLbl (AddAllToCart ids)
+        btn addLbl (AddToCart idList)
     else
-        btn removeLbl (RemoveAllFromCart ids)
+        btn removeLbl (RemoveFromCart idList)
 
 
 --samplesInCart : Cart -> List { a | id : Int } -> List { a | id : Int }

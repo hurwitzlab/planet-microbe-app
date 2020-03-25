@@ -47,11 +47,18 @@ router.get('/samples/:id(\\d+)', async (req, res) => {
 
     let result = await db.query({
         text:
-            `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name
+            `SELECT s.sample_id,s.accn,
+                ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,
+                p.project_id,p.name AS project_name,
+                array_agg(file_id) AS files
             FROM sample s
-            JOIN project_to_sample pts ON pts.sample_id=s.sample_id
-            JOIN project p ON p.project_id=pts.project_id
-            WHERE s.sample_id=$1`,
+            JOIN project_to_sample USING(sample_id)
+            JOIN project p USING(project_id)
+            JOIN experiment USING(sample_id)
+            JOIN run USING(experiment_id)
+            JOIN run_to_file USING(run_id)
+            WHERE s.sample_id=$1
+            GROUP BY s.sample_id,p.project_id`,
         values: [id]
     });
 

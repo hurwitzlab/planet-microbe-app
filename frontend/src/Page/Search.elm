@@ -1843,7 +1843,7 @@ viewSampleResults model =
                         )
                 ) ++
                 [ td [ class "text-right", style "min-width" "10em" ]
-                    [ Cart.addToCartButton (Session.getCart model.session) result.sampleId |> Html.map CartMsg ]
+                    [ Cart.addToCartButton (Session.getCart model.session) result.files |> Html.map CartMsg ]
                 ])
     in
     SortableTable.view
