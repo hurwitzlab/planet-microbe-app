@@ -9,7 +9,7 @@ import Html.Attributes exposing (class, type_, checked, href, target)
 import Html.Events exposing (onClick)
 import Icon
 import Route
-import Config exposing (sraUrl)
+import Config exposing (dataCommonsUrl, sraUrl)
 
 
 
@@ -207,22 +207,40 @@ update msg cart =
 --    ]
 
 
-view : Cart -> List { a | id : Int, url : String, sampleId : Int, sampleAccn : String, experimentId : Int, experimentAccn : String, runAccn : String, projectId : Int, projectName : String } -> CartType -> Html Msg
+view : Cart ->
+    List
+        { a | id : Int
+        , url : String
+        , sampleId : Int
+        , sampleAccn : String
+        , experimentId : Int
+        , experimentAccn : String
+        , source : String
+        , layout : String
+        , runAccn : String
+        , projectId : Int
+        , projectName : String
+        } -> CartType -> Html Msg
 view cart files cartType =
 --    Table.view (tableConfig model) model.tableState (samplesInCart model.cart samples)
     let
         row file =
+            let
+                basename path =
+                    String.split "/" path |> List.reverse |> List.head |> Maybe.withDefault ""
+            in
             tr []
                 [ if cartType == Selectable then
                     td []
                         [ input [ type_ "checkbox", checked (selected cart file.id), onClick (ToggleSelectInCart file.id) ] [] ]
                   else
                     td [] []
-                , td [] [ a [ Route.href (Route.Project file.projectId) ] [ text file.projectName ] ]
-                , td [] [ a [ Route.href (Route.Sample file.sampleId) ] [ text file.sampleAccn ] ]
-                , td [] [ a [ Route.href (Route.Experiment file.experimentId) ] [ text file.experimentAccn ] ]
+                , td [] [ a [ href (dataCommonsUrl ++ file.url), target "_blank" ] [ text <| basename file.url ] ]
+                , td [] [ text <| file.source ++ "/" ++ file.layout ]
                 , td [] [ a [ href (sraUrl ++ file.runAccn), target "_blank" ] [ text file.runAccn ] ]
-                , td [] [ a [ href file.url, target "_blank" ] [ text file.url ] ]
+                , td [] [ a [ Route.href (Route.Experiment file.experimentId) ] [ text file.experimentAccn ] ]
+                , td [] [ a [ Route.href (Route.Sample file.sampleId) ] [ text file.sampleAccn ] ]
+                , td [  class "text-nowrap" ] [ a [ Route.href (Route.Project file.projectId) ] [ text file.projectName ] ]
                 , if cartType == Editable then
                     td []
                         [ button [ class "btn btn-outline-secondary btn-sm float-right", onClick (RemoveFromCart [ file.id ]) ] [ text "Remove" ] ]
@@ -233,11 +251,12 @@ view cart files cartType =
     table [ class "table" ]
         [ thead []
             [ th [] []
-            , th [] [ text "Project" ]
-            , th [] [ text "Sample" ]
-            , th [] [ text "Experiment" ]
+            , th [] [ text "File ", Icon.externalLink ]
+            , th [] [ text "Source/Layout" ]
             , th [] [ text "Run ", Icon.externalLink ]
-            , th [] [ text "Link ", Icon.externalLink ]
+            , th [] [ text "Experiment" ]
+            , th [] [ text "Sample" ]
+            , th [] [ text "Project" ]
             , th [] []
             ]
         , tbody []
