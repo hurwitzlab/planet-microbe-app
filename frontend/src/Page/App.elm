@@ -404,24 +404,26 @@ update msg model =
                 selectedIds =
                     model.session |> Session.getCart |> Cart.selectedToList
 
-                filterOnFormat file =
-                    let
-                        fileFormat =
-                            String.toLower file.format
-
-                        filterFormat =
-                            String.toLower model.filterFileFormat
-                    in
-                    if (List.member file.sampleId selectedIds && (fileFormat == filterFormat || filterFormat == "all formats") ) then
-                        Just file.url
-                    else
-                        Nothing
+                --filterOnFormat file =
+                --    let
+                --        fileFormat =
+                --            String.toLower file.format
+                --
+                --        filterFormat =
+                --            String.toLower model.filterFileFormat
+                --    in
+                --    if (List.member file.sampleId selectedIds && (fileFormat == filterFormat || filterFormat == "all formats") ) then
+                --        Just file.url
+                --    else
+                --        Nothing
 
                 filesStr =
                     model.files
                         |> RemoteData.toMaybe
                         |> Maybe.withDefault []
-                        |> List.filterMap filterOnFormat
+                        --|> List.filterMap filterOnFormat
+                        |> List.filter (\f -> List.member f.id selectedIds)
+                        |> List.map .url
                         |> String.join ";"
 --                    case model.selectedCartId of
 --                        Nothing -> -- Current
