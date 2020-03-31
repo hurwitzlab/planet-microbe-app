@@ -722,7 +722,7 @@ async function search(db, termIndex, params) {
         let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
         let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+1) + " " + sortDir : "");
 
-        let fileClause = "AND file.file_id IS NOT NULL";
+        let fileClause = (clauseStr ? 'AND ' : 'WHERE ') + 'file.file_id IS NOT NULL';
         let groupByStr = "GROUP BY file.file_id,sample.sample_id,project.project_id,library.source,library.strategy,library.selection,library.layout";
 
         let countQueryStr =
