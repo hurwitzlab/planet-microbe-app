@@ -292,9 +292,9 @@ async function search(db, termIndex, params) {
 //    if (params['columns'])
 //        columns = params['columns'].split(',');
 
-    let summaryColumns = [];
+    let summaryTermIDs = [];
     if (params['summary'])
-        summaryColumns = params['summary'].split(',');
+        summaryTermIDs = params['summary'].split(',');
 
     let gisClause, gisSelect;
     if (params['location']) {
@@ -344,10 +344,21 @@ async function search(db, termIndex, params) {
                 return `LOWER(library.${field}) IN (` + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")"; //FIXME use bind param instead
             });
 
+    let termsById = {};
+
+    for (let id of summaryTermIDs) {
+        let term = termIndex.getTerm(id);
+        if (!term) {
+            console.log("Error: term not found for summary term '" + id + "'");
+            continue;
+        }
+        termsById[id] = term;
+    }
+
     let termIds = Object.keys(params).filter(p => p.startsWith("http") || p.startsWith("|http"));
     let orTerms = [], andTerms = [];
     let terms = {}, termOrder = [];
-    let termsById = {};
+
     for (let param of termIds) {
         param = param.replace(/\+/gi, ''); // workaround for Elm URI encoding
         let val = params[param];
@@ -377,6 +388,8 @@ async function search(db, termIndex, params) {
         else
             andTerms.push(term);
     }
+
+    console.log("termsById", Object.keys(termsById));
 
     console.log("andTerms:", andTerms.map(t => t.id).join(","));
     console.log("orTerms:", orTerms.map(t => t.id).join(","));
@@ -550,14 +563,13 @@ async function search(db, termIndex, params) {
             ${clauseStr} GROUP BY project.project_id ORDER BY project.name`;
 
         let summaryQueryStrs = [ projectSummaryQueryStr ];
-        for (let termId of termIds) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
+        for (let termId of summaryTermIDs) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
             let term = termsById[termId];
 
             let queryStr = "";
             if (term.type == 'string') {
                 let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
-                let caseStr = "CASE " + cases.join(" ") + " END";
-                queryStr = `SELECT COALESCE(LOWER(${caseStr}),'none') AS val,count(*)::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
+                queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,count(*)::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
             }
             else if (term.type == 'number') {
                 let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
@@ -584,12 +596,12 @@ async function search(db, termIndex, params) {
                         // "lower bound cannot equal upper bound" when all data values are zero, as is the case for
                         // hydrogen sulfide (http://purl.obolibrary.org/obo/ENVO_3100017)
             }
-//TODO
-//            else if (term.type == 'datetime') {
-//                let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => "WHEN schema_id=" + schema.schemaId + " THEN datetime_vals[" + schema.position + "]");
-//                let caseStr = "CASE " + cases.join(" ") + " END";
-//                queryStr = "SELECT COALESCE(" + caseStr + ") AS val,count(*)::int " + tableStr + clauseStr + " GROUP BY val ORDER BY val ";
-//            }
+            else if (term.type == 'datetime') {
+                //select date_trunc('year', start_time) from sampling_event;
+                let cases = [].concat.apply([], Object.values(term.schemas))
+                    .map(schema => `WHEN schema_id=${schema.schemaId} THEN to_char(datetime_vals[${schema.position}], 'YYYY')`);
+                queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,count(*)::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
+            }
             summaryQueryStrs.push(queryStr);
         }
 
