@@ -408,6 +408,11 @@ defined s =
     s /= ""
 
 
+defaultFilter : PURL -> Filter
+defaultFilter id =
+    Filter { defaultSearchTerm | id = id } NoValue
+
+
 validFilterValue : FilterValue -> Bool
 validFilterValue val =
    case val of
