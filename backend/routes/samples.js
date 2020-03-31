@@ -54,9 +54,9 @@ router.get('/samples/:id(\\d+)', async (req, res) => {
             FROM sample s
             JOIN project_to_sample USING(sample_id)
             JOIN project p USING(project_id)
-            JOIN experiment USING(sample_id)
-            JOIN run USING(experiment_id)
-            JOIN run_to_file USING(run_id)
+            LEFT JOIN experiment USING(sample_id)
+            LEFT JOIN run USING(experiment_id)
+            LEFT JOIN run_to_file USING(run_id)
             WHERE s.sample_id=$1
             GROUP BY s.sample_id,p.project_id`,
         values: [id]

@@ -408,9 +408,9 @@ defined s =
     s /= ""
 
 
-defaultFilter : PURL -> Filter
-defaultFilter id =
-    Filter { defaultSearchTerm | id = id } NoValue
+defaultFilter : PURL -> String -> Filter
+defaultFilter id label =
+    Filter { defaultSearchTerm | id = id, label = label } NoValue
 
 
 validFilterValue : FilterValue -> Bool

@@ -167,6 +167,7 @@ redundantTerms =
 
 type alias Model =
     { session : Session
+    --, pageLoadStatus : PageLoadStatus
 
     -- Search filter state
     , allTerms: List SearchTerm -- available terms to add to search
@@ -200,11 +201,18 @@ type alias Model =
     }
 
 
+--FIXME this breaks the map
+--type PageLoadStatus
+--    = PageWaitingOnInitRequests Int -- Semaphore on init requests to finish
+--    | PageWaitingOnSearch
+--    | PageReady
+
+
 type SearchStatus
     = SearchNot          -- Idle
-    | SearchInit Int     -- Page loading, with semaphore on init requests to finish
+    | SearchInit Int     -- Semaphore on init requests to finish
     | SearchPending      -- Pending state to debounce search triggers
-    | Searching          -- Search request in progress
+    | SearchInProgress   -- Search request in progress
     | SearchError String -- Search request failed
 
 
@@ -239,6 +247,7 @@ init session =
     in
     (
         { session = session
+        --, pageLoadStatus = PageWaitingOnInitRequests (List.length initRequests)
 
         -- Search filter state
         , allTerms = []
@@ -691,7 +700,7 @@ update msg model =
                     in
                     if download || allParams /= model.previousSearchParams then
                         ( { model
-                            | searchStatus = Searching
+                            | searchStatus = SearchInProgress
                             , pageNum = newPageNum
                             , previousSearchParams = allParams
                           }
@@ -722,6 +731,7 @@ update msg model =
                 , summaryResults = Success response.summary
                 , mapResults = response.map
                 , searchStatus = SearchNot
+                --, pageLoadStatus = PageReady
               }
             , GMap.loadMap response.map
             )
@@ -745,7 +755,7 @@ update msg model =
 --                , mapResults = response.map
                 , searchStatus = SearchNot
               }
-            , Cmd.none
+            , GMap.loadMap response.map
             )
 
         FileSearchCompleted (Err error) ->
@@ -980,6 +990,7 @@ view model =
                     ]
                 , viewDialogs model
                 ]
+
 
 
 viewDialogs : Model -> Html Msg
@@ -1678,7 +1689,7 @@ viewResults model =
 
             _ ->
                 div []
-                    [ if model.searchStatus == SearchPending || model.searchStatus == Searching then
+                    [ if model.searchStatus == SearchPending || model.searchStatus == SearchInProgress then
                         Page.viewSpinnerOverlay
                       else
                         viewBlank
