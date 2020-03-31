@@ -348,7 +348,7 @@ addToCartButton : Cart -> List Int -> Html Msg
 addToCartButton cart idList =
     let
         btn label clickMsg =
-            button [ class "btn btn-xs btn-outline-secondary", onClick clickMsg ]
+            button [ class "btn btn-xs btn-outline-secondary text-nowrap", onClick clickMsg ]
                 [ text label ]
     in
     if List.any (\id -> contains cart id) idList then
@@ -362,7 +362,7 @@ addToCartButton2 : Cart -> List Int -> Html Msg
 addToCartButton2 cart idList =
     let
         btn label clickMsg =
-            button [ class "btn btn-sm btn-outline-secondary", onClick clickMsg ]
+            button [ class "btn btn-sm btn-outline-secondary text-nowrap", onClick clickMsg ]
                 [ Icon.shoppingCart
                 , text " "
                 , text label
@@ -389,7 +389,7 @@ addAllToCartButton (Cart cart) optionalLabels idList =
             Set.intersect (Set.fromList idList) cart.contents |> Set.toList
 
         btn label clickMsg =
-            button [ class "btn btn-xs btn-outline-secondary align-middle", onClick clickMsg ]
+            button [ class "btn btn-xs btn-outline-secondary align-middle text-nowrap", onClick clickMsg ]
                 [ Icon.shoppingCart
                 , text " "
                 , text label
