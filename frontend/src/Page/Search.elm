@@ -178,11 +178,11 @@ type alias Model =
     , paramSearchInputVal : String
 
     -- Search result state
-    , searchState : SearchState
-    , sampleResults : Maybe (List SampleResult)
-    , fileResults : Maybe (List FileResult)
+    , searchStatus : SearchStatus
+    , sampleResults : RemoteData String (List SampleResult)
+    , fileResults : RemoteData String  (List FileResult)
     , mapResults : Encode.Value --List MapResult
-    , summaryResults : Maybe (List Distribution)
+    , summaryResults : RemoteData String  (List Distribution)
     , sampleResultCount : Int
     , fileResultCount : Int
     , sampleTableState : SortableTable.State
@@ -200,9 +200,9 @@ type alias Model =
     }
 
 
-type SearchState
+type SearchStatus
     = SearchNot          -- Idle
-    | SearchInit         -- Page loading
+    | SearchInit Int     -- Page loading, with semaphore on init requests to finish
     | SearchPending      -- Pending state to debounce search triggers
     | Searching          -- Search request in progress
     | SearchError String -- Search request failed
@@ -228,6 +228,15 @@ type alias DateRangePicker =
 
 init : Session -> ( Model, Cmd Msg )
 init session =
+    let
+        -- Init requests performed asynchronously -- completion tracked using SearchInit semaphore rather than Task.sequence which is synchronous (slow)
+        initRequests =
+            [ Sample.fetchAllSearchTerms |> Http.send GetAllSearchTermsCompleted
+            , Sample.fetchSearchTerms initialAddedSampleTerms |> Http.send GetSearchTermsCompleted
+            , Project.fetchCounts |> Http.send GetProjectCountsCompleted
+            , RemoteFile.fetchProperties |> Http.send GetFilePropertiesCompleted
+            ]
+    in
     (
         { session = session
 
@@ -241,11 +250,11 @@ init session =
         , paramSearchInputVal = ""
 
         -- Search result state
-        , searchState = SearchInit
-        , sampleResults = Nothing
-        , fileResults = Nothing
+        , searchStatus = SearchInit (List.length initRequests)
+        , sampleResults = NotAsked
+        , fileResults = NotAsked
         , mapResults = Encode.object []
-        , summaryResults = Nothing
+        , summaryResults = NotAsked
         , sampleResultCount = 0
         , fileResultCount = 0
         , sampleTableState = SortableTable.initialState
@@ -262,14 +271,12 @@ init session =
         , dialogState = NoDialog
         }
     , Cmd.batch
-        [ Date.today |> Task.perform InitDatePickers
-        , Sample.fetchAllSearchTerms |> Http.toTask |> Task.attempt GetAllSearchTermsCompleted
-        , Sample.fetchSearchTerms initialAddedSampleTerms |> Http.toTask |> Task.attempt GetSearchTermsCompleted
-        , Project.fetchCounts |> Http.toTask |> Task.attempt GetProjectCountsCompleted
-        , RemoteFile.fetchProperties |> Http.toTask |> Task.attempt GetFilePropertiesCompleted
-        , GMap.removeMap "" -- workaround for blank map on navigating back to this page
-        , GMap.changeMapSettings (GMap.Settings True True False True |> GMap.encodeSettings)
-        ]
+        ( initRequests ++
+            [ Date.today |> Task.perform InitDatePickers
+            , GMap.removeMap "" -- workaround for blank map on navigating back to this page
+            , GMap.changeMapSettings (GMap.Settings True True False True |> GMap.encodeSettings)
+            ]
+        )
     )
 
 
@@ -329,6 +336,18 @@ type Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        updateSearchStatus searchStatus =
+            case searchStatus of
+                SearchInit n ->
+                    if n - 1 == 0 then
+                        SearchPending
+                    else
+                        SearchInit (n - 1)
+
+                _ ->
+                    searchStatus
+    in
     case msg of
         GetProjectCountsCompleted (Ok counts) ->
             let
@@ -338,10 +357,10 @@ update msg model =
                 newFilters =
                     Search.updateFilter purlProject projectFilter model.sampleFilters
             in
-            ( { model | sampleFilters = newFilters }, Cmd.none )
+            ( { model | sampleFilters = newFilters, searchStatus = updateSearchStatus model.searchStatus }, Cmd.none )
 
         GetProjectCountsCompleted (Err error) ->
-            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
+            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
 
         GetFilePropertiesCompleted (Ok props) ->
             let
@@ -352,16 +371,16 @@ update msg model =
                                 Filter { defaultSearchTerm | id = id, label = id, distribution = dist } NoValue
                             )
             in
-            ( { model | fileFilters = fileFilters }, Cmd.none )
+            ( { model | fileFilters = fileFilters, searchStatus = updateSearchStatus model.searchStatus }, Cmd.none )
 
         GetFilePropertiesCompleted (Err error) ->
-            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
+            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
 
         GetAllSearchTermsCompleted (Ok terms) ->
-            ( { model | allTerms = terms }, Cmd.none )
+            ( { model | allTerms = terms, searchStatus = updateSearchStatus model.searchStatus }, Cmd.none )
 
         GetAllSearchTermsCompleted (Err error) ->
-            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
+            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
 
         GetSearchTermsCompleted (Ok terms) ->
             let
@@ -379,10 +398,10 @@ update msg model =
                 newFilters =
                     List.append model.addedSampleFilters (List.map newFilter terms)
             in
-            ( { model | searchState = SearchPending, addedSampleFilters = newFilters }, Cmd.none )
+            ( { model | addedSampleFilters = newFilters, searchStatus = updateSearchStatus model.searchStatus }, Cmd.none )
 
         GetSearchTermsCompleted (Err error) ->
-            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
+            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
 
         ClearFilters ->
             let
@@ -398,7 +417,7 @@ update msg model =
                     model.fileFilters |> List.map Search.resetFilter
             in
             ( { model
-                | searchState = SearchPending
+                | searchStatus = SearchPending
                 , sampleFilters = sampleFilters
                 , addedSampleFilters = addedSampleFilters
                 , fileFilters = fileFilters
@@ -427,7 +446,7 @@ update msg model =
                     model.addedSampleFilters |> List.filter (\f -> f.term.id /= id)
             in
             ( { model
-                | searchState = SearchPending
+                | searchStatus = SearchPending
                 , addedSampleFilters = newFilters
                 , sampleTableState = SortableTable.initialState
                 , fileTableState = SortableTable.initialState
@@ -452,7 +471,7 @@ update msg model =
 
         SetSearchFilterValue id val ->
             let
-                searchState =
+                searchStatus =
                     if val == "" || String.length val > 2 then
                         SearchPending
                     else
@@ -467,7 +486,7 @@ update msg model =
                 newFilters =
                     Search.updateFilterValue id newVal model.addedSampleFilters
             in
-            ( { model | searchState = searchState, addedSampleFilters = newFilters }, Cmd.none )
+            ( { model | searchStatus = searchStatus, addedSampleFilters = newFilters }, Cmd.none )
 
         SetStringFilterValue id val selected ->
             let
@@ -517,7 +536,7 @@ update msg model =
 
             in
             ( { model
-                | searchState = SearchPending
+                | searchStatus = SearchPending
                 , sampleFilters = sampleFilters
                 , addedSampleFilters = addedSampleFilters
                 , fileFilters = fileFilters
@@ -559,7 +578,7 @@ update msg model =
                         Cmd.none
             in
             ( { model
-                | searchState = SearchPending
+                | searchStatus = SearchPending
                 , sampleFilters = sampleFilters
                 , addedSampleFilters = addedSampleFilters
                 , fileFilters = fileFilters
@@ -572,13 +591,13 @@ update msg model =
 
         SetResultTab label ->
             let
-                searchState =
-                    if (label == "Samples" && model.sampleResults == Nothing) || (label == "Files" && model.fileResults == Nothing) then
+                searchStatus =
+                    if (label == "Samples" && model.sampleResults == NotAsked) || (label == "Files" && model.fileResults == NotAsked) then
                         SearchPending
                     else
                         SearchNot
             in
-            ( { model | searchState = searchState, resultTab = label }, Cmd.none )
+            ( { model | searchStatus = searchStatus, resultTab = label }, Cmd.none )
 
         SetSampleSortPos pos ->
             let
@@ -592,7 +611,7 @@ update msg model =
                     SortableTable.State pos direction
 
             in
-            ( { model | searchState = SearchPending, sampleTableState = newTableState }, Cmd.none )
+            ( { model | searchStatus = SearchPending, sampleTableState = newTableState }, Cmd.none )
 
         SetFileSortPos pos ->
             let
@@ -605,10 +624,10 @@ update msg model =
                 newTableState =
                     SortableTable.State pos direction
             in
-            ( { model | searchState = SearchPending, fileTableState = newTableState }, Cmd.none )
+            ( { model | searchStatus = SearchPending, fileTableState = newTableState }, Cmd.none )
 
         SetPageSize size ->
-            ( { model | searchState = SearchPending, pageSize = size }, Cmd.none )
+            ( { model | searchStatus = SearchPending, pageSize = size }, Cmd.none )
 
         SetPageNum num ->
             let
@@ -624,7 +643,7 @@ update msg model =
                 ( model, Cmd.none )
 
         InputTimerTick time ->
-            case model.searchState of
+            case model.searchStatus of
                 SearchPending ->
                     update (Search 0 False) model
 
@@ -672,7 +691,7 @@ update msg model =
                     in
                     if download || allParams /= model.previousSearchParams then
                         ( { model
-                            | searchState = Searching
+                            | searchStatus = Searching
                             , pageNum = newPageNum
                             , previousSearchParams = allParams
                           }
@@ -682,63 +701,63 @@ update msg model =
                             Search.searchRequest allParams |> Http.toTask |> Task.attempt cmd
                         )
                     else -- do nothing, search params haven't changed
-                        ( { model | searchState = SearchNot }, Cmd.none )
+                        ( { model | searchStatus = SearchNot }, Cmd.none )
 
                 Err error ->
-                    ( { model | searchState = SearchError error }, Cmd.none )
+                    ( { model | searchStatus = SearchError error }, Cmd.none )
 
         SampleSearchCompleted (Ok response) ->
             let
                 sampleResults =
                     case response.results of
                         SampleSearchResults results ->
-                            Just results
+                            Success results
 
-                        _ ->
-                            Nothing
+                        _ -> -- impossible
+                            Failure "error"
             in
             ( { model
                 | sampleResultCount = response.count
                 , sampleResults = sampleResults
-                , summaryResults = Just response.summary
+                , summaryResults = Success response.summary
                 , mapResults = response.map
-                , searchState = SearchNot
+                , searchStatus = SearchNot
               }
             , GMap.loadMap response.map
             )
 
         SampleSearchCompleted (Err error) ->
-            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
+            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
 
         FileSearchCompleted (Ok response) ->
             let
                 fileResults =
                     case response.results of
                         FileSearchResults results ->
-                            Just results
+                            Success results
 
-                        _ ->
-                            Nothing
+                        _ -> -- impossible
+                            Failure "error"
             in
             ( { model
                 | fileResultCount = response.count
                 , fileResults = fileResults
 --                , mapResults = response.map
-                , searchState = SearchNot
+                , searchStatus = SearchNot
               }
             , Cmd.none
             )
 
         FileSearchCompleted (Err error) ->
-            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none ) --TODO
+            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none ) --TODO
 
         DownloadSearchCompleted (Ok response) ->
-            ( { model | searchState = SearchNot }
+            ( { model | searchStatus = SearchNot }
             , Download.string "PM_Search_Results.tsv" "text/tab-separated-values" response
             )
 
         DownloadSearchCompleted (Err error) ->
-            ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
+            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
 
         ToggleMap ->
             ( { model | showMap = not model.showMap }, Cmd.none )
@@ -759,7 +778,7 @@ update msg model =
                 newFilters =
                     Search.updateFilter purlLocation locationFilter model.sampleFilters
             in
-            ( { model | searchState = SearchPending, sampleFilters = newFilters }, Cmd.none )
+            ( { model | searchStatus = SearchPending, sampleFilters = newFilters }, Cmd.none )
 
         MapLoaded _ ->
             ( { model | mapLoaded = True }, Cmd.none )
@@ -819,7 +838,7 @@ update msg model =
                             Search.updateFilterValue id newDateVal model.sampleFilters
                     in
                     ({ model
-                        | searchState = if newDate /= Nothing then SearchPending else SearchNot
+                        | searchStatus = if newDate /= Nothing then SearchPending else SearchNot
                         , sampleFilters = newFilters
                         , dateRangePickers = Dict.insert id newDateRangePicker model.dateRangePickers
                     }
@@ -873,7 +892,7 @@ update msg model =
                             Search.updateFilterValue id newDateVal model.sampleFilters
                     in
                     ({ model
-                        | searchState = if newDate /= Nothing then SearchPending else SearchNot
+                        | searchStatus = if newDate /= Nothing then SearchPending else SearchNot
                         , sampleFilters = newFilters
                         , dateRangePickers = Dict.insert id newDateRangePicker model.dateRangePickers
                     }
@@ -946,16 +965,21 @@ generateControlParams result columns sortPos limit offset showMap =
 
 view : Model -> Html Msg
 view model =
-    div [ class "container-fluid" ]
-        [ br [] []
-        , div [ class "float-left", style "width" "26%" ]
-            [ viewSearchPanel model ]
-        , div [ class "float-right", style "width" "74%", style "padding-left" "1em" ]
-            [ viewMap model.showMap model.mapLoaded
-            , viewResults model
-            ]
-        , viewDialogs model
-        ]
+    case model.searchStatus of
+        SearchInit _ ->
+            Page.viewSpinnerOverlay
+
+        _ ->
+            div [ class "container-fluid" ]
+                [ br [] []
+                , div [ class "float-left", style "width" "26%" ]
+                    [ viewSearchPanel model ]
+                , div [ class "float-right", style "width" "74%", style "padding-left" "1em" ]
+                    [ viewMap model.showMap model.mapLoaded
+                    , viewResults model
+                    ]
+                , viewDialogs model
+                ]
 
 
 viewDialogs : Model -> Html Msg
@@ -1606,26 +1630,44 @@ viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChartMsg maybeBgColo
 viewResults : Model -> Html Msg
 viewResults model =
     let
-        (content, count) =
+        maybeContent = --FIXME kludgey
             case model.resultTab of
                 "Samples" ->
-                    ( viewSampleResults model
-                    , model.sampleResultCount
-                    )
+                    case model.sampleResults of
+                        Success results ->
+                            Just
+                                ( viewSampleResults model
+                                , model.sampleResultCount
+                                )
+
+                        _ ->
+                            Nothing
 
                 "Files" ->
-                    ( viewFileResults model
-                    , model.fileResultCount
-                    )
+                    case model.fileResults of
+                        Success results ->
+                            Just
+                                ( viewFileResults model
+                                , model.fileResultCount
+                                )
+
+                        _ ->
+                            Nothing
 
                 _ ->
-                    ( viewSummary model
-                    , model.sampleResultCount
-                    )
+                    case model.summaryResults of
+                        Success results ->
+                            Just
+                            ( viewSummary model
+                            , model.sampleResultCount
+                            )
+
+                        _ ->
+                            Nothing
     in
     div [ style "min-height" "50em" ]
-        [ case model.searchState of
-            SearchInit ->
+        [ case model.searchStatus of
+            SearchInit _ ->
                 Page.viewSpinnerOverlay
 
             SearchError msg ->
@@ -1636,32 +1678,37 @@ viewResults model =
 
             _ ->
                 div []
-                    [ if model.searchState == SearchPending || model.searchState == Searching then
+                    [ if model.searchStatus == SearchPending || model.searchStatus == Searching then
                         Page.viewSpinnerOverlay
                       else
                         viewBlank
-                    , if count == 0 then
-                        h1 [ class "text-center mt-5", style "min-height" "5.5em" ] [ text "No results" ]
-                      else
-                        div [ style "border" "1px solid lightgray" ]
-                            [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                                ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
-                                 --++ [ li [ class "nav-item ml-auto" ]
-                                 --       [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
-                                 --   ]
-                                 ++ [ li [ class "nav-item ml-auto" ]
-                                        [ a [ class "nav-link", href "", onClick (Search 0 True) ] [ Icon.fileDownload, text " Download" ] ]
-                                    --, li [ class "nav-item" ]
-                                    --    [ a [ class "nav-link", href "" ] [ Icon.cloudDownload ] ]
+                    , case maybeContent of
+                        Nothing ->
+                            viewBlank
+
+                        Just (content, count) ->
+                            if count == 0 then
+                                h1 [ class "text-center mt-5", style "min-height" "5.5em" ] [ text "No results" ]
+                            else
+                                div [ style "border" "1px solid lightgray" ]
+                                    [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                                        ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
+                                         --++ [ li [ class "nav-item ml-auto" ]
+                                         --       [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+                                         --   ]
+                                         ++ [ li [ class "nav-item ml-auto" ]
+                                                [ a [ class "nav-link", href "", onClick (Search 0 True) ] [ Icon.fileDownload, text " Download" ] ]
+                                            --, li [ class "nav-item" ]
+                                            --    [ a [ class "nav-link", href "" ] [ Icon.cloudDownload ] ]
+                                            ]
+                                        )
+                                    ,
+                                    div []
+                                        [ viewPageSummary model.pageNum model.pageSize count
+                                        , content
+                                        , viewPageControls model.pageNum model.pageSize count
+                                        ]
                                     ]
-                                )
-                            ,
-                            div []
-                                [ viewPageSummary model.pageNum model.pageSize count
-                                , content
-                                , viewPageControls model.pageNum model.pageSize count
-                                ]
-                            ]
                     ]
         ]
 
@@ -1728,10 +1775,7 @@ viewPageControls curPageNum pageSize resultCount =
 viewSummary : Model -> Html Msg
 viewSummary model =
     case model.summaryResults of
-        Nothing ->
-            viewBlank
-
-        Just results ->
+        Success results ->
             let
                 projectData =
                     List.head results |> Maybe.withDefault []
@@ -1751,6 +1795,9 @@ viewSummary model =
                         |> List.map (\(label, data) -> viewSearchTermSummaryChart label data)
                     )
                 )
+
+        _ ->
+            viewBlank
 
 
 viewSearchTermSummaryChart : String -> List (String, Int) -> Html Msg
@@ -1846,6 +1893,7 @@ viewSampleResults model =
             th [ class "text-right", style "min-width" "10em" ]
                 [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
                     (model.sampleResults
+                        |> RemoteData.toMaybe
                         |> Maybe.withDefault []
                         |> List.map .files
                         |> List.concat
@@ -1893,7 +1941,7 @@ viewSampleResults model =
         { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
         model.sampleTableState
         columns
-        (model.sampleResults |> Maybe.withDefault [] |> List.map mkTr)
+        (model.sampleResults |> RemoteData.toMaybe |> Maybe.withDefault [] |> List.map mkTr)
         []
 
 
@@ -1931,6 +1979,7 @@ viewFileResults model =
             th []
                 [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
                     (model.fileResults
+                        |> RemoteData.toMaybe
                         |> Maybe.withDefault []
                         |> List.map .fileId
                     )
@@ -1960,7 +2009,7 @@ viewFileResults model =
         { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
         model.fileTableState
         columns
-        (model.fileResults |> Maybe.withDefault [] |> List.map mkRow)
+        (model.fileResults |> RemoteData.toMaybe |> Maybe.withDefault [] |> List.map mkRow)
         []
 
 
