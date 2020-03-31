@@ -31,7 +31,7 @@ import BarChart
 import Cart
 import Icon
 import Config exposing (dataCommonsUrl)
---import Debug exposing (toString)
+import Debug exposing (toString)
 
 
 
@@ -120,11 +120,11 @@ purlFileLayout =
 
 
 -- Required terms that should always appear in the "Sample" filter tab
-permanentSampleTerms =
-    [ purlLocation
-    , purlDepth
-    , purlDateTimeISO
-    , purlProject
+permanentSampleFilters =
+    [ Search.defaultFilter purlLocation "Location"
+    , Search.defaultFilter purlDepth "Depth"
+    , Search.defaultFilter purlDateTimeISO "Date/Time"
+    , Search.defaultFilter purlProject "Project"
     ]
 
 
@@ -233,7 +233,7 @@ init session =
 
         -- Search filter state
         , allTerms = []
-        , sampleFilters = permanentSampleTerms |> List.map Search.defaultFilter
+        , sampleFilters = permanentSampleFilters
         , addedSampleFilters = [] -- set in GetSearchTermsCompleted
         , fileFilters = [] -- set in GetFilePropertiesCompleted
         , dateRangePickers = Dict.empty
@@ -636,7 +636,15 @@ update msg model =
             --    ( model, Cmd.none )
 
         Search newPageNum download ->
-            case generateQueryParams (model.sampleFilters ++ model.addedSampleFilters ++ model.fileFilters) of
+            let
+                allFilters =
+                    (model.sampleFilters
+                        |> List.filter (\f -> f.value /= NoValue) -- remove 4D/project if no value
+                    )
+                    ++ model.addedSampleFilters ++ model.fileFilters
+
+            in
+            case generateQueryParams allFilters of
                 Ok queryParams ->
                     let
                         ( result, sortPos, cmd ) =
@@ -648,7 +656,8 @@ update msg model =
                         summaryParams =
                             ( "summary"
                             , (model.sampleFilters ++ model.addedSampleFilters)
-                                |> List.filter (\f -> not <| List.member f.term.id permanentSampleTerms)
+                                |> List.filter (\f -> f.term.id /= purlLocation)
+                                |> List.filter (\f -> f.term.id /= purlProject)
                                 |> List.map (.term >> .id)
                                 |> String.join ","
                             )
@@ -801,20 +810,21 @@ update msg model =
                                             DateTimeRangeValue (Date.toIsoString date) dt2
 
                                         _ ->
-                                            val
+                                            DateTimeRangeValue (Date.toIsoString date) ""
 
                                 Nothing ->
                                     val
 
                         newFilters =
-                            Search.updateFilterValue purlDateTimeISO newDateVal model.sampleFilters
+                            Search.updateFilterValue id newDateVal model.sampleFilters
                     in
                     ({ model
                         | searchState = if newDate /= Nothing then SearchPending else SearchNot
                         , sampleFilters = newFilters
                         , dateRangePickers = Dict.insert id newDateRangePicker model.dateRangePickers
                     }
-                    , Cmd.none)
+                    , Cmd.none
+                    )
 
                 Nothing -> -- should never happen
                     ( model, Cmd.none )
@@ -854,20 +864,21 @@ update msg model =
                                             DateTimeRangeValue dt1 (Date.toIsoString date)
 
                                         _ ->
-                                            val
+                                            DateTimeRangeValue "" (Date.toIsoString date)
 
                                 Nothing ->
                                     val
 
                         newFilters =
-                            Search.updateFilterValue purlDateTimeISO newDateVal model.sampleFilters
+                            Search.updateFilterValue id newDateVal model.sampleFilters
                     in
                     ({ model
                         | searchState = if newDate /= Nothing then SearchPending else SearchNot
                         , sampleFilters = newFilters
                         , dateRangePickers = Dict.insert id newDateRangePicker model.dateRangePickers
                     }
-                    , Cmd.none)
+                    , Cmd.none
+                    )
 
                 Nothing -> -- should never happen
                     ( model, Cmd.none )
@@ -891,13 +902,9 @@ update msg model =
 --TODO finish validation and error reporting
 generateQueryParams : List Filter -> Result String (List (String, String))
 generateQueryParams filters =
-    --if locationVal == NoLocationValue && projectFilter.value == NoValue && Dict.isEmpty vals then
-    --    Ok []
-    --else
         let
             termParams =
                 filters
-                    |> List.filter (\f -> not <| List.member f.term.id permanentSampleTerms && f.value == NoValue) -- remove 4D/project if no value
                     |> List.map (\f ->
                         if f.term.id == purlDateTimeISO then
                             datetimeParam f
@@ -920,8 +927,6 @@ generateQueryParams filters =
                     []
         in
         Ok termParams
---    else
---        Err "Invalid query parameter"
 
 
 generateControlParams : String -> List String -> Int -> Int -> Int -> Bool -> List (String, String)
@@ -996,7 +1001,7 @@ viewSampleSearchPanel model =
             model.sampleFilters
                 |> List.filter (\f -> f.term.id == purlProject)
                 |> List.head
-                |> Maybe.withDefault (Search.defaultFilter purlProject)
+                |> Maybe.withDefault (Search.defaultFilter purlProject "Project")
     in
     div []
         [ view4DPanel model
@@ -1075,10 +1080,9 @@ view4DPanel model =
                             ((div [ class "input-group-prepend" ] [ span [ class "input-group-text", style "width" "5em" ] [ text "Date"] ]) ::
                                 (case dateRangePicker of
                                     Just picker ->
-                                        List.concat
-                                        [ viewDateTimeFilterInput picker purlDateTimeISO datetimeVal
-                                        , [ viewDateTimeFilterFormatOptions purlDateTimeISO datetimeVal ]
-                                        ]
+                                        (viewDateTimeFilterInput picker purlDateTimeISO datetimeVal ++
+                                            [ viewDateTimeFilterFormatOptions purlDateTimeISO datetimeVal ]
+                                        )
 
                                     _ -> -- error, shouldn't happen
                                         [ text "Error" ]
@@ -1548,7 +1552,7 @@ viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
 viewTermPanel term nodes =
     let
         removeMsg =
-            if (permanentSampleTerms ++ permanentFileTerms) |> List.member term.id then
+            if (List.map (.term >> .id) permanentSampleFilters) ++ permanentFileTerms |> List.member term.id then
                 Nothing
             else
                 Just RemoveFilter
@@ -1725,7 +1729,7 @@ viewSummary : Model -> Html Msg
 viewSummary model =
     case model.summaryResults of
         Nothing ->
-            text "None"
+            viewBlank
 
         Just results ->
             let
@@ -1737,6 +1741,7 @@ viewSummary model =
 
                 termLabels =
                     (model.sampleFilters ++ model.addedSampleFilters)
+                        |> List.filter (\f -> f.term.id /= purlLocation)
                         |> List.filter (\f -> f.term.id /= purlProject)
                         |> List.map (.term >> .label)
             in
