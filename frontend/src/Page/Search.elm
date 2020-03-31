@@ -75,12 +75,12 @@ purlDateTimeISO =
     "http://purl.obolibrary.org/obo/OBI_0001619"
 
 
---purlDateTimeISOStart =
---    "http://purl.obolibrary.org/obo/PMO_00000008"
+purlDateTimeISOStart =
+    "http://purl.obolibrary.org/obo/PMO_00000008"
 
 
---purlDateTimeISOEnd =
---    "http://purl.obolibrary.org/obo/PMO_00000009"
+purlDateTimeISOEnd =
+    "http://purl.obolibrary.org/obo/PMO_00000009"
 
 
 purlBiome =
@@ -228,18 +228,14 @@ type alias DateRangePicker =
 
 init : Session -> ( Model, Cmd Msg )
 init session =
-    let
-        initialFilters ids =
-            ids |> List.map Search.defaultFilter
-    in
     (
         { session = session
 
         -- Search filter state
         , allTerms = []
-        , sampleFilters = initialFilters permanentSampleTerms
-        , addedSampleFilters = []
-        , fileFilters = initialFilters permanentFileTerms
+        , sampleFilters = permanentSampleTerms |> List.map Search.defaultFilter
+        , addedSampleFilters = [] -- set in GetSearchTermsCompleted
+        , fileFilters = [] -- set in GetFilePropertiesCompleted
         , dateRangePickers = Dict.empty
         , showParamSearchDropdown = False
         , paramSearchInputVal = ""
@@ -389,11 +385,23 @@ update msg model =
             ( { model | searchState = SearchError (Error.toString error) }, Cmd.none )
 
         ClearFilters ->
+            let
+                sampleFilters =
+                    model.sampleFilters |> List.map Search.resetFilter
+
+                addedSampleFilters =
+                    model.addedSampleFilters
+                        |> List.filter (\f -> List.member f.term.id initialAddedSampleTerms)
+                        |> List.map Search.resetFilter
+
+                fileFilters =
+                    model.fileFilters |> List.map Search.resetFilter
+            in
             ( { model
                 | searchState = SearchPending
-                , sampleFilters = permanentSampleTerms |> List.map Search.defaultFilter
-                , addedSampleFilters = initialAddedSampleTerms |> List.map Search.defaultFilter
-                , fileFilters = permanentFileTerms |> List.map Search.defaultFilter
+                , sampleFilters = sampleFilters
+                , addedSampleFilters = addedSampleFilters
+                , fileFilters = fileFilters
                 , sampleTableState = SortableTable.initialState
                 , fileTableState = SortableTable.initialState
               }
@@ -528,6 +536,27 @@ update msg model =
 
                 fileFilters =
                     Search.updateFilterValue id val model.fileFilters
+
+                cmd =
+                    if id == purlLocation then
+                        case val of
+                            LatLngRadiusValue (lat,lng) radius ->
+                                let
+                                    lat2 =
+                                        String.toFloat lat |> Maybe.withDefault 0
+
+                                    lng2 =
+                                        String.toFloat lng |> Maybe.withDefault 0
+
+                                    radius2 =
+                                        String.toFloat radius |> Maybe.withDefault 0
+                                in
+                                GMap.setLocation (Just (GMap.Location lat2 lng2 radius2))
+
+                            _ ->
+                                Cmd.none
+                    else
+                        Cmd.none
             in
             ( { model
                 | searchState = SearchPending
@@ -535,7 +564,7 @@ update msg model =
                 , addedSampleFilters = addedSampleFilters
                 , fileFilters = fileFilters
               }
-              , Cmd.none
+              , cmd
             )
 
         SetSearchTab label ->
@@ -737,7 +766,7 @@ update msg model =
             , Cmd.none
             )
 
-        SetStartDatePicker id val subMsg -> --TODO merge code in common with SetEndDatePicker into function
+        SetStartDatePicker id val subMsg -> --TODO merge with SetEndDatePicker
             let
                 dateRangePicker =
                     Dict.get id model.dateRangePickers
@@ -868,26 +897,27 @@ generateQueryParams filters =
         let
             termParams =
                 filters
-                    --|> List.filter (\f -> f.term.id == purlProject && f.value == NoValue) -- remove project if no value
-                    |> List.map (\f -> Tuple.pair f.term.id (Search.filterValueToString f.value))
+                    |> List.filter (\f -> not <| List.member f.term.id permanentSampleTerms && f.value == NoValue) -- remove 4D/project if no value
+                    |> List.map (\f ->
+                        if f.term.id == purlDateTimeISO then
+                            datetimeParam f
+                        else
+                            [ Tuple.pair f.term.id ( Search.filterValueToString f.value ) ]
+                       )
+                    |> List.concat
 
-            --datetimeParam =
-            --    case List.filter (\f -> f.term.id == purlDateTimeISO) termFilters of
-            --        [ filter ] ->
-            --            if validParam filter.value then
-            --                let
-            --                    encodedVal =
-            --                        encodeFilterValue filter.value
-            --                in
-            --                [ ( "|" ++ purlDateTimeISO, encodedVal )
-            --                , ( "|" ++ purlDateTimeISOStart, encodedVal )
-            --                , ( "|" ++ purlDateTimeISOEnd, encodedVal )
-            --                ]
-            --            else
-            --                []
-            --
-            --        _ ->
-            --            []
+            datetimeParam f =
+                if Search.validFilterValue f.value then
+                    let
+                        encodedVal =
+                            Search.filterValueToString f.value
+                    in
+                    [ ( "|" ++ purlDateTimeISO, encodedVal )
+                    , ( "|" ++ purlDateTimeISOStart, encodedVal )
+                    , ( "|" ++ purlDateTimeISOEnd, encodedVal )
+                    ]
+                else
+                    []
         in
         Ok termParams
 --    else

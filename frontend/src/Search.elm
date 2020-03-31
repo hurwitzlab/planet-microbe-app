@@ -531,6 +531,11 @@ updateFilterValue purl newValue filters =
             )
 
 
+resetFilter : Filter -> Filter
+resetFilter filter =
+    { filter | value = NoValue }
+
+
 updateFilter : PURL -> Filter -> List Filter -> List Filter
 updateFilter purl newFilter filters =
     let
