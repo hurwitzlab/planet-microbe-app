@@ -257,8 +257,8 @@ async function handleSearchRequest(req, res, params) {
         if (download) {
             let table =
                 [].concat(
-                    [ result.fields.join("\t") ],
-                    result.results.map(r => [r.projectName, r.sampleAccn].concat(r.values).join("\t"))
+                    [ results.fields.join("\t") ],
+                    results.results.map(r => [r.projectName, r.sampleAccn].concat(r.values).join("\t"))
                 ).join("\n");
 
             res.send(table);
