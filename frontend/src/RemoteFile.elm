@@ -50,17 +50,17 @@ fileDecoder =
         |> required "file_url" Decode.string
         |> required "file_type" Decode.string
         |> required "file_format" Decode.string
-        |> required "layout" Decode.string
-        |> required "source" Decode.string
-        |> required "strategy" Decode.string
-        |> required "selection" Decode.string
-        |> required "run_accn" Decode.string
-        |> required "experiment_id" Decode.int
-        |> required "experiment_accn" Decode.string
-        |> required "sample_id" Decode.int
-        |> required "sample_accn" Decode.string
-        |> required "project_id" Decode.int
-        |> required "project_name" Decode.string
+        |> optional "layout" Decode.string ""
+        |> optional "source" Decode.string ""
+        |> optional "strategy" Decode.string ""
+        |> optional "selection" Decode.string ""
+        |> optional "run_accn" Decode.string ""
+        |> optional "experiment_id" Decode.int 0
+        |> optional "experiment_accn" Decode.string ""
+        |> optional "sample_id" Decode.int 0
+        |> optional "sample_accn" Decode.string ""
+        |> optional "project_id" Decode.int 0
+        |> optional "project_name" Decode.string ""
 
 
 
