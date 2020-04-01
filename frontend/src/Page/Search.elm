@@ -167,13 +167,12 @@ redundantTerms =
 
 type alias Model =
     { session : Session
-    --, pageLoadStatus : PageLoadStatus
 
     -- Search filter state
-    , allTerms: List SearchTerm -- available terms to add to search
-    , sampleFilters : List Filter
-    , addedSampleFilters : List Filter
-    , fileFilters : List Filter
+    , allTerms: List SearchTerm -- all terms available to search on
+    , sampleFilters : List Filter -- sample tab search filters
+    , addedSampleFilters : List Filter -- user-added sample tab search filters
+    , fileFilters : List Filter -- file tab search filters
     , dateRangePickers : Dict PURL DateRangePicker -- Datepicker UI elements (there could be datetime fields in addition to start/end in 4D)
     , showParamSearchDropdown : Bool
     , paramSearchInputVal : String
@@ -201,24 +200,12 @@ type alias Model =
     }
 
 
---FIXME this breaks the map
---type PageLoadStatus
---    = PageWaitingOnInitRequests Int -- Semaphore on init requests to finish
---    | PageWaitingOnSearch
---    | PageReady
-
-
 type SearchStatus
     = SearchNot          -- Idle
     | SearchInit Int     -- Semaphore on init requests to finish
     | SearchPending      -- Pending state to debounce search triggers
     | SearchInProgress   -- Search request in progress
     | SearchError String -- Search request failed
-
-
---type SearchType
---    = SampleSearch
---    | FileSearch
 
 
 type DialogState
@@ -247,14 +234,13 @@ init session =
     in
     (
         { session = session
-        --, pageLoadStatus = PageWaitingOnInitRequests (List.length initRequests)
 
         -- Search filter state
-        , allTerms = []
+        , allTerms = [] -- set by GetAllSearchTermsCompleted
         , sampleFilters = permanentSampleFilters
-        , addedSampleFilters = [] -- set in GetSearchTermsCompleted
-        , fileFilters = [] -- set in GetFilePropertiesCompleted
-        , dateRangePickers = Dict.empty
+        , addedSampleFilters = [] -- set by GetSearchTermsCompleted
+        , fileFilters = [] -- set by GetFilePropertiesCompleted
+        , dateRangePickers = Dict.empty -- set by InitDatePickers
         , showParamSearchDropdown = False
         , paramSearchInputVal = ""
 
@@ -731,7 +717,6 @@ update msg model =
                 , summaryResults = Success response.summary
                 , mapResults = response.map
                 , searchStatus = SearchNot
-                --, pageLoadStatus = PageReady
               }
             , GMap.loadMap response.map
             )
