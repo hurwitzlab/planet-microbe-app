@@ -755,7 +755,7 @@ update msg model =
 --                , mapResults = response.map
                 , searchStatus = SearchNot
               }
-            , GMap.loadMap response.map
+            , Cmd.none
             )
 
         FileSearchCompleted (Err error) ->
