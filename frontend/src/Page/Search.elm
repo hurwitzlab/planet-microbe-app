@@ -38,10 +38,6 @@ import Debug exposing (toString)
 -- CONSTANTS --
 
 
-myLocale =
-    { usLocale | decimals = 0 }
-
-
 defaultPageSize =
     20
 
@@ -66,7 +62,7 @@ purlDepth =
 --    "http://purl.obolibrary.org/obo/PMO_00000052"
 
 
--- Need to resolve time zone issue with fields that reference this PURL
+--TODO Need to resolve time zone issue with fields that reference this PURL
 --purlDateTimeLocal =
 --    "http://purl.obolibrary.org/obo/PMO_00000081"
 
@@ -95,27 +91,27 @@ purlEnvironmentalMaterial =
     "http://purl.obolibrary.org/obo/ENVO_00010483"
 
 
-purlLocation = -- Not a real PURL, but a unique id for this term used in search query string
+purlLocation = -- Not a real PURL but rather a unique id for this term used in search query string
     "location"
 
 
-purlProject = -- Not a real PURL, but a unique id for this term used in search query string
+purlProject = -- Not a real PURL but rather a unique id for this term used in search query string
     "project"
 
 
-purlFileSource =
+purlFileSource = -- Not a real PURL but rather a unique id for this term used in search query string
     "source"
 
 
-purlFileStrategy =
+purlFileStrategy = -- Not a real PURL but rather a unique id for this term used in search query string
     "strategy"
 
 
-purlFileSelection =
+purlFileSelection = -- Not a real PURL but rather a unique id for this term used in search query string
     "selection"
 
 
-purlFileLayout =
+purlFileLayout = -- Not a real PURL but rather a unique id for this term used in search query string
     "layout"
 
 
@@ -278,7 +274,7 @@ init session =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ Time.every 500 InputTimerTick -- milliseconds
+        [ Time.every 500 InputTimerTick -- milliseconds, for debouncing search triggers
         , GMap.getLocation UpdateLocationFromMap
         , GMap.mapLoaded MapLoaded
         ]
@@ -637,13 +633,14 @@ update msg model =
             else
                 ( model, Cmd.none )
 
-        InputTimerTick time ->
+        InputTimerTick _ ->
             case model.searchStatus of
                 SearchPending ->
                     update (Search 0 False) model
 
                 _ ->
                     ( model, Cmd.none )
+            --TODO reset timer on new search trigger
             --if model.doSearch && Time.posixToMillis time - model.searchStartTime >= 1000 then -- 1 second
             --    update (Search 0 False) model
             --else
@@ -670,8 +667,8 @@ update msg model =
                         summaryParams =
                             ( "summary"
                             , (model.sampleFilters ++ model.addedSampleFilters)
-                                |> List.filter (\f -> f.term.id /= purlLocation)
-                                |> List.filter (\f -> f.term.id /= purlProject)
+                                |> List.filter (\f -> f.term.id /= purlLocation) -- summary not possible
+                                |> List.filter (\f -> f.term.id /= purlProject) -- present by default
                                 |> List.map (.term >> .id)
                                 |> String.join ","
                             )
@@ -978,7 +975,6 @@ view model =
                 ]
 
 
-
 viewDialogs : Model -> Html Msg
 viewDialogs model =
     case model.dialogState of
@@ -1128,12 +1124,11 @@ viewAddFilterPanel showDropdown searchVal allTerms filters =
                 dis =
                     List.member term.id filterIDs
             in
-            a [ classList [ ("dropdown-item", True), ("disabled", dis) ], href "", onClick (AddFilter term.id) ] [ term.label |> String.Extra.toSentenceCase |> text ]
+            a [ classList [ ("dropdown-item", True), ("disabled", dis) ], href "", onClick (AddFilter term.id) ]
+                [ text <| String.Extra.toSentenceCase term.label ]
 
-        removeRedundantTerms term =
-            redundantTerms
-                |> List.member term.id
-                |> not
+        isRedundant term =
+            List.member term.id redundantTerms
 
         filterOnSearch term =
             let
@@ -1145,7 +1140,7 @@ viewAddFilterPanel showDropdown searchVal allTerms filters =
 
         options =
             allTerms
-                |> List.filter removeRedundantTerms
+                |> List.filter (not << isRedundant)
                 |> List.filter filterOnSearch
                 |> List.sortWith (\a b -> compare (String.Extra.toSentenceCase a.label) (String.Extra.toSentenceCase b.label) )
                 |> List.map makeOption
@@ -1168,10 +1163,8 @@ viewAddFilterPanel showDropdown searchVal allTerms filters =
 viewAddFilterDialog : List SearchTerm -> String -> Html Msg
 viewAddFilterDialog allTerms searchVal =
     let
-        removeRedundantTerms term =
-            redundantTerms
-                |> List.member term.id
-                |> not
+        isRedundant term =
+            List.member term.id redundantTerms
 
         filterOnSearch term =
             String.contains (String.toLower searchVal) (String.toLower term.label)
@@ -1179,7 +1172,7 @@ viewAddFilterDialog allTerms searchVal =
 
         terms =
             allTerms
-                |> List.filter removeRedundantTerms
+                |> List.filter (not << isRedundant)
                 |> List.filter filterOnSearch
                 |> List.sortWith (\a b -> compare (String.Extra.toSentenceCase a.label) (String.Extra.toSentenceCase b.label) )
 
@@ -1220,10 +1213,8 @@ viewAddFilterDialog allTerms searchVal =
         , div [ class "small text-secondary float-right" ]
             [ if count == 0 then
                 text "No results"
-              else if count == 1 then
-                (String.fromInt count) ++ " result" |> text
               else
-                (String.fromInt count) ++ " results" |> text
+                text <| (String.fromInt count) ++ " result" ++ (if count == 1 then "" else "s")
             ]
         , div [ class "mt-5 border-top", style "overflow-y" "auto", style "max-height" "50vh" ]
             (List.map viewTerm terms)
@@ -1281,7 +1272,7 @@ viewSearchFilterPanel filter =
                     ""
     in
     viewTermPanel filter.term
-        [ label [] [ numValues |> toFloat |> format myLocale |> text, text " unique values" ]
+        [ label [] [ numValues |> toFloat |> format { usLocale | decimals = 0 } |> text, text " unique values" ]
         , div [ class "input-group input-group-sm" ]
             [ input [ type_ "text", class "form-control", placeholder "Search ...", value val2, onInput (SetSearchFilterValue filter.term.id) ] [] ]
         ]
@@ -1298,7 +1289,7 @@ viewStringFilterPanel filter =
             (viewStringFilterOptions filter maxNumPanelOptions True)
         , if numOptions > maxNumPanelOptions then
             button [ class "btn btn-sm btn-link float-right", onClick (OpenDialog (StringFilterDialog filter)) ]
-                [ String.fromInt (numOptions - maxNumPanelOptions) ++ " More ..." |> text ]
+                [ text <| String.fromInt (numOptions - maxNumPanelOptions) ++ " More ..." ]
           else
             viewBlank
         ]
@@ -1357,12 +1348,12 @@ viewStringFilterOptions filter maxNum sortSelected =
                     [ td []
                         [ div [ class "form-check form-check-inline" ]
                             [ input [ class "form-check-input", type_ "checkbox", checked (Search.isStringFilterSelected name filter.value), onCheck (SetStringFilterValue filter.term.id name) ] []
-                            , label [ class "form-check-label" ] [ name |> purlToLabel filter.term |> String.Extra.toSentenceCase |> text]
+                            , label [ class "form-check-label" ] [ name |> purlToLabel filter.term |> String.Extra.toSentenceCase |> text ]
                             ]
                         ]
                     , td [ style "max-width" "3em" ]
                         [ div [ class "badge badge-secondary float-right align-top" ]
-                            [ count |> toFloat |> format myLocale |> text ]
+                            [ count |> toFloat |> format { usLocale | decimals = 0 } |> text ]
                         ]
                     ]
                 ]
@@ -1429,7 +1420,7 @@ viewNumberFilterFormatOptions id val =
                             False
             in
             a [ class "dropdown-item", classList [ ("active", isSelected) ], href "", onClick (SetFilterValue id filterVal) ]
-                [ label |> String.Extra.toSentenceCase |> text ]
+                [ text <| String.Extra.toSentenceCase label ]
 
         options =
             [ ("exact", SingleValue ""), ("range", RangeValue "" ""), ("offset", OffsetValue "" "") ]
@@ -1535,7 +1526,7 @@ viewDateTimeFilterFormatOptions id val =
                             False
             in
             a [ class "dropdown-item", classList [ ( "active", isSelected ) ], href "", onClick (SetFilterValue id filterVal) ]
-                [ label |> String.Extra.toSentenceCase |> text ]
+                [ text <| String.Extra.toSentenceCase label ]
 
         options =
             [ ("Exact (YYYY-MM-DD)", DateTimeValue "")
@@ -1718,7 +1709,7 @@ viewPageSummary curPageNum pageSize resultCount label =
         , text " - "
         , curPageNum * pageSize + pageSize |> Basics.max 1 |> Basics.min resultCount |> String.fromInt |> text
         , text " of "
-        , resultCount |> toFloat |> format myLocale |> text
+        , resultCount |> toFloat |> format { usLocale | decimals = 0 } |> text
         , text " "
         , text label
         --, (if resultCount /= 1 then "s" else "") |> text -- pluralize
