@@ -136,7 +136,7 @@ router.post('/samples/runs', async (req, res) => {
     let result = await db.query({
         text:
             `SELECT r.run_id,r.accn,r.total_spots,r.total_bases,
-                f.file_id,f.url,ft.name AS file_type,ff.name AS file_format
+                f.file_id,f.url AS file_url,ft.name AS file_type,ff.name AS file_format
             FROM experiment e
             LEFT JOIN run r USING(experiment_id)
             LEFT JOIN run_to_file USING(run_id)
@@ -164,7 +164,7 @@ router.post('/samples/runs', async (req, res) => {
                 file_id: row.file_id,
                 file_type: row.file_type,
                 file_format: row.file_format,
-                url: row.url,
+                file_url: row.file_url,
             });
     })
 
