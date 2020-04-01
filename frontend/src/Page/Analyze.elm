@@ -51,7 +51,7 @@ init session tab =
       , query = ""
       }
       , Cmd.batch
-          [ App.fetchAll |> Http.toTask |> Task.attempt GetAppsCompleted
+          [ App.fetchAll |> Http.send GetAppsCompleted
           , getJobs
           ]
     )

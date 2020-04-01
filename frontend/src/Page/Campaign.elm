@@ -35,9 +35,9 @@ init session id =
       , samples = Nothing
       }
       , Cmd.batch
-        [ Campaign.fetch id |> Http.toTask |> Task.attempt GetCampaignCompleted
-        , SamplingEvent.fetchAllByCampaign id |> Http.toTask |> Task.attempt GetSamplingEventsCompleted
-        , Sample.fetchAllByCampaign id |> Http.toTask |> Task.attempt GetSamplesCompleted
+        [ Campaign.fetch id |> Http.send GetCampaignCompleted
+        , SamplingEvent.fetchAllByCampaign id |> Http.send GetSamplingEventsCompleted
+        , Sample.fetchAllByCampaign id |> Http.send GetSamplesCompleted
         ]
     )
 

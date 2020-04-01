@@ -159,7 +159,7 @@ init flags url navKey =
                 in
                 ( Redirect newSession --model
                 , Cmd.batch
-                    [ getAccessToken "agave" code |> Http.toTask |> Task.attempt GotAccessToken
+                    [ getAccessToken "agave" code |> Http.send GotAccessToken
                     ]
                 )
 
@@ -528,7 +528,7 @@ update msg model =
                     ( Redirect newSession
                     , Cmd.batch
                           [ Credentials.store newCred
-                          , User.recordLogin accessToken |> Http.toTask |> Task.attempt GotUserInfo
+                          , User.recordLogin accessToken |> Http.send GotUserInfo
                           ]
                     )
 

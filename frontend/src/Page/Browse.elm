@@ -38,8 +38,8 @@ init session =
       , projectDescriptionStates = Dict.empty
       }
       , Cmd.batch
-        [ Project.fetchAll |> Http.toTask |> Task.attempt GetProjectsCompleted
-        , Sample.fetchAll |> Http.toTask |> Task.attempt GetSamplesCompleted
+        [ Project.fetchAll |> Http.send GetProjectsCompleted
+        , Sample.fetchAll |> Http.send GetSamplesCompleted
         ]
     )
 

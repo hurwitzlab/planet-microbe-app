@@ -387,7 +387,7 @@ update msg model =
 
                 cmd =
                     if model.files == NotAsked then
-                        RemoteFile.fetchSome idList |> Http.toTask |> Task.attempt LoadCartCompleted
+                        RemoteFile.fetchSome idList |> Http.send LoadCartCompleted
                     else
                         Cmd.none
             in

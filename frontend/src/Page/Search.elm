@@ -705,9 +705,9 @@ update msg model =
                             , previousSearchParams = allParams
                           }
                         , if download then
-                            Search.searchDownloadRequest allParams |> Http.toTask |> Task.attempt DownloadSearchCompleted
+                            Search.searchDownloadRequest allParams |> Http.send DownloadSearchCompleted
                           else
-                            Search.searchRequest allParams |> Http.toTask |> Task.attempt cmd
+                            Search.searchRequest allParams |> Http.send cmd
                         )
                     else -- do nothing, search params haven't changed
                         ( { model | searchStatus = SearchNot }, Cmd.none )

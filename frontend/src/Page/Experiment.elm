@@ -37,8 +37,8 @@ init session id =
       , runs = Nothing
       }
       , Cmd.batch
-        [ Experiment.fetch id |> Http.toTask |> Task.attempt GetExperimentCompleted
-        , Run.fetchAllByExperiment id |> Http.toTask |> Task.attempt GetRunsCompleted
+        [ Experiment.fetch id |> Http.send GetExperimentCompleted
+        , Run.fetchAllByExperiment id |> Http.send GetRunsCompleted
         ]
     )
 

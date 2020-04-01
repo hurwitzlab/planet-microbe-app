@@ -86,7 +86,7 @@ init session = --id =
       , files = Loading
       }
     , Cmd.batch
-        [ RemoteFile.fetchSome idList |> Http.toTask |> Task.attempt GetFilesCompleted
+        [ RemoteFile.fetchSome idList |> Http.send GetFilesCompleted
         ]
     )
 
