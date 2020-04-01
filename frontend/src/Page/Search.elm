@@ -355,7 +355,7 @@ update msg model =
                         SearchInit (n - 1)
 
                 _ ->
-                    searchStatus
+                    SearchPending
     in
     case msg of
         GetProjectCountsCompleted (Ok counts) ->
@@ -934,6 +934,7 @@ generateQueryParams filters =
         let
             termParams =
                 filters
+                    |> List.filter (.value >> Search.validFilterValue)
                     |> List.map (\f ->
                         if f.term.id == purlDateTimeISO then
                             datetimeParam f
