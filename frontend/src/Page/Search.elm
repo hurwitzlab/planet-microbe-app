@@ -1701,7 +1701,7 @@ viewResults model =
                                         )
                                     ,
                                     div []
-                                        [ viewPageSummary model.pageNum model.pageSize count
+                                        [ viewPageSummary model.pageNum model.pageSize count model.resultTab
                                         , content
                                         , viewPageControls model.pageNum model.pageSize count
                                         ]
@@ -1710,8 +1710,8 @@ viewResults model =
         ]
 
 
-viewPageSummary : Int -> Int -> Int -> Html Msg
-viewPageSummary curPageNum pageSize resultCount =
+viewPageSummary : Int -> Int -> Int -> String -> Html Msg
+viewPageSummary curPageNum pageSize resultCount label =
     div [ class "small ml-1", style "color" "dimgray" ]
         [ text "Showing "
         , curPageNum * pageSize + 1 |> Basics.max 1 |> String.fromInt |> text
@@ -1719,8 +1719,9 @@ viewPageSummary curPageNum pageSize resultCount =
         , curPageNum * pageSize + pageSize |> Basics.max 1 |> Basics.min resultCount |> String.fromInt |> text
         , text " of "
         , resultCount |> toFloat |> format myLocale |> text
-        , text " sample"
-        , (if resultCount /= 1 then "s" else "") |> text
+        , text " "
+        , text label
+        --, (if resultCount /= 1 then "s" else "") |> text -- pluralize
         ]
 
 
