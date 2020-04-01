@@ -4,6 +4,7 @@ import Session exposing (Session)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Page
+import Error
 import Icon
 import Project exposing (Project)
 import Sample exposing (Sample)
@@ -11,10 +12,8 @@ import Campaign exposing (Campaign)
 import SamplingEvent exposing (SamplingEvent)
 import Route
 import Http
---import Page.Error as Error exposing (PageLoadError)
-import Task exposing (Task)
+import RemoteData exposing (RemoteData(..))
 import String.Extra
---import Debug exposing (toString)
 import Config exposing (dataCommonsUrl)
 
 
@@ -24,26 +23,26 @@ import Config exposing (dataCommonsUrl)
 
 type alias Model =
     { session : Session
-    , project : Maybe Project
-    , campaigns : Maybe (List Campaign)
-    , samplingEvents : Maybe (List SamplingEvent)
-    , samples : Maybe (List Sample)
+    , project : RemoteData Http.Error Project
+    , campaigns : RemoteData Http.Error (List Campaign)
+    , samplingEvents : RemoteData Http.Error (List SamplingEvent)
+    , samples : RemoteData Http.Error (List Sample)
     }
 
 
 init : Session -> Int -> ( Model, Cmd Msg )
 init session id =
     ( { session = session
-      , project = Nothing
-      , campaigns = Nothing
-      , samplingEvents = Nothing
-      , samples = Nothing
+      , project = Loading
+      , campaigns = Loading
+      , samplingEvents = Loading
+      , samples = Loading
       }
       , Cmd.batch
-        [ Project.fetch id |> Http.toTask |> Task.attempt GetProjectCompleted
-        , Campaign.fetchAllByProject id |> Http.toTask |> Task.attempt GetCampaignsCompleted
-        , SamplingEvent.fetchAllByProject id |> Http.toTask |> Task.attempt GetSamplingEventsCompleted
-        , Sample.fetchAllByProject id |> Http.toTask |> Task.attempt GetSamplesCompleted
+        [ Project.fetch id |> Http.send GetProjectCompleted
+        , Campaign.fetchAllByProject id |> Http.send GetCampaignsCompleted
+        , SamplingEvent.fetchAllByProject id |> Http.send GetSamplingEventsCompleted
+        , Sample.fetchAllByProject id |> Http.send GetSamplesCompleted
         ]
     )
 
@@ -68,40 +67,28 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         GetProjectCompleted (Ok project) ->
-            ( { model | project = Just project }, Cmd.none )
+            ( { model | project = Success project }, Cmd.none )
 
-        GetProjectCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetProjectCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetProjectCompleted (Err error) ->
+            ( { model | project = Failure error }, Cmd.none )
 
         GetCampaignsCompleted (Ok campaigns) ->
-            ( { model | campaigns = Just campaigns }, Cmd.none )
+            ( { model | campaigns = Success campaigns }, Cmd.none )
 
-        GetCampaignsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetCampaignsCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetCampaignsCompleted (Err error) ->
+            ( { model | campaigns = Failure error }, Cmd.none )
 
         GetSamplingEventsCompleted (Ok samplingEvents) ->
-            ( { model | samplingEvents = Just samplingEvents }, Cmd.none )
+            ( { model | samplingEvents = Success samplingEvents }, Cmd.none )
 
-        GetSamplingEventsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSamplingEventsCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetSamplingEventsCompleted (Err error) ->
+            ( { model | samplingEvents = Failure error }, Cmd.none )
 
         GetSamplesCompleted (Ok samples) ->
-            ( { model | samples = Just samples }, Cmd.none )
+            ( { model | samples = Success samples }, Cmd.none )
 
-        GetSamplesCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSamplesCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetSamplesCompleted (Err error) ->
+            ( { model | samples = Failure error }, Cmd.none )
 
 
 
@@ -111,19 +98,16 @@ update msg model =
 view : Model -> Html Msg
 view model =
     case model.project of
-        Nothing ->
-            text ""
-
-        Just project ->
+        Success project ->
             let
                 numCampaigns =
-                    model.campaigns |> Maybe.map List.length |> Maybe.withDefault 0
+                    model.campaigns |> RemoteData.toMaybe |> Maybe.map List.length |> Maybe.withDefault 0
 
                 numSamplingEvents =
-                    model.samplingEvents |> Maybe.map List.length |> Maybe.withDefault 0
+                    model.samplingEvents |> RemoteData.toMaybe |> Maybe.map List.length |> Maybe.withDefault 0
 
                 numSamples =
-                    model.samples |> Maybe.map List.length |> Maybe.withDefault 0
+                    model.samples |> RemoteData.toMaybe |> Maybe.map List.length |> Maybe.withDefault 0
             in
             div [ class "container" ]
                 [ div []
@@ -140,7 +124,7 @@ view model =
                         ]
                     ]
                 , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
-                    [ viewCampaigns model.campaigns ]
+                    [ viewRemoteData viewCampaigns model.campaigns ]
                 , div [ class "pt-4" ]
                     [ Page.viewTitle2 "Sampling Events" False
                     , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
@@ -151,7 +135,7 @@ view model =
                         ]
                     ]
                 , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
-                    [ viewSamplingEvents model.samplingEvents ]
+                    [ viewRemoteData viewSamplingEvents model.samplingEvents ]
                 , div [ class "pt-4" ]
                     [ Page.viewTitle2 "Samples" False
                     , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
@@ -162,8 +146,14 @@ view model =
                         ]
                     ]
                 , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
-                    [ viewSamples model.samples ]
+                    [ viewRemoteData viewSamples model.samples ]
                 ]
+
+        Failure error ->
+            Error.view error False
+
+        _ ->
+            Page.viewSpinnerOverlay
 
 
 viewProject : Project -> Html Msg
@@ -216,8 +206,21 @@ viewProject project =
         ]
 
 
-viewCampaigns : Maybe (List Campaign) -> Html Msg
-viewCampaigns maybeCampaigns =
+viewRemoteData : (List a -> Html msg) -> RemoteData Http.Error (List a) -> Html msg
+viewRemoteData viewFunc remoteData =
+    case remoteData of
+        Success data ->
+            viewFunc data
+
+        Failure error ->
+            Error.view error False
+
+        _ ->
+            Page.viewSpinnerOverlay
+
+
+viewCampaigns : List Campaign -> Html Msg
+viewCampaigns campaigns =
     let
         mkRow campaign =
             tr []
@@ -226,25 +229,20 @@ viewCampaigns maybeCampaigns =
                 , td [] [ text (String.Extra.toSentenceCase campaign.type_) ]
                 ]
     in
-    case maybeCampaigns |> Maybe.withDefault [] of
-        [] ->
-            text "None"
-
-        campaigns ->
-            table [ class "table" ]
-                [ thead []
-                    [ tr []
-                        [ th [] [ text "Name" ]
-                        , th [] [ text "Type" ]
-                        ]
-                    ]
-                , tbody []
-                    (campaigns |> List.sortBy .name |> List.map mkRow)
+    table [ class "table" ]
+        [ thead []
+            [ tr []
+                [ th [] [ text "Name" ]
+                , th [] [ text "Type" ]
                 ]
+            ]
+        , tbody []
+            (campaigns |> List.sortBy .name |> List.map mkRow)
+        ]
 
 
-viewSamplingEvents : Maybe (List SamplingEvent) -> Html Msg
-viewSamplingEvents maybeSamplingEvents =
+viewSamplingEvents : List SamplingEvent -> Html Msg
+viewSamplingEvents samplingEvents =
     let
         mkRow samplingEvent =
             tr []
@@ -253,25 +251,20 @@ viewSamplingEvents maybeSamplingEvents =
                 , td [] [ text (String.Extra.toSentenceCase samplingEvent.type_) ]
                 ]
     in
-    case maybeSamplingEvents |> Maybe.withDefault [] of
-        [] ->
-            text "None"
-
-        samples ->
-            table [ class "table" ]
-                [ thead []
-                    [ tr []
-                        [ th [] [ text "Name/ID" ]
-                        , th [] [ text "Type" ]
-                        ]
-                    ]
-                , tbody []
-                    (samples |> List.sortBy .name |> List.map mkRow)
+    table [ class "table" ]
+        [ thead []
+            [ tr []
+                [ th [] [ text "Name/ID" ]
+                , th [] [ text "Type" ]
                 ]
+            ]
+        , tbody []
+            (samplingEvents |> List.sortBy .name |> List.map mkRow)
+        ]
 
 
-viewSamples : Maybe (List Sample) -> Html Msg
-viewSamples maybeSamples =
+viewSamples : List Sample -> Html Msg
+viewSamples samples =
     let
         mkRow sample =
             tr []
@@ -279,17 +272,12 @@ viewSamples maybeSamples =
                     [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
                 ]
     in
-    case maybeSamples |> Maybe.withDefault [] of
-        [] ->
-            text "None"
-
-        samples ->
-            table [ class "table" ]
-                [ thead []
-                    [ tr []
-                        [ th [] [ text "Accn" ]
-                        ]
-                    ]
-                , tbody []
-                    (samples |> List.sortBy .accn |> List.map mkRow)
+    table [ class "table" ]
+        [ thead []
+            [ tr []
+                [ th [] [ text "Accn" ]
                 ]
+            ]
+        , tbody []
+            (samples |> List.sortBy .accn |> List.map mkRow)
+        ]
