@@ -125,53 +125,53 @@ router.post('/samples/experiments', async (req, res) => {
     res.json(result.rows);
 });
 
-router.post('/samples/runs', async (req, res) => {
-    let ids;
-    if (req.body.ids) {
-        ids = req.body.ids.split(',');
-        console.log("ids:", ids);
-    }
-
-    let id = req.params.id;
-    let result = await db.query({
-        text:
-            `SELECT r.run_id,r.accn,r.total_spots,r.total_bases,
-                f.file_id,f.url AS file_url,ft.name AS file_type,ff.name AS file_format
-            FROM experiment e
-            LEFT JOIN run r USING(experiment_id)
-            LEFT JOIN run_to_file USING(run_id)
-            LEFT JOIN file f USING(file_id)
-            LEFT JOIN file_type ft USING(file_type_id)
-            LEFT JOIN file_format ff USING(file_format_id)
-            WHERE e.sample_id = ANY($1)`,
-        values: [ids]
-    });
-
-    // FIXME kludgey
-    let rowsById = {};
-    result.rows.forEach(row => {
-        if (!(row.row_id in rowsById)) {
-            rowsById[row.row_id] = {
-                run_id: row.run_id,
-                accn: row.accn,
-                total_spots: row.total_spots * 1, // convert to int
-                total_bases: row.total_bases * 1, // convert to int
-                files: []
-            }
-        }
-        if (row.file_id)
-            rowsById[row.row_id]['files'].push({
-                file_id: row.file_id,
-                file_type: row.file_type,
-                file_format: row.file_format,
-                file_url: row.file_url,
-            });
-    })
-
-    res.json(
-        Object.values(rowsById)
-    );
-});
+//router.post('/samples/runs', async (req, res) => {
+//    let ids;
+//    if (req.body.ids) {
+//        ids = req.body.ids.split(',');
+//        console.log("ids:", ids);
+//    }
+//
+//    let id = req.params.id;
+//    let result = await db.query({
+//        text:
+//            `SELECT r.run_id,r.accn,r.total_spots,r.total_bases,
+//                f.file_id,f.url AS file_url,ft.name AS file_type,ff.name AS file_format
+//            FROM experiment e
+//            LEFT JOIN run r USING(experiment_id)
+//            LEFT JOIN run_to_file USING(run_id)
+//            LEFT JOIN file f USING(file_id)
+//            LEFT JOIN file_type ft USING(file_type_id)
+//            LEFT JOIN file_format ff USING(file_format_id)
+//            WHERE e.sample_id = ANY($1)`,
+//        values: [ids]
+//    });
+//
+//    // FIXME kludgey
+//    let rowsById = {};
+//    result.rows.forEach(row => {
+//        if (!(row.row_id in rowsById)) {
+//            rowsById[row.row_id] = {
+//                run_id: row.run_id,
+//                accn: row.accn,
+//                total_spots: row.total_spots * 1, // convert to int
+//                total_bases: row.total_bases * 1, // convert to int
+//                files: []
+//            }
+//        }
+//        if (row.file_id)
+//            rowsById[row.row_id]['files'].push({
+//                file_id: row.file_id,
+//                file_type: row.file_type,
+//                file_format: row.file_format,
+//                file_url: row.file_url,
+//            });
+//    })
+//
+//    res.json(
+//        Object.values(rowsById)
+//    );
+//});
 
 router.post('/samples/files', async (req, res) => {
     let ids; // file IDs

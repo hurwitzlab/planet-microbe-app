@@ -47,8 +47,8 @@ router.get('/experiments/:id(\\d+)/runs', async (req, res) => {
             rowsById[row.row_id] = {
                 run_id: row.run_id,
                 accn: row.accn,
-                total_spots: row.total_spots * 1, // convert to int
-                total_bases: row.total_bases * 1, // convert to int
+                total_spots: row.total_spots * 1, // convert to int (::bigint not working in query)
+                total_bases: row.total_bases * 1, // convert to int (::bigint not working in query)
                 files: []
             }
         }
