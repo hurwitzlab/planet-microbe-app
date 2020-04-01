@@ -35,7 +35,7 @@ router.get('/projects/:id(\\d+)', async (req, res) => {
 
     let fileResult = await db.query({
         text:
-            `SELECT file_id,file_type,file_format,url AS file_url
+            `SELECT file_id,file_type.name AS file_type,file_format.name AS file_format,url AS file_url
                 FROM project_to_file
                 LEFT JOIN file USING(file_id)
                 LEFT JOIN file_type USING(file_type_id)
