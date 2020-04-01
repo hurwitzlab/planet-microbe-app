@@ -1983,7 +1983,7 @@ viewFileResults model =
             , "Strategy"
             , "Selection"
             , "Layout"
-            , "Path"
+            , "File Name"
             ]
 
         addToCartTh =
@@ -2005,6 +2005,10 @@ viewFileResults model =
             td [ style "max-width" maxColWidth ] [ text label ]
 
         mkRow result =
+            let
+                basename path =
+                    String.split "/" path |> List.reverse |> List.head |> Maybe.withDefault ""
+            in
             tr []
                 [ mkTd result.projectName
                 , td [] [ a [ Route.href (Route.Sample result.sampleId) ] [ text result.sampleAccn ] ]
@@ -2012,7 +2016,7 @@ viewFileResults model =
                 , mkTd result.strategy
                 , mkTd result.selection
                 , mkTd result.layout
-                , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text result.fileUrl ] ]
+                , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text <| basename result.fileUrl ] ]
                 , td [] [ Cart.addToCartButton (Session.getCart model.session) [ result.fileId ] |> Html.map CartMsg ]
                 ]
     in
