@@ -1692,7 +1692,10 @@ viewResults model =
                                         )
                                     ,
                                     div []
-                                        [ viewPageSummary model.pageNum model.pageSize count model.resultTab
+                                        [ if model.resultTab /= "Summary" then
+                                            viewPageSummary model.pageNum model.pageSize count model.resultTab
+                                          else
+                                            viewBlank
                                         , content
                                         , viewPageControls model.pageNum model.pageSize count
                                         ]
