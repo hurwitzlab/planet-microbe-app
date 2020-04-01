@@ -1697,7 +1697,10 @@ viewResults model =
                                           else
                                             viewBlank
                                         , content
-                                        , viewPageControls model.pageNum model.pageSize count
+                                        , if model.resultTab /= "Summary" then
+                                            viewPageControls model.pageNum model.pageSize count
+                                          else
+                                            viewBlank
                                         ]
                                     ]
                     ]
