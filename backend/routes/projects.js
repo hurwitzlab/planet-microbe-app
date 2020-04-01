@@ -22,38 +22,31 @@ router.get('/projects', async (req, res) => {
 
 router.get('/projects/:id(\\d+)', async (req, res) => {
     let id = req.params.id;
-    let result = await db.query({
+    let projectResult = await db.query({
         text:
             `SELECT
-                p.project_id,p.name,p.accn,p.description,p.datapackage_url,p.url AS project_url,pt.name AS type,f.file_id,f.url,ft.name AS file_type,ff.name AS file_format,
-                (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count
+                p.project_id,p.name,p.accn,p.description,p.datapackage_url,p.url AS project_url,pt.name AS type,
+                (SELECT count(*)::int FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count
             FROM project p
             JOIN project_type pt USING(project_type_id)
-            LEFT JOIN project_to_file USING(project_id)
-            LEFT JOIN file f USING(file_id)
-            LEFT JOIN file_type ft USING(file_type_id)
-            LEFT JOIN file_format ff USING(file_format_id)
             WHERE p.project_id=$1`,
         values: [id]
     });
 
-    // FIXME kludgey
-    let filesById = {};
-    result.rows.forEach(row => {
-        row.sample_count *= 1
+    let fileResult = await db.query({
+        text:
+            `SELECT file_id,file_type,file_format,url
+                FROM project_to_file
+                LEFT JOIN file USING(file_id)
+                LEFT JOIN file_type USING(file_type_id)
+                LEFT JOIN file_format USING(file_format_id)
+                WHERE project_id=$1`,
+        values: [id]
+    });
 
-        if (row.file_id)
-            filesById[row.file_id] = {
-                file_id: row.file_id,
-                file_type: row.file_type,
-                file_format: row.file_format,
-                url: row.url,
-            };
-    })
-
-    let result2 = result.rows[0];
-    result2.files = Object.values(filesById);
-    res.json(result2);
+    let result = projectResult.rows[0];
+    result.files = fileResult.rows;
+    res.json(result);
 });
 
 router.get('/projects/:id(\\d+)/campaigns', async (req, res) => {
