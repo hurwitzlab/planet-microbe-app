@@ -1618,15 +1618,15 @@ viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChartMsg maybeBgColo
 viewResults : Model -> Html Msg
 viewResults model =
     let
-        maybeContent = --FIXME kludgey
+        maybeContent = --FIXME refactor
             case model.resultTab of
                 "Samples" ->
                     case model.sampleResults of
                         Success results ->
-                            Just
-                                ( viewSampleResults model
-                                , model.sampleResultCount
-                                )
+                            Just ( viewSampleResults model, model.sampleResultCount )
+
+                        Failure msg ->
+                            Just ( viewError msg, 0 )
 
                         _ ->
                             Nothing
@@ -1634,10 +1634,10 @@ viewResults model =
                 "Files" ->
                     case model.fileResults of
                         Success results ->
-                            Just
-                                ( viewFileResults model
-                                , model.fileResultCount
-                                )
+                            Just ( viewFileResults model, model.fileResultCount )
+
+                        Failure msg ->
+                            Just ( viewError msg, 0 )
 
                         _ ->
                             Nothing
@@ -1645,10 +1645,10 @@ viewResults model =
                 _ ->
                     case model.summaryResults of
                         Success results ->
-                            Just
-                            ( viewSummary model
-                            , model.sampleResultCount
-                            )
+                            Just ( viewSummary model, model.sampleResultCount )
+
+                        Failure msg ->
+                            Just ( viewError msg, 0 )
 
                         _ ->
                             Nothing
@@ -1659,10 +1659,7 @@ viewResults model =
                 Page.viewSpinnerOverlay
 
             SearchError msg ->
-                div [ class "alert alert-danger m-3" ]
-                    [ p [] [ text "An error occurred:" ]
-                    , p [] [ text msg ]
-                    ]
+                viewError msg
 
             _ ->
                 div []
@@ -1704,6 +1701,14 @@ viewResults model =
                                         ]
                                     ]
                     ]
+        ]
+
+
+viewError : String -> Html Msg
+viewError msg =
+    div [ class "alert alert-danger m-3" ]
+        [ p [] [ text "An error occurred:" ]
+        , p [] [ text msg ]
         ]
 
 
