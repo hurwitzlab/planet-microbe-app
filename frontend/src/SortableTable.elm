@@ -1,6 +1,6 @@
 module SortableTable exposing (..)
 
-import Html exposing (Html, Attribute, text, table, thead, tbody, tfoot)
+import Html exposing (Html, Attribute, table, thead, tbody, tfoot)
 
 
 type alias State =
