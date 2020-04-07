@@ -419,16 +419,12 @@ update msg model =
             )
 
         AddFilter id ->
-            let
-                getTerm =
-                    Sample.fetchSearchTerms [ id ] |> Http.toTask
-            in
             ( { model
                 | showParamSearchDropdown = False
                 , paramSearchInputVal = ""
                 , dialogState = NoDialog
               }
-            , Task.attempt GetSearchTermsCompleted getTerm
+            , Sample.fetchSearchTerms [ id ] |> Http.send GetSearchTermsCompleted
             )
 
         RemoveFilter id ->
