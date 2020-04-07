@@ -615,9 +615,10 @@ async function search(db, termIndex, params) {
         if (gisSelect)
             selections2.unshift(gisSelect);
 
-        let sortCol = (typeof sort !== 'undefined' ? Math.abs(sort) + 3 : 3);
-        let sortDir = sort > 0 ? "ASC" : "DESC";
-        let sortStr = (sortCol <= (selections2.length + 5) ? ` ORDER BY ${sortCol} ${sortDir}` : '');
+        let sortCol = Math.abs(sort) + 3;
+        if (sortCol > selections2.length + 5) sortCol = 3;
+        let sortDir = sort >= 0 ? "ASC" : "DESC";
+        let sortStr = ` ORDER BY ${sortCol} ${sortDir}`;
 
         let sampleQueryStr =
             "SELECT " + ["schema_id", "sample.sample_id", "project.project_id", "project.name", "sample.accn"].concat(selections2).join(",") + " " +
@@ -725,8 +726,10 @@ async function search(db, termIndex, params) {
             clusters = await db.query(locationClusterQuery);
     }
     else if (result == "file") { //-------------------------------------------------------------------------------------
-        let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-        let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort)+1) + " " + sortDir : "");
+        let sortCol = Math.abs(sort) + 1;
+        //if (sortCol > 10) sortCol = 1; // not necessary because columns are static for file search
+        let sortDir = sort >= 0 ? "ASC" : "DESC";
+        let sortStr = ` ORDER BY ${sortCol} ${sortDir}`;
 
         let fileClause = (clauseStr ? 'AND ' : 'WHERE ') + 'file.file_id IS NOT NULL';
         let groupByStr = "GROUP BY file.file_id,sample.sample_id,project.project_id,library.source,library.strategy,library.selection,library.layout";
