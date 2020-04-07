@@ -615,8 +615,9 @@ async function search(db, termIndex, params) {
         if (gisSelect)
             selections2.unshift(gisSelect);
 
-        let sortDir = (typeof sort !== 'undefined' && sort > 0 ? "ASC" : "DESC");
-        let sortStr = (typeof sort !== 'undefined' ? " ORDER BY " + (Math.abs(sort) + 3) + " " + sortDir : "");
+        let sortCol = (typeof sort !== 'undefined' ? Math.abs(sort) + 3 : 3);
+        let sortDir = sort > 0 ? "ASC" : "DESC";
+        let sortStr = (sortCol <= (selections2.length + 5) ? ` ORDER BY ${sortCol} ${sortDir}` : '');
 
         let sampleQueryStr =
             "SELECT " + ["schema_id", "sample.sample_id", "project.project_id", "project.name", "sample.accn"].concat(selections2).join(",") + " " +
