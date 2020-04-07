@@ -60,7 +60,7 @@ async function generateTermIndex(db, ontologyDescriptors) {
     });
 
     schemas.rows.forEach( schema => {
-        console.log("Indexing schema", schema.name);
+        console.log(`Indexing schema ${schema.name} (id=${schema.schema_id})`);
 
         for (let i = 0; i < schema.fields.fields.length; i++) {
             let field = schema.fields.fields[i];
