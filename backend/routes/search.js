@@ -403,18 +403,19 @@ async function search(db, termIndex, params) {
     let andClauses = {};
     for (let term of andTerms) {
         let selectStr = "";
+
         for (let schemaId of schemas) {
             let fields = [];
-            for (let schema of term.schemas[schemaId]) {
+            let tempClauses = [];
+
+            for (let schema of term.schemas[schemaId]) { // for each array position in this schema
                 if (schema.schemaType != 'sample')
                     continue;
 
                 let [field, clause] = buildTermSQL(schema.position, term, terms[term.id]);
 
                 if (clause) {
-                    if (!andClauses[schemaId])
-                        andClauses[schemaId] = []
-                    andClauses[schemaId].push(clause);
+                    tempClauses.push(clause);
 
                     if (!clauses[term.id])
                         clauses[term.id] = [];
@@ -427,6 +428,10 @@ async function search(db, termIndex, params) {
             if (fields.length > 0) {
                 let fieldsStr = "ARRAY[" + fields.join(",") + "]";
                 selectStr += " WHEN schema_id=" + schemaId + " THEN " + fieldsStr;
+
+                if (!andClauses[schemaId])
+                    andClauses[schemaId] = []
+                andClauses[schemaId].push('(' + tempClauses.join(' OR ') + ')');
             }
         }
 
