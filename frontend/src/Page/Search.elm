@@ -1847,9 +1847,19 @@ viewSearchTermSummaryChart label data =
 
 viewSearchTermSummaryDialog : SearchTerm -> Html Msg
 viewSearchTermSummaryDialog term =
+    let
+        newDist =
+            term.distribution |> List.map (Tuple.mapFirst (purlToLabel term))
+
+        sortedDist =
+            if term.type_ /= "number" then
+                List.sortBy Tuple.first newDist
+            else
+                newDist
+    in
     viewDialog (String.Extra.toTitleCase term.label)
         [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin-top" "2em" ]
-            [ viewSearchTermSummaryChart term.label (term.distribution |> List.map (Tuple.mapFirst (purlToLabel term))) ]
+            [ viewSearchTermSummaryChart term.label sortedDist ]
         ]
         [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ]
             [ text "Close" ]
