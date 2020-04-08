@@ -417,19 +417,19 @@ validFilterValue : FilterValue -> Bool
 validFilterValue val =
    case val of
         RangeValue min max ->
-            defined min || defined max -- Either/both can defined --TODO check for valid number
+            validNumber min || validNumber max -- Either/both can defined
 
         OffsetValue value ofs ->
-            defined value && defined ofs --TODO check for valid number
+            validNumber value && validNumber ofs
 
         SearchValue s ->
             defined s
 
         SingleValue s ->
-            defined s --TODO check for valid number
+            defined s
 
         MultipleValues vals ->
-            List.all defined vals --TODO check for valid numbers
+            List.all defined vals
 
         DateTimeValue dt ->
             defined dt --TODO check for valid date format
@@ -437,14 +437,19 @@ validFilterValue val =
         DateTimeRangeValue dt1 dt2 ->
             defined dt1 || defined dt2 --TODO check for valid date format
 
-        LatLngRadiusValue (lat,lng) radius ->
-            defined lat && defined lng
+        LatLngRadiusValue (lat,lng) _ -> -- radius is optional
+            validNumber lat && validNumber lng
 
         LonghurstValue s ->
             defined s
 
         NoValue ->
             True
+
+
+validNumber : String -> Bool
+validNumber s =
+    String.toFloat s /= Nothing
 
 
 filterValueToString : FilterValue -> String

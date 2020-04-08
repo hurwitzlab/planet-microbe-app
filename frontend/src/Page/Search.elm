@@ -24,7 +24,7 @@ import Error
 import Page exposing (viewBlank, viewDialog)
 import Project
 import Sample
-import Search exposing (SearchResponse, SearchResults(..), SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Distribution, defaultSearchTerm)
+import Search exposing (SearchResponse, SearchResults(..), SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Distribution, defaultSearchTerm, validFilterValue)
 import RemoteFile
 import SortableTable
 import BarChart
@@ -36,6 +36,10 @@ import Debug exposing (toString)
 
 
 -- CONSTANTS --
+
+
+maxResultColWidth =
+    "8em"
 
 
 defaultPageSize =
@@ -168,6 +172,7 @@ type alias Model =
     , allTerms: List SearchTerm -- all terms available to search on
     , sampleFilters : List Filter -- sample tab search filters
     , addedSampleFilters : List Filter -- user-added sample tab search filters
+    , displayedSampleFilters : List Filter -- user-added sample tab search filters currently displayed in search results
     , fileFilters : List Filter -- file tab search filters
     , dateRangePickers : Dict PURL DateRangePicker -- Datepicker UI elements (there could be datetime fields in addition to start/end in 4D)
     , showParamSearchDropdown : Bool
@@ -235,6 +240,7 @@ init session =
         , allTerms = [] -- set by GetAllSearchTermsCompleted
         , sampleFilters = permanentSampleFilters
         , addedSampleFilters = [] -- set by GetSearchTermsCompleted
+        , displayedSampleFilters = [] -- set by SampleSearchCompleted
         , fileFilters = [] -- set by GetFilePropertiesCompleted
         , dateRangePickers = Dict.empty -- set by InitDatePickers
         , showParamSearchDropdown = False
@@ -645,20 +651,24 @@ update msg model =
         Search newPageNum download ->
             let
                 allFilters =
-                    (model.sampleFilters
-                        |> List.filter (\f -> f.value /= NoValue) -- remove 4D/project if no value
-                    )
-                    ++ model.addedSampleFilters ++ model.fileFilters
-
+                    (model.sampleFilters |> List.filter (\f -> f.value /= NoValue)) -- remove 4D/project if no value
+                    ++ model.addedSampleFilters
+                    ++ (model.fileFilters |> List.filter (\f -> f.value /= NoValue))
             in
             case generateQueryParams allFilters of
                 Ok queryParams ->
                     let
                         ( result, sortPos, cmd ) =
                             if model.resultTab == "Files" then
-                                ( "file", model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir), FileSearchCompleted )
+                                ( "file"
+                                , model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir)
+                                , FileSearchCompleted
+                                )
                             else
-                                ( "sample", model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir), SampleSearchCompleted )
+                                ( "sample"
+                                , model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir)
+                                , SampleSearchCompleted
+                                )
 
                         summaryParams =
                             ( "summary"
@@ -703,6 +713,10 @@ update msg model =
 
                         _ -> -- impossible
                             Failure "error"
+
+                displayedFilters =
+                    (model.sampleFilters |> List.filter (\f -> f.value /= NoValue && validFilterValue f.value)) -- remove 4D/project if no value
+                    ++ model.addedSampleFilters
             in
             ( { model
                 | sampleResultCount = response.count
@@ -710,6 +724,7 @@ update msg model =
                 , summaryResults = Success response.summary
                 , mapResults = response.map
                 , searchStatus = SearchNot
+                , displayedSampleFilters = displayedFilters
               }
             , GMap.loadMap response.map
             )
@@ -912,7 +927,7 @@ generateQueryParams filters =
         let
             termParams =
                 filters
-                    |> List.filter (.value >> Search.validFilterValue)
+                    |> List.filter (.value >> validFilterValue)
                     |> List.map (\f ->
                         if f.term.id == purlDateTimeISO then
                             datetimeParam f
@@ -922,7 +937,7 @@ generateQueryParams filters =
                     |> List.concat
 
             datetimeParam f =
-                if Search.validFilterValue f.value then
+                if validFilterValue f.value then
                     let
                         encodedVal =
                             Search.filterValueToString f.value
@@ -1539,10 +1554,13 @@ viewDateTimeFilterFormatOptions id val =
 viewLocationFilterInput : FilterValue -> List (Html Msg)
 viewLocationFilterInput val =
     let
+        setFilterValue lat lng radius =
+            SetFilterValue purlLocation (LatLngRadiusValue (lat,lng) radius)
+
         latLngRadiusInput lat lng radius =
-            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> SetFilterValue purlLocation (LatLngRadiusValue (p,lng) radius)) ] []
-            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> SetFilterValue purlLocation (LatLngRadiusValue (lat,p) radius)) ] []
-            , input [ type_ "text", class "form-control", placeholder "radius", value radius, onInput (\p -> SetFilterValue purlLocation (LatLngRadiusValue (lat,lng) p)) ] []
+            [ input [ type_ "text", class "form-control", placeholder "lat", value lat, onInput (\p -> setFilterValue p lng radius) ] []
+            , input [ type_ "text", class "form-control", placeholder "lng", value lng, onInput (\p -> setFilterValue lat p radius) ] []
+            , input [ type_ "text", class "form-control", placeholder "radius", value radius, onInput (\p -> setFilterValue lat lng p) ] []
             ]
     in
     case val of
@@ -1754,7 +1772,7 @@ viewPageControls curPageNum pageSize resultCount =
         ]
         , nav [ class "float-right" ]
             [ ul [ class "pagination" ]
-                --FIXME code below is a little kludgey
+                --FIXME refactor
                 [ pageOption "First" 0
                 , pageOption "Previous" (curPageNum - 1)
                 , pageOption (String.fromInt (curPageNum + 1)) curPageNum
@@ -1842,47 +1860,24 @@ viewSearchTermSummaryDialog term =
 viewSampleResults : Model -> Html Msg
 viewSampleResults model =
     let
-        maxColWidth = "8em"
-
-        timeSpaceColHeaders = --FIXME kinda kludgey, find a better way to order time/space headers
-            let
-                locationVal =
-                    Search.getFilterValue purlLocation model.sampleFilters
-
-                depthVal =
-                    Search.getFilterValue purlDepth model.sampleFilters
-
-                datetimeVal =
-                    Search.getFilterValue purlDateTimeISO model.sampleFilters
-            in
-            List.concat
-                [ if locationVal /= NoValue && Search.validFilterValue locationVal then
-                    [ "Location" ]
-                  else
-                    []
-                , if depthVal /= NoValue && Search.validFilterValue depthVal then
-                    [ "Depth" ] --, "Min Depth", "Max Depth" ]
-                  else
-                    []
-                , if datetimeVal /= NoValue && Search.validFilterValue datetimeVal then
-                    [ "Date", "Start Date", "End Date" ]
-                  else
-                    []
-                --|> List.filter (\s -> Search.defined s)
-                ]
-
         colHeaders =
             "Project Name" ::
             "Sample ID" ::
-            timeSpaceColHeaders ++
-            (model.addedSampleFilters
+            (model.displayedSampleFilters
                 |> List.map
                     (\f ->
-                        if f.term.unitLabel /= "" then
-                            f.term.label ++ " (" ++ f.term.unitLabel ++ ")"
+                        if f.term.id == purlLocation && f.value /= NoValue && validFilterValue f.value then
+                            [ "Location" ]
+                        else if f.term.id == purlDepth && f.value /= NoValue && validFilterValue f.value then
+                            [ "Depth" ]
+                        else if f.term.id == purlDateTimeISO && f.value /= NoValue && validFilterValue f.value then
+                            [ "Date", "Start Date", "End Date" ]
+                        else if f.term.unitLabel /= "" then
+                            [ f.term.label ++ " (" ++ f.term.unitLabel ++ ")" ]
                         else
-                            f.term.label
+                            [ f.term.label ]
                     )
+                |> List.concat
             )
 
         addToCartTh =
@@ -1913,10 +1908,10 @@ viewSampleResults model =
                             label
                         )
             in
-            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetSampleSortPos pos) ] [ text lbl ]
+            th [ style "cursor" "pointer", style "max-width" maxResultColWidth, onClick (SetSampleSortPos pos) ] [ text lbl ]
 
         mkTd label =
-            td [ style "max-width" maxColWidth ] [ text label ]
+            td [ style "max-width" maxResultColWidth ] [ text label ]
 
         mkTr result =
             tr []
@@ -1944,8 +1939,6 @@ viewSampleResults model =
 viewFileResults : Model -> Html Msg
 viewFileResults model =
     let
-        maxColWidth = "8em"
-
         mkTh index label =
             let
                 pos =
@@ -1959,7 +1952,7 @@ viewFileResults model =
                             label
                         )
             in
-            th [ style "cursor" "pointer", style "max-width" maxColWidth, onClick (SetFileSortPos pos) ] [ text lbl ]
+            th [ style "cursor" "pointer", style "max-width" maxResultColWidth, onClick (SetFileSortPos pos) ] [ text lbl ]
 
         colHeaders =
             [ "Project Name"
@@ -1987,7 +1980,7 @@ viewFileResults model =
                 ++ [ addToCartTh ]
 
         mkTd label =
-            td [ style "max-width" maxColWidth ] [ text label ]
+            td [ style "max-width" maxResultColWidth ] [ text label ]
 
         mkRow result =
             let
@@ -2028,11 +2021,11 @@ viewMap showMap mapLoaded =
     let
         hideOrShow =
             if showMap then
-                style "display" "block"
+                "block"
             else
-                style "display" "none"
+                "none"
     in
-    GMap.view [ hideOrShow, style "height" "50vh", style "width" "100%", style "margin-bottom" "0.85em", classList [("border", mapLoaded)] ] []
+    GMap.view [ style "display" hideOrShow, style "height" "50vh", style "width" "100%", style "margin-bottom" "0.85em", classList [("border", mapLoaded)] ] []
 
 
 viewFormatButton : Html Msg
