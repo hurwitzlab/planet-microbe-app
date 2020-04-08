@@ -287,8 +287,8 @@ decodeFileResult =
         |> required "projectId" Decode.int
         |> required "projectName" Decode.string
         |> required "source" Decode.string
-        |> required "selection" Decode.string
         |> required "strategy" Decode.string
+        |> required "selection" Decode.string
         |> required "layout" Decode.string
 
 
