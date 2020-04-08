@@ -272,7 +272,7 @@ async function handleSearchRequest(req, res, params) {
     }
 }
 
-//FIXME refactor this ugly af code
+//FIXME refactor this ugly code
 async function search(db, termIndex, params) {
     console.log("params:", params);
 
@@ -318,7 +318,7 @@ async function search(db, termIndex, params) {
             let lng = bounds[1];
             let radius = bounds[2] * 1000; // convert from km to m
             console.log("location:", bounds);
-            gisSelect = "replace(replace(replace(replace(ST_AsGeoJson(ST_FlipCoordinates(locations::geometry))::json->>'coordinates', '[[', '['), ']]', ']'), '[', '('), ']', ')')"; //FIXME ugly af
+            gisSelect = "replace(replace(replace(replace(ST_AsGeoJson(ST_FlipCoordinates(locations::geometry))::json->>'coordinates', '[[', '['), ']]', ']'), '[', '('), ']', ')')"; //FIXME ugly
             gisClause = `ST_DWithin(ST_MakePoint(${lng},${lat})::geography, locations, ${radius})`;
         }
         else if (val) {
@@ -596,7 +596,7 @@ async function search(db, termIndex, params) {
                             WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val+1e-9,10) AS bucket,COUNT(*)::int
                         ${tableStr}, min_max
                         ${clauseStr}
-                        GROUP BY bucket) AS foo`;
+                        GROUP BY bucket ORDER BY bucket) AS foo`;
                         // The max_val+1e-9 in the width_bucket() call is a kludge to prevent the error
                         // "lower bound cannot equal upper bound" when all data values are zero, as is the case for
                         // hydrogen sulfide (http://purl.obolibrary.org/obo/ENVO_3100017)
@@ -644,7 +644,7 @@ async function search(db, termIndex, params) {
         for (let summary of summaries) {
             let sort = false;
             for (let row of summary) { //TODO move into function (dup'ed elsewhere)
-                if (row[0].startsWith("http://")) { // is this a purl?
+                if (row[0].startsWith("http://")) { // is value a purl?
                     sort = true;
                     let term2 = termIndex.getTerm(row[0]);
                     if (term2 && term2.label)
