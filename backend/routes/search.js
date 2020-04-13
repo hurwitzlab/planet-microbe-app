@@ -559,7 +559,7 @@ async function search(db, termIndex, params) {
 
         // Build summary queries (for charts)
         let projectSummaryQueryStr =
-            `SELECT project.name,COUNT(project_to_sample.sample_id)::int
+            `SELECT project.name,COUNT(DISTINCT(sample.sample_id))::int
             FROM project
             JOIN project_to_sample USING(project_id)
             JOIN sample USING(sample_id)
@@ -574,7 +574,7 @@ async function search(db, termIndex, params) {
             let queryStr = "";
             if (term.type == 'string') {
                 let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
-                queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,count(*)::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
+                queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,COUNT(DISTINCT(sample.sample_id))::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
             }
             else if (term.type == 'number') {
                 let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
@@ -593,7 +593,7 @@ async function search(db, termIndex, params) {
                         )
                         SELECT
                             REGEXP_REPLACE(REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None'),'NaN - NaN','Below Detection Limit') AS label,
-                            WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val+1e-9,10) AS bucket,COUNT(*)::int
+                            WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val+1e-9,10) AS bucket,COUNT(DISTINCT(sample.sample_id))::int
                         ${tableStr}, min_max
                         ${clauseStr}
                         GROUP BY bucket ORDER BY bucket) AS foo`;
@@ -605,7 +605,7 @@ async function search(db, termIndex, params) {
                 //select date_trunc('year', start_time) from sampling_event;
                 let cases = [].concat.apply([], Object.values(term.schemas))
                     .map(schema => `WHEN schema_id=${schema.schemaId} THEN to_char(datetime_vals[${schema.position}], 'YYYY')`);
-                queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,count(*)::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
+                queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,COUNT(DISTINCT(sample.sample_id))::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
             }
             summaryQueryStrs.push(queryStr);
         }
