@@ -1874,6 +1874,7 @@ viewSampleResults model =
             "Project Name" ::
             "Sample ID" ::
             (model.displayedSampleFilters
+                |> List.filter (\f -> f.term.id /= "project")
                 |> List.map
                     (\f ->
                         if f.term.id == purlLocation && f.value /= NoValue && validFilterValue f.value then
