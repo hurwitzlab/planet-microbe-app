@@ -1594,7 +1594,7 @@ viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChartMsg maybeBgColo
             h6 [ style "color" "darkblue"]
                 [ text (String.fromChar (Char.fromCode 9660))
                 , text " "
-                , if id /= "" then
+                , if String.startsWith "http" id then
                     a [ href id, target "_blank" ]
                         [ text (String.Extra.toTitleCase title) ]
                   else
