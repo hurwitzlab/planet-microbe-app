@@ -98,17 +98,15 @@ type FilterValue
 
 
 type alias SearchResponse =
-    { count : Int
-    , results : SearchResults
-    , summary : List Distribution --List SummaryResult
+    { sampleCount : Int
+    , fileCount : Int
+    , sampleResults : List SampleResult
+    , fileResults : List FileResult
+    , fileIDs : List Int -- list of file IDs for all search results (for "Add All to Cart" button)
+    , summary : List Distribution
     , map : Encode.Value --List MapResult
     , error : Maybe String
     }
-
-
-type SearchResults
-    = SampleSearchResults (List SampleResult)
-    | FileSearchResults (List FileResult)
 
 
 type alias SampleResult =
@@ -117,7 +115,7 @@ type alias SampleResult =
     , sampleAccn : String
     , projectId : Int
     , projectName : String
-    , files : List Int -- list of file IDs
+    , files : List Int -- list of file IDs for this sample
     , values : List SearchResultValues
     }
 
@@ -232,19 +230,14 @@ distributionDecoder =
 decodeSearchResponse : Decoder SearchResponse
 decodeSearchResponse =
     Decode.succeed SearchResponse
-        |> required "count" Decode.int
-        |> required "results" decodeSearchResults
+        |> required "sampleCount" Decode.int
+        |> required "fileCount" Decode.int
+        |> required "sampleResults" (Decode.list decodeSampleResult)
+        |> required "fileResults" (Decode.list decodeFileResult)
+        |> required "files" (Decode.list Decode.int)
         |> required "summary" (Decode.list distributionDecoder)
         |> optional "map" Decode.value null --(Decode.list decodeMapResult) []
         |> optional "error" (Decode.nullable Decode.string) Nothing
-
-
-decodeSearchResults : Decoder SearchResults
-decodeSearchResults =
-    Decode.oneOf
-        [ Decode.map SampleSearchResults (Decode.list decodeSampleResult)
-        , Decode.map FileSearchResults (Decode.list decodeFileResult)
-        ]
 
 
 decodeSampleResult : Decoder SampleResult

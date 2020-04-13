@@ -24,7 +24,7 @@ import Error
 import Page exposing (viewBlank, viewDialog)
 import Project
 import Sample
-import Search exposing (SearchResponse, SearchResults(..), SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Distribution, defaultSearchTerm, validFilterValue)
+import Search exposing (SearchResponse, SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Distribution, defaultSearchTerm, validFilterValue)
 import RemoteFile
 import SortableTable
 import BarChart
@@ -180,12 +180,13 @@ type alias Model =
 
     -- Search result state
     , searchStatus : SearchStatus
-    , sampleResults : RemoteData String (List SampleResult)
-    , fileResults : RemoteData String  (List FileResult)
-    , mapResults : Encode.Value --List MapResult
-    , summaryResults : RemoteData String  (List Distribution)
-    , sampleResultCount : Int
-    , fileResultCount : Int
+    , searchResponse : RemoteData String SearchResponse
+    --, sampleResults : RemoteData String (List SampleResult)
+    --, fileResults : RemoteData String  (List FileResult)
+    --, mapResults : Encode.Value --List MapResult
+    --, summaryResults : RemoteData String  (List Distribution)
+    --, sampleResultCount : Int
+    --, fileResultCount : Int
     , sampleTableState : SortableTable.State
     , fileTableState : SortableTable.State
     , searchTab : String
@@ -240,7 +241,7 @@ init session =
         , allTerms = [] -- set by GetAllSearchTermsCompleted
         , sampleFilters = permanentSampleFilters
         , addedSampleFilters = [] -- set by GetSearchTermsCompleted
-        , displayedSampleFilters = [] -- set by SampleSearchCompleted
+        , displayedSampleFilters = [] -- set by SearchCompleted
         , fileFilters = [] -- set by GetFilePropertiesCompleted
         , dateRangePickers = Dict.empty -- set by InitDatePickers
         , showParamSearchDropdown = False
@@ -248,12 +249,13 @@ init session =
 
         -- Search result state
         , searchStatus = SearchInit (List.length initRequests)
-        , sampleResults = NotAsked
-        , fileResults = NotAsked
-        , mapResults = Encode.object []
-        , summaryResults = NotAsked
-        , sampleResultCount = 0
-        , fileResultCount = 0
+        , searchResponse = NotAsked
+        --, sampleResults = NotAsked
+        --, fileResults = NotAsked
+        --, mapResults = Encode.object []
+        --, summaryResults = NotAsked
+        --, sampleResultCount = 0
+        --, fileResultCount = 0
         , sampleTableState = SortableTable.initialState
         , fileTableState = SortableTable.initialState
         , searchTab = "Samples"
@@ -319,8 +321,7 @@ type Msg
     | SetPageNum Int
     | InputTimerTick Time.Posix
     | Search Int Bool
-    | SampleSearchCompleted (Result Http.Error SearchResponse)
-    | FileSearchCompleted (Result Http.Error SearchResponse)
+    | SearchCompleted (Result Http.Error SearchResponse)
     | DownloadSearchCompleted (Result Http.Error String)
     | ToggleMap
     | UpdateLocationFromMap (Maybe GMap.Location)
@@ -583,14 +584,7 @@ update msg model =
             ( { model | searchTab = label }, Cmd.none )
 
         SetResultTab label ->
-            let
-                searchStatus =
-                    if (label == "Samples" && model.sampleResults == NotAsked) || (label == "Files" && model.fileResults == NotAsked) then
-                        SearchPending
-                    else
-                        SearchNot
-            in
-            ( { model | searchStatus = searchStatus, resultTab = label }, Cmd.none )
+            ( { model | resultTab = label }, Cmd.none )
 
         SetSampleSortPos pos ->
             let
@@ -658,17 +652,11 @@ update msg model =
             case generateQueryParams allFilters of
                 Ok queryParams ->
                     let
-                        ( result, sortPos, cmd ) =
-                            if model.resultTab == "Files" then
-                                ( "file"
-                                , model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir)
-                                , FileSearchCompleted
-                                )
-                            else
-                                ( "sample"
-                                , model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir)
-                                , SampleSearchCompleted
-                                )
+                        fileSortCol =
+                            model.fileTableState.sortCol * (SortableTable.directionToInt model.fileTableState.sortDir)
+
+                        sampleSortCol =
+                            model.sampleTableState.sortCol * (SortableTable.directionToInt model.sampleTableState.sortDir)
 
                         summaryParams =
                             ( "summary"
@@ -680,7 +668,7 @@ update msg model =
                             )
 
                         controlParams =
-                            generateControlParams result [] sortPos model.pageSize (model.pageSize * newPageNum) model.showMap
+                            generateControlParams [] sampleSortCol fileSortCol model.pageSize (model.pageSize * newPageNum) model.showMap
 
                         allParams =
                             summaryParams ::
@@ -696,7 +684,7 @@ update msg model =
                         , if download then
                             Search.searchDownloadRequest allParams |> Http.send DownloadSearchCompleted
                           else
-                            Search.searchRequest allParams |> Http.send cmd
+                            Search.searchRequest allParams |> Http.send SearchCompleted
                         )
                     else -- do nothing, search params haven't changed
                         ( { model | searchStatus = SearchNot }, Cmd.none )
@@ -704,55 +692,48 @@ update msg model =
                 Err error ->
                     ( { model | searchStatus = SearchError error }, Cmd.none )
 
-        SampleSearchCompleted (Ok response) ->
+        SearchCompleted (Ok response) ->
             let
-                sampleResults =
-                    case response.results of
-                        SampleSearchResults results ->
-                            Success results
-
-                        _ -> -- impossible
-                            Failure "error"
-
                 displayedFilters =
                     (model.sampleFilters |> List.filter (\f -> f.value /= NoValue && validFilterValue f.value)) -- remove 4D/project if no value
                     ++ model.addedSampleFilters
             in
             ( { model
-                | sampleResultCount = response.count
-                , sampleResults = sampleResults
-                , summaryResults = Success response.summary
-                , mapResults = response.map
+                --| sampleResultCount = response.count
+                --, sampleResults = sampleResults
+                --, summaryResults = Success response.summary
+                --, mapResults = response.map
+                | searchResponse = Success response
                 , searchStatus = SearchNot
                 , displayedSampleFilters = displayedFilters
               }
             , GMap.loadMap response.map
             )
 
-        SampleSearchCompleted (Err error) ->
+        SearchCompleted (Err error) ->
             ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
 
-        FileSearchCompleted (Ok response) ->
-            let
-                fileResults =
-                    case response.results of
-                        FileSearchResults results ->
-                            Success results
-
-                        _ -> -- impossible
-                            Failure "error"
-            in
-            ( { model
-                | fileResultCount = response.count
-                , fileResults = fileResults
---                , mapResults = response.map
-                , searchStatus = SearchNot
-              }
-            , Cmd.none
-            )
-
-        FileSearchCompleted (Err error) ->
-            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none ) --TODO
+        --FileSearchCompleted (Ok response) ->
+        --    let
+        --        fileResults =
+        --            case response.results of
+        --                FileSearchResults results ->
+        --                    Success results
+        --
+        --                _ -> -- impossible
+        --                    Failure "error"
+        --    in
+        --    ( { model
+        --        | fileResultCount = response.count
+        --        , fileResults = fileResults
+        --        , mapResults = response.map
+                --, searchStatus = SearchNot
+              --}
+            --, Cmd.none
+            --)
+        --
+        --FileSearchCompleted (Err error) ->
+        --    ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none ) --TODO
 
         DownloadSearchCompleted (Ok response) ->
             ( { model | searchStatus = SearchNot }
@@ -952,11 +933,11 @@ generateQueryParams filters =
         Ok termParams
 
 
-generateControlParams : String -> List String -> Int -> Int -> Int -> Bool -> List (String, String)
-generateControlParams result columns sortPos limit offset showMap =
-    [ ("result", result)
-    , ("columns", String.join "," columns)
-    , ("sort", String.fromInt sortPos)
+generateControlParams : List String -> Int -> Int -> Int -> Int -> Bool -> List (String, String)
+generateControlParams columns sampleSortCol fileSortCol limit offset showMap =
+    [ ("columns", String.join "," columns)
+    , ("sampleSort", String.fromInt sampleSortCol)
+    , ("fileSort", String.fromInt fileSortCol)
     , ("limit", String.fromInt limit)
     , ("offset", String.fromInt offset)
     , ("map", if showMap then "1" else "0")
@@ -1632,40 +1613,21 @@ viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChartMsg maybeBgColo
 viewResults : Model -> Html Msg
 viewResults model =
     let
-        maybeContent = --FIXME refactor
-            case model.resultTab of
-                "Samples" ->
-                    case model.sampleResults of
-                        Success results ->
-                            Just ( viewSampleResults model, model.sampleResultCount )
+        ( content, maybeCount ) =
+            case model.searchResponse of
+                Success response ->
+                    if model.resultTab == "Files" then
+                        ( viewFileResults model, Just response.fileCount )
+                    else if model.resultTab == "Samples" then
+                        ( viewSampleResults model, Just response.sampleCount )
+                    else -- "Summary"
+                        ( viewSummary model, Just response.sampleCount )
 
-                        Failure msg ->
-                            Just ( viewError msg, 0 )
-
-                        _ ->
-                            Nothing
-
-                "Files" ->
-                    case model.fileResults of
-                        Success results ->
-                            Just ( viewFileResults model, model.fileResultCount )
-
-                        Failure msg ->
-                            Just ( viewError msg, 0 )
-
-                        _ ->
-                            Nothing
+                Failure msg ->
+                    ( viewError msg, Nothing )
 
                 _ ->
-                    case model.summaryResults of
-                        Success results ->
-                            Just ( viewSummary model, model.sampleResultCount )
-
-                        Failure msg ->
-                            Just ( viewError msg, 0 )
-
-                        _ ->
-                            Nothing
+                    ( viewBlank, Nothing )
     in
     div [ style "min-height" "50em" ]
         [ case model.searchStatus of
@@ -1681,39 +1643,36 @@ viewResults model =
                         Page.viewSpinnerOverlay
                       else
                         viewBlank
-                    , case maybeContent of
-                        Nothing ->
-                            viewBlank
-
-                        Just (content, count) ->
-                            if count == 0 then
-                                h1 [ class "text-center mt-5", style "min-height" "5.5em" ] [ text "No results" ]
-                            else
-                                div [ style "border" "1px solid lightgray" ]
-                                    [ ul [ class "nav nav-tabs", style "width" "100%" ]
-                                        ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
-                                         --++ [ li [ class "nav-item ml-auto" ]
-                                         --       [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
-                                         --   ]
-                                         ++ [ li [ class "nav-item ml-auto" ]
-                                                [ a [ class "nav-link", href "", onClick (Search 0 True) ] [ Icon.fileDownload, text " Download" ] ]
-                                            --, li [ class "nav-item" ]
-                                            --    [ a [ class "nav-link", href "" ] [ Icon.cloudDownload ] ]
-                                            ]
-                                        )
-                                    ,
-                                    div []
-                                        [ if model.resultTab /= "Summary" then
-                                            viewPageSummary model.pageNum model.pageSize count model.resultTab
-                                          else
-                                            viewBlank
-                                        , content
-                                        , if model.resultTab /= "Summary" then
-                                            viewPageControls model.pageNum model.pageSize count
-                                          else
-                                            viewBlank
-                                        ]
+                    , if maybeCount == Nothing then
+                        viewBlank
+                      else if maybeCount == Just 0 then
+                        h1 [ class "text-center mt-5", style "min-height" "5.5em" ] [ text "No results" ]
+                      else
+                        div [ style "border" "1px solid lightgray" ]
+                            [ ul [ class "nav nav-tabs", style "width" "100%" ]
+                                ((List.map (\lbl -> viewTab lbl (lbl == model.resultTab) SetResultTab) [ "Summary", "Samples", "Files" ] )
+                                 --++ [ li [ class "nav-item ml-auto" ]
+                                 --       [ a [ class "small nav-link", href "", style "font-weight" "bold" ] [ text "Columns" ] ]
+                                 --   ]
+                                 ++ [ li [ class "nav-item ml-auto" ]
+                                        [ a [ class "nav-link", href "", onClick (Search 0 True) ] [ Icon.fileDownload, text " Download" ] ]
+                                    --, li [ class "nav-item" ]
+                                    --    [ a [ class "nav-link", href "" ] [ Icon.cloudDownload ] ]
                                     ]
+                                )
+                            ,
+                            div []
+                                [ if model.resultTab /= "Summary" then
+                                    viewPageSummary model.pageNum model.pageSize (maybeCount |> Maybe.withDefault 0) model.resultTab
+                                  else
+                                    viewBlank
+                                , content
+                                , if model.resultTab /= "Summary" then
+                                    viewPageControls model.pageNum model.pageSize (maybeCount |> Maybe.withDefault 0)
+                                  else
+                                    viewBlank
+                                ]
+                            ]
                     ]
         ]
 
@@ -1788,7 +1747,7 @@ viewPageControls curPageNum pageSize resultCount =
 
 viewSummary : Model -> Html Msg
 viewSummary model =
-    case model.summaryResults of
+    case model.searchResponse |> RemoteData.map .summary of
         Success results ->
             let
                 projectData =
@@ -1894,11 +1853,10 @@ viewSampleResults model =
         addToCartTh =
             th [ class "text-right", style "min-width" "10em" ]
                 [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
-                    (model.sampleResults
+                    (model.searchResponse
+                        |> RemoteData.map .fileIDs
                         |> RemoteData.toMaybe
                         |> Maybe.withDefault []
-                        |> List.map .files
-                        |> List.concat
                     )
                     |> Html.map CartMsg
                 ]
@@ -1943,7 +1901,12 @@ viewSampleResults model =
         { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
         model.sampleTableState
         columns
-        (model.sampleResults |> RemoteData.toMaybe |> Maybe.withDefault [] |> List.map mkTr)
+        (model.searchResponse
+            |> RemoteData.map .sampleResults
+            |> RemoteData.toMaybe
+            |> Maybe.withDefault []
+            |> List.map mkTr
+        )
         []
 
 
@@ -1978,7 +1941,8 @@ viewFileResults model =
         addToCartTh =
             th []
                 [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
-                    (model.fileResults
+                    (model.searchResponse
+                        |> RemoteData.map .fileResults
                         |> RemoteData.toMaybe
                         |> Maybe.withDefault []
                         |> List.map .fileId
@@ -2013,7 +1977,12 @@ viewFileResults model =
         { tableAttrs = [ class "table table-sm table-striped", style "font-size" "0.85em" ] }
         model.fileTableState
         columns
-        (model.fileResults |> RemoteData.toMaybe |> Maybe.withDefault [] |> List.map mkRow)
+        (model.searchResponse
+            |> RemoteData.map .fileResults
+            |> RemoteData.toMaybe
+            |> Maybe.withDefault []
+            |> List.map mkRow
+        )
         []
 
 

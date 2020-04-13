@@ -282,11 +282,8 @@ async function search(db, termIndex, params) {
     let offset = params['offset'] || 0;
     let offsetStr = (offset ? " OFFSET " + offset : "");
 
-    let sort = params['sort'] || 1;
-
-    let result = params['result'] || 'sample';
-
-    let map = (params['map'] || 1) == 1;
+    let sampleSort = params['sampleSort'] || 1;
+    let fileSort = params['fileSort'] || 1;
 
 //    let columns;
 //    if (params['columns'])
@@ -537,7 +534,17 @@ async function search(db, termIndex, params) {
     if (clauseStr)
         clauseStr = "WHERE " + clauseStr;
 
-    // Build query
+    /*
+     * Build queries
+     */
+
+    let sampleResults = [],
+        sampleCount = 0,
+        fileCount = 0,
+        fileIDs = [],
+        summaries = [],
+        clusters = [];
+
     let tableStr =
         `FROM sample
         JOIN project_to_sample USING(sample_id)
@@ -548,224 +555,219 @@ async function search(db, termIndex, params) {
         LEFT JOIN run_to_file USING(run_id)
         LEFT JOIN file USING(file_id) `;
 
-    let results = [], count = 0, summaries = [], clusters = [];
+    let groupByStr = " GROUP BY sample.sample_id,project.project_id ";
 
-    if (result == "sample") {
-        let groupByStr = " GROUP BY sample.sample_id,project.project_id ";
+    // Build summary queries (for charts) ------------------------------------------------------------------------------
+    let projectSummaryQueryStr =
+        `SELECT project.name,COUNT(DISTINCT(sample.sample_id))::int
+        FROM project
+        JOIN project_to_sample USING(project_id)
+        JOIN sample USING(sample_id)
+        LEFT JOIN experiment USING(sample_id)
+        LEFT JOIN library USING(experiment_id)
+        ${clauseStr} GROUP BY project.project_id ORDER BY project.name`;
 
-        // Build total count query
-        let countQueryStr =
-            `SELECT COUNT(foo)::int FROM (SELECT sample.sample_id ${tableStr} ${clauseStr} ${groupByStr}) AS foo`;
+    let summaryQueryStrs = [ projectSummaryQueryStr ];
+    for (let termId of summaryTermIDs) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
+        let term = termsById[termId];
 
-        // Build summary queries (for charts)
-        let projectSummaryQueryStr =
-            `SELECT project.name,COUNT(DISTINCT(sample.sample_id))::int
-            FROM project
-            JOIN project_to_sample USING(project_id)
-            JOIN sample USING(sample_id)
-            LEFT JOIN experiment USING(sample_id)
-            LEFT JOIN library USING(experiment_id)
-            ${clauseStr} GROUP BY project.project_id ORDER BY project.name`;
+        let queryStr = "";
+        if (term.type == 'string') {
+            let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
+            queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,COUNT(DISTINCT(sample.sample_id))::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
+        }
+        else if (term.type == 'number') {
+            let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
+            let caseStr = "CASE " + cases.join(" ") + " END";
+            let subClauses = [].concat.apply([], Object.values(term.schemas)).map(schema => `(schema_id=${schema.schemaId} AND number_vals[${schema.position}] != 'NaN')`);
+            let subClauseStr = subClauses.join(' OR ');
 
-        let summaryQueryStrs = [ projectSummaryQueryStr ];
-        for (let termId of summaryTermIDs) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
-            let term = termsById[termId];
-
-            let queryStr = "";
-            if (term.type == 'string') {
-                let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
-                queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,COUNT(DISTINCT(sample.sample_id))::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
-            }
-            else if (term.type == 'number') {
-                let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
-                let caseStr = "CASE " + cases.join(" ") + " END";
-                let subClauses = [].concat.apply([], Object.values(term.schemas)).map(schema => `(schema_id=${schema.schemaId} AND number_vals[${schema.position}] != 'NaN')`);
-                let subClauseStr = subClauses.join(' OR ');
-
-                queryStr =
-                    `SELECT label, count FROM
-                        (WITH min_max AS (
-                            SELECT
-                                MIN(${caseStr}) AS min_val,
-                                MAX(${caseStr}) AS max_val
-                            FROM sample
-                            WHERE ${subClauseStr}
-                        )
+            queryStr =
+                `SELECT label, count FROM
+                    (WITH min_max AS (
                         SELECT
-                            REGEXP_REPLACE(REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None'),'NaN - NaN','Below Detection Limit') AS label,
-                            WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val+1e-9,10) AS bucket,COUNT(DISTINCT(sample.sample_id))::int
-                        ${tableStr}, min_max
-                        ${clauseStr}
-                        GROUP BY bucket ORDER BY bucket) AS foo`;
-                        // The max_val+1e-9 in the width_bucket() call is a kludge to prevent the error
-                        // "lower bound cannot equal upper bound" when all data values are zero, as is the case for
-                        // hydrogen sulfide (http://purl.obolibrary.org/obo/ENVO_3100017)
-            }
-            else if (term.type == 'datetime') {
-                //select date_trunc('year', start_time) from sampling_event;
-                let cases = [].concat.apply([], Object.values(term.schemas))
-                    .map(schema => `WHEN schema_id=${schema.schemaId} THEN to_char(datetime_vals[${schema.position}], 'YYYY')`);
-                queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,COUNT(DISTINCT(sample.sample_id))::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
-            }
-            summaryQueryStrs.push(queryStr);
+                            MIN(${caseStr}) AS min_val,
+                            MAX(${caseStr}) AS max_val
+                        FROM sample
+                        WHERE ${subClauseStr}
+                    )
+                    SELECT
+                        REGEXP_REPLACE(REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None'),'NaN - NaN','Below Detection Limit') AS label,
+                        WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val+1e-9,10) AS bucket,COUNT(DISTINCT(sample.sample_id))::int
+                    ${tableStr}, min_max
+                    ${clauseStr}
+                    GROUP BY bucket ORDER BY bucket) AS foo`;
+                    // The max_val+1e-9 in the width_bucket() call is a kludge to prevent the error
+                    // "lower bound cannot equal upper bound" when all data values are zero, as is the case for
+                    // hydrogen sulfide (http://purl.obolibrary.org/obo/ENVO_3100017)
         }
+        else if (term.type == 'datetime') {
+            //select date_trunc('year', start_time) from sampling_event;
+            let cases = [].concat.apply([], Object.values(term.schemas))
+                .map(schema => `WHEN schema_id=${schema.schemaId} THEN to_char(datetime_vals[${schema.position}], 'YYYY')`);
+            queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,COUNT(DISTINCT(sample.sample_id))::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
+        }
+        summaryQueryStrs.push(queryStr);
+    }
 
-        // Build sample query
-        let selections2 = termOrder.map(tid => selections[tid]).filter(s => typeof s != "undefined");
-        if (gisSelect)
-            selections2.unshift(gisSelect);
+    // Build sample query ----------------------------------------------------------------------------------------------
+    let selections2 = termOrder.map(tid => selections[tid]).filter(s => typeof s != "undefined");
+    if (gisSelect)
+        selections2.unshift(gisSelect);
 
-        let sortCol = Math.abs(sort) + 3;
-        if (sortCol > selections2.length + 5) sortCol = 3;
-        let sortDir = sort >= 0 ? "ASC" : "DESC";
-        let sortStr = ` ORDER BY ${sortCol} ${sortDir}`;
+    let sortCol = Math.abs(sampleSort) + 3;
+    if (sortCol > selections2.length + 5) sortCol = 3;
+    let sortDir = sampleSort >= 0 ? "ASC" : "DESC";
+    let sortStr = ` ORDER BY ${sortCol} ${sortDir}`;
 
-        let sampleQueryStr =
-            "SELECT " + ["schema_id", "sample.sample_id", "project.project_id", "project.name", "sample.accn"].concat(selections2).join(",") + " " +
-            tableStr +
-            clauseStr + groupByStr + sortStr + offsetStr + limitStr;
+    let sampleQueryStr =
+        "SELECT " + ["schema_id", "sample.sample_id", "project.project_id", "project.name", "sample.accn"].concat(selections2).join(",") + " " +
+        tableStr +
+        clauseStr + groupByStr + sortStr + offsetStr + limitStr;
 
-        // Execute queries and format results //TODO make queries run in parallel
-        console.log("Count Query:");
-        count = await db.query({
-            text: countQueryStr,
+    // Execute queries and format results //TODO make queries run in parallel
+    console.log("Count Query:");
+    let countQueryStr =
+        `SELECT sample.sample_id,file.file_id ${tableStr} ${clauseStr} GROUP BY sample.sample_id,file.file_id`;
+    let countResult = await db.query({
+        text: countQueryStr,
+        rowMode: 'array'
+    });
+    sampleCount = [...new Set(countResult.rows.map(row => row[0]))].length;
+    fileIDs = [...new Set(countResult.rows.map(row => row[1]).filter(id => id))];
+    fileCount = fileIDs.length;
+    fileIDs = (fileCount > 250 ? [] : fileIDs);
+
+    console.log("Summary Queries:");
+    summaries = await Promise.all(summaryQueryStrs.map(s =>
+        db.query({
+            text: s,
             rowMode: 'array'
-        });
-        count = count.rows[0][0];
-
-        console.log("Summary Queries:");
-        summaries = await Promise.all(summaryQueryStrs.map(s =>
-            db.query({
-                text: s,
-                rowMode: 'array'
-            })
-        ));
-        summaries = summaries.map(res => res.rows || []);
-        for (let summary of summaries) {
-            let sort = false;
-            for (let row of summary) { //TODO move into function (dup'ed elsewhere)
-                if (row[0].startsWith("http://")) { // is value a purl?
-                    sort = true;
-                    let term2 = termIndex.getTerm(row[0]);
-                    if (term2 && term2.label)
-                        row[0] = term2.label;
-                }
+        })
+    ));
+    summaries = summaries.map(res => res.rows || []);
+    for (let summary of summaries) {
+        let sort = false;
+        for (let row of summary) { //TODO move into function (dup'ed elsewhere)
+            if (row[0].startsWith("http://")) { // is value a purl?
+                sort = true;
+                let term2 = termIndex.getTerm(row[0]);
+                if (term2 && term2.label)
+                    row[0] = term2.label;
             }
-            if (sort)
-                summary = summary.sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase())); // sort converted PURL labels
         }
+        if (sort)
+            summary = summary.sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase())); // sort converted PURL labels
+    }
 
-        console.log("Sample Query:");
-        results = await db.query({
-            text: sampleQueryStr,
-            rowMode: 'array'
-        });
+    console.log("Sample Query:");
+    sampleResults = await db.query({
+        text: sampleQueryStr,
+        rowMode: 'array'
+    });
 
-        console.log("Sample File Query:");
-        let files = await db.query({
-            text:
-                `SELECT sample.sample_id,file.file_id
-                FROM sample
-                JOIN experiment USING(sample_id)
-                JOIN run USING(experiment_id)
-                JOIN run_to_file USING(run_id)
-                JOIN file USING(file_id)
-                WHERE sample.sample_id = ANY($1)`,
-            values: [ results.rows.map(r => r[1]) ]
-        });
-        let filesBySampleId = {};
-        for (let row of files.rows) {
-            if (!(row.sample_id in filesBySampleId))
-                filesBySampleId[row.sample_id] = [];
-            filesBySampleId[row.sample_id].push(row.file_id);
-        }
+    console.log("Sample File Query:");
+    let files = await db.query({
+        text:
+            `SELECT sample.sample_id,file.file_id
+            FROM sample
+            JOIN experiment USING(sample_id)
+            JOIN run USING(experiment_id)
+            JOIN run_to_file USING(run_id)
+            JOIN file USING(file_id)
+            WHERE sample.sample_id = ANY($1)`,
+        values: [ sampleResults.rows.map(r => r[1]) ]
+    });
+    let filesBySampleId = {};
+    for (let row of files.rows) {
+        if (!(row.sample_id in filesBySampleId))
+            filesBySampleId[row.sample_id] = [];
+        filesBySampleId[row.sample_id].push(row.file_id);
+    }
 
-        results = results.rows.map(r => {
-            return {
-                schemaId: r[0],
-                sampleId: r[1],
-                projectId: r[2],
-                projectName: r[3],
-                sampleAccn: r[4],
-                files: filesBySampleId[r[1]],
-                values: r.slice(5).map(val => { //TODO move into function
-                    if (typeof val == "undefined")
-                        return ""; // kludge to convert null to empty string
-                    else if (Array.isArray(val)) {
-                        return val.map(v => {
-                            if (typeof v == "number" && isNaN(v))
-                                return "Below Detection Limit" // kludge to convert NaN to "Below Detection Limit"
-                            else if (typeof v == "string" && v.startsWith("http://")) { // is this a purl? //TODO move into function (dup'ed elsewhere)
-                                let term = termIndex.getTerm(v);
-                                if (!term)
-                                    return v;
-                                else
-                                    return term.label;
-                            }
-                            else
+    sampleResults = sampleResults.rows.map(r => {
+        return {
+            schemaId: r[0],
+            sampleId: r[1],
+            projectId: r[2],
+            projectName: r[3],
+            sampleAccn: r[4],
+            files: filesBySampleId[r[1]],
+            values: r.slice(5).map(val => { //TODO move into function
+                if (typeof val == "undefined")
+                    return ""; // kludge to convert null to empty string
+                else if (Array.isArray(val)) {
+                    return val.map(v => {
+                        if (typeof v == "number" && isNaN(v))
+                            return "Below Detection Limit" // kludge to convert NaN to "Below Detection Limit"
+                        else if (typeof v == "string" && v.startsWith("http://")) { // is this a purl? //TODO move into function (dup'ed elsewhere)
+                            let term = termIndex.getTerm(v);
+                            if (!term)
                                 return v;
-                        });
-                    }
-                    else
-                        return val;
-                })
-            }
-        });
+                            else
+                                return term.label;
+                        }
+                        else
+                            return v;
+                    });
+                }
+                else
+                    return val;
+            })
+        }
+    });
 
-        // Build and execute location query (for map)
-        let locationClusterQuery =
-            `SELECT
-                sample.sample_id,sample.accn as sample_accn,project.name AS project_name,
-                ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude,
-                ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude
-            ${tableStr}
-            ${clauseStr}
-            ${groupByStr}`;
+    // Build and execute location query (for map)
+    let locationClusterQuery =
+        `SELECT
+            sample.sample_id,sample.accn as sample_accn,project.name AS project_name,
+            ST_X(ST_GeometryN(locations::geometry, 1)) AS longitude,
+            ST_Y(ST_GeometryN(locations::geometry, 1)) AS latitude
+        ${tableStr}
+        ${clauseStr}
+        ${groupByStr}`;
 
-        //if (map)
-            clusters = await db.query(locationClusterQuery);
-    }
-    else if (result == "file") { //-------------------------------------------------------------------------------------
-        let sortCol = Math.abs(sort) + 1;
-        //if (sortCol > 10) sortCol = 1; // not necessary because columns are static for file search
-        let sortDir = sort >= 0 ? "ASC" : "DESC";
-        let sortStr = ` ORDER BY ${sortCol} ${sortDir}`;
+    clusters = await db.query(locationClusterQuery);
 
-        let fileClause = (clauseStr ? 'AND ' : 'WHERE ') + 'file.file_id IS NOT NULL';
-        let groupByStr = "GROUP BY file.file_id,sample.sample_id,project.project_id,library.source,library.strategy,library.selection,library.layout";
+    // Build file query ------------------------------------------------------------------------------------------------
+    sortCol = Math.abs(fileSort) + 1;
+    sortDir = fileSort >= 0 ? "ASC" : "DESC";
+    sortStr = ` ORDER BY ${sortCol} ${sortDir}`;
 
-        let countQueryStr =
-            `SELECT COUNT(foo)::int FROM (SELECT file.file_id
-            ${tableStr}
-            ${clauseStr} ${fileClause} ${groupByStr}) AS foo`;
+    let fileClause = (clauseStr ? 'AND ' : 'WHERE ') + 'file.file_id IS NOT NULL';
+    groupByStr = "GROUP BY file.file_id,sample.sample_id,project.project_id,library.source,library.strategy,library.selection,library.layout";
 
-        let queryStr =
-            //FIXME order of first six fields should match sample query above for sorting to work
-            `SELECT file.file_id AS "fileId",project.name AS "projectName",sample.accn AS "sampleAccn",sample.sample_id AS "sampleId",project.project_id AS "projectId",
-            library.source,library.strategy,library.selection,library.layout,file.url AS "fileUrl"
-            ${tableStr}
-            ${clauseStr} ${fileClause}
-            ${groupByStr} ${sortStr}
-            ${offsetStr} ${limitStr}`;
+//    countQueryStr =
+//        `SELECT COUNT(foo)::int FROM (SELECT file.file_id
+//        ${tableStr}
+//        ${clauseStr} ${fileClause} ${groupByStr}) AS foo`;
 
-        count = await db.query({
-            text: countQueryStr,
-            rowMode: 'array'
-        });
-        count = count.rows[0][0];
+    let queryStr =
+        //FIXME order of first six fields should match sample query above for sorting to work
+        `SELECT file.file_id AS "fileId",project.name AS "projectName",sample.accn AS "sampleAccn",sample.sample_id AS "sampleId",project.project_id AS "projectId",
+        library.source,library.strategy,library.selection,library.layout,file.url AS "fileUrl"
+        ${tableStr}
+        ${clauseStr} ${fileClause}
+        ${groupByStr} ${sortStr}
+        ${offsetStr} ${limitStr}`;
 
-        results = await db.query(queryStr);
-        results = results.rows;
-    }
-    else {
-        console.log("Error: invalid result specifier:", result);
-    }
+//    count = await db.query({
+//        text: countQueryStr,
+//        rowMode: 'array'
+//    });
+//    count = count.rows[0][0];
+
+    let fileResults = await db.query(queryStr);
+    fileResults = fileResults.rows;
 
     return {
-        count: count,
-        fields: ['Project Name', 'Sample ID'].concat(Object.keys(selections)),
+        sampleCount: sampleCount,
+        fileCount: fileCount,
+        sampleResults: sampleResults,
+        fileResults: fileResults,
+        files: fileIDs,
+//        fields: ['Project Name', 'Sample ID'].concat(Object.keys(selections)),
         summary: summaries,
-        results: results,
         map: (clusters ? clusters.rows : {})
     };
 }
