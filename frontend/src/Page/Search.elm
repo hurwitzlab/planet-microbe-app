@@ -6,7 +6,6 @@ import Html.Attributes exposing (class, classList, style, href, disabled, type_,
 import Html.Events exposing (onClick, onInput, onCheck)
 import Http
 import RemoteData exposing (RemoteData(..))
-import Json.Encode as Encode
 import File.Download as Download
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (usLocale)
@@ -52,6 +51,10 @@ maxNumPanelOptions =
 
 minNumPanelOptionsForSearchBar =
     100
+
+
+maxCartSize =
+    250
 
 
 purlDepth =
@@ -215,6 +218,7 @@ type DialogState
     | AddFilterDialog String
     | StringFilterDialog Filter
     | FilterSummaryDialog SearchTerm
+    | MessageDialog String
 
 
 type alias DateRangePicker =
@@ -888,18 +892,37 @@ update msg model =
 
         CartMsg subMsg ->
             let
-                newCart =
-                    Cart.update subMsg (Session.getCart model.session)
+                cart =
+                    Session.getCart model.session
 
-                newSession =
-                    Session.setCart model.session newCart
+                updateCart =
+                    case subMsg of
+                        Cart.AddToCart idList ->
+                            (Cart.size cart) + (List.length idList) <= maxCartSize
+
+                        _ ->
+                            True
             in
-            ( { model | session = newSession }
-            , Cmd.batch
-                [ --Cmd.map CartMsg subCmd
-                Cart.store newCart
-                ]
-            )
+            if updateCart then
+                let
+                    newCart =
+                        Cart.update subMsg cart
+
+                    newSession =
+                        Session.setCart model.session newCart
+                in
+                ( { model | session = newSession }
+                , Cmd.batch
+                    [ --Cmd.map CartMsg subCmd
+                    Cart.store newCart
+                    ]
+                )
+            else
+                let
+                    messageDialog =
+                        MessageDialog ("Too many files to add to the cart (>" ++ (String.fromInt maxCartSize) ++ "). Try further constraining the search parameters.")
+                in
+                ( { model | dialogState = messageDialog }, Cmd.none )
 
 
 --TODO finish validation and error reporting
@@ -981,6 +1004,9 @@ viewDialogs model =
 
         FilterSummaryDialog term ->
             viewSearchTermSummaryDialog term
+
+        MessageDialog msg ->
+            Page.viewMessageDialog msg CloseDialog
 
 
 viewSearchPanel : Model -> Html Msg

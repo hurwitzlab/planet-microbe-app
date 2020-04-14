@@ -1,4 +1,4 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewToggleText, viewDialog, viewJobStatus)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewToggleText, viewDialog, viewMessageDialog, viewJobStatus)
 
 import Browser exposing (Document)
 import Html exposing (Html, a, button, h1, h2, h5, div, span, img, i, li, nav, p, text, ul, small, footer)
@@ -306,6 +306,18 @@ viewDialog title body footer closeMsg =
             ]
         , div [ class "modal-backdrop fade show" ] []
         ]
+
+
+viewMessageDialog : String -> msg -> Html msg
+viewMessageDialog message closeMsg =
+    viewDialog "Note"
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin" "2em" ]
+            [ text message ]
+        ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick closeMsg ]
+            [ text "Close" ]
+        ]
+        closeMsg
 
 
 viewJobStatus : String -> Html msg

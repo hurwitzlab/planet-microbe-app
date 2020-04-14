@@ -117,11 +117,6 @@ selectAll (Cart cart) =
     Cart { cart | selected = cart.contents }
 
 
-selectList : Cart -> List Int -> Cart
-selectList (Cart cart) ids =
-    Cart { cart | selected = Set.union (Set.fromList ids) cart.selected }
-
-
 unselect : Cart -> Int -> Cart
 unselect (Cart cart) id =
     Cart { cart | selected = Set.remove id cart.selected }
@@ -130,11 +125,6 @@ unselect (Cart cart) id =
 unselectAll : Cart -> Cart
 unselectAll (Cart cart) =
     Cart { cart | selected = Set.empty }
-
-
-unselectList : Cart -> List Int -> Cart
-unselectList (Cart cart) ids =
-    Cart { cart | selected = Set.diff cart.selected (Set.fromList ids) }
 
 
 
@@ -175,38 +165,6 @@ update msg cart =
 -- VIEW --
 
 
---tableConfig : Model -> Table.Config { a | sample_id : Int, sample_name : String, project : { b | project_id : Int, project_name : String } } Msg
---tableConfig model =
---    let
---        columns =
---            case model.cartType of
---                Editable ->
---                    [ projectColumn
---                    , nameColumn
---                    , removeFromCartColumn
---                    ]
---
---                Selectable ->
---                    [ selectInCartColumn model
---                    , projectColumn
---                    , nameColumn
---                    ]
---    in
---    Table.customConfig
---        { toId = toString << .sample_id
---        , toMsg = SetTableState
---        , columns = columns
---        , customizations =
---            { defaultCustomizations | tableAttrs = toTableAttrs }
---        }
---
---
---toTableAttrs : List (Attribute Msg)
---toTableAttrs =
---    [ attribute "class" "table"
---    ]
-
-
 view : Cart ->
     List
         { a | id : Int
@@ -222,7 +180,6 @@ view : Cart ->
         , projectName : String
         } -> CartType -> Html Msg
 view cart files cartType =
---    Table.view (tableConfig model) model.tableState (samplesInCart model.cart samples)
     let
         row file =
             let
@@ -262,86 +219,6 @@ view cart files cartType =
         , tbody []
             (List.map row files) --(samplesInCart cart samples |> List.map row)
         ]
-
-
---selectInCartColumn : Model -> Table.Column { a | sample_id : Int, sample_name : String } Msg
---selectInCartColumn model =
---    Table.veryCustomColumn
---        { name = ""
---        , viewData = (\s -> selectInCartLink model s)
---        , sorter = Table.unsortable
---        }
---
---
---selectInCartLink : Model -> { a | sample_id : Int, sample_name : String } -> Table.HtmlDetails Msg
---selectInCartLink model sample =
---    let
---        isChecked =
---            Set.member sample.sample_id model.selected.contents
---    in
---    Table.HtmlDetails []
---        [ selectInCartCheckbox sample.sample_id isChecked -- |> Html.map (\_ -> ToggleSelectInCart sample.sample_id)
---        ]
---
---
---selectInCartCheckbox : Int -> Bool -> Html Msg
---selectInCartCheckbox id isChecked =
---    input [ type_ "checkbox", checked isChecked, onClick (ToggleSelectInCart id) ] []
---
---
---projectColumn : Table.Column { a | sample_id : Int, sample_name : String, project : { b | project_id : Int, project_name : String } } Msg
---projectColumn =
---    Table.veryCustomColumn
---        { name = "Project"
---        , viewData = projectLink
---        , sorter = Table.increasingOrDecreasingBy (.project >> .project_name >> String.toLower)
---        }
---
---
---projectLink : { a | sample_id : Int, sample_name : String, project : { b | project_id : Int, project_name : String } } -> Table.HtmlDetails Msg
---projectLink sample =
---    Table.HtmlDetails []
---        [ a [ Route.href (Route.Project sample.project.project_id) ]
---            [ text <| Util.truncate sample.project.project_name ]
---        ]
---
---
---nameColumn : Table.Column { a | sample_id : Int, sample_name : String } Msg
---nameColumn =
---    Table.veryCustomColumn
---        { name = "Sample"
---        , viewData = nameLink
---        , sorter = Table.increasingOrDecreasingBy (String.toLower << .sample_name)
---        }
---
---
---nameLink : { a | sample_id : Int, sample_name : String } -> Table.HtmlDetails Msg
---nameLink sample =
---    Table.HtmlDetails []
---        [ a [ Route.href (Route.Sample sample.sample_id) ]
---            [ text <| Util.truncate sample.sample_name ]
---        ]
---
---
---removeFromCartColumn : Table.Column { a | sample_id : Int, sample_name : String } Msg
---removeFromCartColumn =
---    Table.veryCustomColumn
---        { name = ""
---        , viewData = removeFromCartLink
---        , sorter = Table.unsortable
---        }
---
---
---removeFromCartLink : { a | sample_id : Int, sample_name : String } -> Table.HtmlDetails Msg
---removeFromCartLink sample =
---    Table.HtmlDetails []
---        [ removeFromCartButton sample.sample_id |> Html.map (\_ -> RemoveFromCart sample.sample_id)
---        ]
-
-
---removeFromCartButton : Int -> Html Msg
---removeFromCartButton id =
---    button [ class "btn btn-default btn-xs", onClick (RemoveFromCart id) ] [ text "Remove" ]
 
 
 addToCartButton : Cart -> List Int -> Html Msg
@@ -399,13 +276,3 @@ addAllToCartButton (Cart cart) optionalLabels idList =
         btn addLbl (AddToCart idList)
     else
         btn removeLbl (RemoveFromCart idList)
-
-
---samplesInCart : Cart -> List { a | id : Int } -> List { a | id : Int }
---samplesInCart (Cart cart) samples =
---    List.filter (\sample -> Set.member sample.id cart.contents) samples
-
-
---size : Model -> Int
---size model =
---    Set.size model.cart.contents
