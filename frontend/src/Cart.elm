@@ -4,7 +4,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (optional, required)
 import Json.Encode as Encode exposing (Value)
 import Set exposing (Set)
-import Html exposing (..)
+import Html exposing (Html, button, th, td, tr, table, thead, tbody, text, a, input)
 import Html.Attributes exposing (class, type_, checked, href, target)
 import Html.Events exposing (onClick)
 import Icon
@@ -191,7 +191,7 @@ view cart files cartType =
                     td []
                         [ input [ type_ "checkbox", checked (selected cart file.id), onClick (ToggleSelectInCart file.id) ] [] ]
                   else
-                    td [] []
+                    text "" --td [] []
                 , td [] [ a [ href (dataCommonsUrl ++ file.url), target "_blank" ] [ text <| basename file.url ] ]
                 , td [] [ text <| file.source ++ "/" ++ file.layout ]
                 , td [] [ a [ href (sraUrl ++ file.runAccn), target "_blank" ] [ text file.runAccn ] ]
@@ -207,7 +207,10 @@ view cart files cartType =
     in
     table [ class "table" ]
         [ thead []
-            [ th [] []
+            [ if cartType == Selectable then
+                th [] []
+              else
+                text ""
             , th [] [ text "File ", Icon.externalLink ]
             , th [] [ text "Source/Layout" ]
             , th [] [ text "Run ", Icon.externalLink ]

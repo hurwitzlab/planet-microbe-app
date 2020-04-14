@@ -1,20 +1,21 @@
 module Page.Cart exposing (Model, Msg(..), ExternalMsg(..), init, toSession, update, view)
 
+-- This module was copied from iMicrobe and has a lot of code commented-out where features weren't needed.
+
 import Session exposing (Session)
 import Cart exposing (Cart)
-import Sample exposing (Sample)
+--import Sample exposing (Sample)
 import RemoteFile exposing (File)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
 import Http
 import RemoteData exposing (RemoteData(..))
-import Route
-import Task exposing (Task)
-import Set
-import List.Extra
+--import Route
+--import Task exposing (Task)
+--import Set
+--import List.Extra
 import Icon
---import Debug exposing (toString)
 
 
 
@@ -137,8 +138,6 @@ update msg model =
 
 --        CartMsg subMsg ->
 --            let
---                _ = Debug.log "Cart.CartMsg" (toString subMsg)
---
 --                cartUpdate cartMsg =
 --                    let
 --                        ( ( newCart, subCmd ), msgFromPage ) =
@@ -190,9 +189,6 @@ update msg model =
 --            { model | sampleGroups = sampleGroups } => Cmd.none => NoOp
 --
 --        RemoveSampleCompleted (Err error) -> --TODO show error to user
---            let
---                _ = Debug.log "error" (toString error)
---            in
 --            model => Cmd.none => NoOp
 --
 --        OpenSaveCartDialog ->
@@ -254,9 +250,6 @@ update msg model =
 --            model => Route.modifyUrl (Route.Cart (Just sampleGroup.sample_group_id)) => NoOp
 --
 --        SaveCartCompleted (Err error) -> --TODO show error to user
---            let
---                _ = Debug.log "error" (toString error)
---            in
 --            { model | showSaveCartDialog = False } => Cmd.none => NoOp
 
         EmptyCart ->
@@ -285,9 +278,6 @@ update msg model =
 --            { model | sampleGroups = sampleGroups } => Cmd.none => NoOp
 --
 --        RemoveAllSamplesCompleted (Err error) -> --TODO show error to user
---            let
---                _ = Debug.log "error" (toString error)
---            in
 --            model => Cmd.none => NoOp
 --
 --        RemoveCart ->
@@ -306,9 +296,6 @@ update msg model =
 --            model => Route.modifyUrl (Route.Cart Nothing) => NoOp
 --
 --        RemoveCartCompleted (Err error) -> --TODO show error to user
---            let
---                _ = Debug.log "error" (toString error)
---            in
 --            model => Cmd.none => NoOp
 --
 --        SetSamples newSamples ->
@@ -326,8 +313,6 @@ update msg model =
 --
 --        SetSession newSession ->
 --            let
---                _ = Debug.log "Page.Cart.SetSession" (toString newSession)
---
 --                newCart =
 --                    Cart.init newSession.cart Cart.Editable
 --
@@ -393,17 +378,25 @@ view model =
     case model.files of
         Success files ->
             div [ class "container" ]
-                [ div [ class "pb-2 mt-5 mb-2", style "width" "100%" ]
-                    [ h1 [ class "font-weight-bold d-inline" ]
+                [ div [ class "pb-2 mt-5 mb-2" ]
+                    [ h1 [ class "font-weight-bold align-middle d-inline" ]
                         [ span [ style "color" "dimgray" ] [ text "Cart" ]
                         ]
-                    , span [ class "float-right" ]
-                        [ viewCartControls isEmpty isLoggedIn --model.selectedCartId model.sampleGroups
+                    , span [ class "badge badge-pill badge-primary ml-2" ]
+                        [ if count == 0 then
+                            text ""
+                          else
+                            text (String.fromInt count)
+                        ]
+                    --, span [ class "float-right align-bottom" ]
+                    --    [ viewCartControls isEmpty isLoggedIn --model.selectedCartId model.sampleGroups
 --                        , button [ type_ "button", class "btn btn-primary", classList [ ("disabled", isEmpty) ] ]
 --                            [ Icon.file
 --                            , text " Show Files"
 --                            ]
-                        ]
+--                        ]
+                    , button [ class "btn btn-primary mt-2 float-right", onClick EmptyCart, disabled isEmpty ]
+                        [ Icon.ban, text " Empty" ]
                     ]
                 , viewCart cart files
                 ]
@@ -460,21 +453,21 @@ viewCartControls isEmpty isLoggedIn = -- selectedCartId sampleGroups =
 --        isCurrent =
 --            selectedCartId == Nothing
 --    in
-    div [ class "d-inline-block ml-3" ]
-        [ --dropdown
-        div [ class "d-inline-block" ]
-            [ --if not isCurrent then
+--    div [ class "d-inline-block ml-3" ]
+--        [ --dropdown
+        --div [ class "d-inline-block" ]
+        --    [ --if not isCurrent then
 --                button [ class "margin-right btn btn-default btn-sm", onClick CopyCart, disabled (isEmpty || not isLoggedIn) ] [ span [ class "glyphicon glyphicon-arrow-right"] [], text " Copy to Current" ]
 --              else
-                text ""
+--                text ""
 --            , button [ class "margin-right btn btn-default btn-sm", onClick OpenSaveCartDialog, disabled (isEmpty || not isLoggedIn) ] [ span [ class "glyphicon glyphicon-floppy-disk"] [], text " Save As" ]
 --            , button [ class "margin-right btn btn-default btn-sm", onClick OpenShareCartDialog, disabled (isEmpty || not isLoggedIn) ] [ span [ class "glyphicon glyphicon-user"] [], text " Share" ]
 --            , button [ class "margin-right btn btn-default btn-sm", attribute "type" "submit" ] [ text "Download" ]
-            , button [ class "btn btn-primary mr-3", onClick EmptyCart, disabled isEmpty ]
+            button [ class "btn btn-primary", onClick EmptyCart, disabled isEmpty ]
                 [ Icon.ban, text " Empty" ]
 --            , button [ class "btn btn-default btn-sm", onClick RemoveCart, disabled (isCurrent || not isLoggedIn) ] [ span [ class "glyphicon glyphicon-trash"] [], text " Delete" ]
-            ]
-        ]
+--            ]
+--        ]
 
 
 viewCart : Cart -> List File -> Html Msg
