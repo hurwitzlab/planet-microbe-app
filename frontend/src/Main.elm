@@ -11,9 +11,8 @@ import Browser
 import Browser.Navigation
 import Url exposing (Url)
 import Http
-import Task
 import Json.Decode as Decode exposing (Decoder)
-import Json.Decode.Pipeline exposing (optional, required)
+import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode exposing (Value)
 import OAuth.AuthorizationCode
 import Agave
@@ -85,7 +84,7 @@ subscriptions model =
 -- MODEL
 
 
-type Model -- FIXME inherited this from elm-spa-example but I don't like it because of redundancy in toSession/changeRouteTo/view functions
+type Model
     = Redirect Session
     | Home Session
     | Browse Browse.Model
@@ -140,7 +139,7 @@ init flags url navKey =
     in
     case OAuth.AuthorizationCode.parseCode url of
         OAuth.AuthorizationCode.Success { code, state } ->
--- FIXME
+--TODO
 --            let
 --                _ = Debug.log "OAuth.AuthorizationCode.Success" ("code=" ++ code ++ ", " ++ "state=" ++ (toString state))
 --            in
@@ -194,7 +193,6 @@ getAccessToken provider code =
         , url = url
         , expect = Http.expectJson Agave.tokenResponseDecoder
         , timeout = Nothing
---        , tracker = Nothing
         , withCredentials = False
         }
 
