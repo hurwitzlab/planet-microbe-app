@@ -258,7 +258,7 @@ async function handleSearchRequest(req, res, params) {
             let table =
                 [].concat(
                     [ results.fields.join("\t") ],
-                    results.results.map(r => [r.projectName, r.sampleAccn].concat(r.values).join("\t"))
+                    results.sampleResults.map(r => [r.projectName, r.sampleAccn].concat(r.values).join("\t"))
                 ).join("\n");
 
             res.send(table);
@@ -766,7 +766,7 @@ async function search(db, termIndex, params) {
         sampleResults: sampleResults,
         fileResults: fileResults,
         files: fileIDs,
-//        fields: ['Project Name', 'Sample ID'].concat(Object.keys(selections)),
+        fields: ['Project Name', 'Sample ID'].concat(Object.keys(selections)), // for download
         summary: summaries,
         map: (clusters ? clusters.rows : {})
     };
