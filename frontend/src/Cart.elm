@@ -224,49 +224,27 @@ view cart files cartType =
         ]
 
 
-addToCartButton : Cart -> List Int -> Html Msg
-addToCartButton cart idList =
+addToCartButton : Cart -> Maybe (String, String) -> List Int -> Html Msg
+addToCartButton cart optionalLabels idList =
     let
+        (addLbl, removeLbl) =
+            optionalLabels |> Maybe.withDefault ( "Add", "Remove" )
+
         btn label clickMsg =
             button [ class "btn btn-xs btn-outline-secondary text-nowrap", onClick clickMsg ]
                 [ text label ]
     in
     if List.any (\id -> contains cart id) idList then
-        btn "Remove" (RemoveFromCart idList)
+        btn removeLbl (RemoveFromCart idList)
     else
-        btn "Add" (AddToCart idList)
-
-
---FIXME merge with addToCartButton
-addToCartButton2 : Cart -> List Int -> Html Msg
-addToCartButton2 cart idList =
-    let
-        btn label clickMsg =
-            button [ class "btn btn-sm btn-outline-secondary text-nowrap", onClick clickMsg ]
-                [ Icon.shoppingCart
-                , text " "
-                , text label
-                ]
-    in
-    if List.any (\id -> contains cart id) idList then
-        btn "Remove from Cart" (RemoveFromCart idList)
-    else
-        btn "Add to Cart" (AddToCart idList)
+        btn addLbl (AddToCart idList)
 
 
 addAllToCartButton : Cart -> Maybe (String, String) -> List Int -> Html Msg
-addAllToCartButton (Cart cart) optionalLabels idList =
+addAllToCartButton cart optionalLabels idList =
     let
         (addLbl, removeLbl) =
-            case optionalLabels of
-                Just labels ->
-                    labels
-
-                Nothing ->
-                    ( "Add All", "Remove All" )
-
-        intersection =
-            Set.intersect (Set.fromList idList) cart.contents |> Set.toList
+            optionalLabels |> Maybe.withDefault ( "Add All", "Remove All" )
 
         btn label clickMsg =
             button [ class "btn btn-xs btn-outline-secondary align-middle text-nowrap", onClick clickMsg ]
@@ -275,7 +253,7 @@ addAllToCartButton (Cart cart) optionalLabels idList =
                 , text label
                 ]
     in
-    if intersection == [] then
-        btn addLbl (AddToCart idList)
-    else
+    if List.any (\id -> contains cart id) idList then
         btn removeLbl (RemoveFromCart idList)
+    else
+        btn addLbl (AddToCart idList)
