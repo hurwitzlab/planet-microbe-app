@@ -1971,10 +1971,9 @@ viewFileResults model =
             th []
                 [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
                     (model.searchResponse
-                        |> RemoteData.map .fileResults
+                        |> RemoteData.map .fileIDs
                         |> RemoteData.toMaybe
                         |> Maybe.withDefault []
-                        |> List.map .fileId
                     )
                     |> Html.map CartMsg
                 ]
