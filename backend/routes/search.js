@@ -636,7 +636,7 @@ async function search(db, termIndex, params) {
     sampleCount = [...new Set(countResult.rows.map(row => row[0]))].length;
     fileIDs = [...new Set(countResult.rows.map(row => row[1]).filter(id => id))];
     fileCount = fileIDs.length;
-    fileIDs = fileIDs.slice(0, 251); // 1 plus max cart size
+    //fileIDs = fileIDs.slice(0, 251); // 1 plus max cart size
 
     console.log("Summary Queries:");
     summaries = await Promise.all(summaryQueryStrs.map(s =>

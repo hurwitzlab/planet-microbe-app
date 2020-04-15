@@ -1876,9 +1876,12 @@ viewSampleResults model =
                 |> List.concat
             )
 
+        cart =
+            Session.getCart model.session
+
         addToCartTh =
             th [ class "text-right", style "min-width" "10em" ]
-                [ Cart.addAllToCartButton (Session.getCart model.session) Nothing
+                [ Cart.addAllToCartButton cart Nothing
                     (model.searchResponse
                         |> RemoteData.map .fileIDs
                         |> RemoteData.toMaybe
@@ -1920,7 +1923,7 @@ viewSampleResults model =
                         )
                 ) ++
                 [ td [ class "text-right", style "min-width" "10em" ]
-                    [ Cart.addToCartButton (Session.getCart model.session) result.files |> Html.map CartMsg ]
+                    [ Cart.addToCartButton cart Nothing result.files |> Html.map CartMsg ]
                 ])
     in
     SortableTable.view
@@ -1996,7 +1999,7 @@ viewFileResults model =
                 , mkTd result.selection
                 , mkTd result.layout
                 , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text <| basename result.fileUrl ] ]
-                , td [] [ Cart.addToCartButton (Session.getCart model.session) [ result.fileId ] |> Html.map CartMsg ]
+                , td [] [ Cart.addToCartButton (Session.getCart model.session) Nothing [ result.fileId ] |> Html.map CartMsg ]
                 ]
     in
     SortableTable.view
