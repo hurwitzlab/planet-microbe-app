@@ -210,7 +210,10 @@ viewRemoteData : (List a -> Html msg) -> RemoteData Http.Error (List a) -> Html 
 viewRemoteData viewFunc remoteData =
     case remoteData of
         Success data ->
-            viewFunc data
+            if List.length data > 0 then
+                viewFunc data
+            else
+                text "None"
 
         Failure error ->
             Error.view error False
