@@ -2,10 +2,13 @@
 
 const stringSimilarity = require('string-similarity');
 const Promise = require('promise');
+const requestp = require('request-promise');
 const express = require('express');
 const router  = express.Router();
 const config = require('../config.json');
 const db = require('../postgres.js')(config);
+const bg = require('../blazegraph.js');
+
 
 router.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog of terms
     let termIndex = req.app.get('termIndex');
@@ -636,7 +639,7 @@ async function search(db, termIndex, params) {
     sampleCount = [...new Set(countResult.rows.map(row => row[0]))].length;
     fileIDs = [...new Set(countResult.rows.map(row => row[1]).filter(id => id))];
     fileCount = fileIDs.length;
-    //fileIDs = fileIDs.slice(0, 251); // 1 plus max cart size
+    fileIDs = fileIDs.slice(0, 251); // 1 plus max cart size
 
     console.log("Summary Queries:");
     summaries = await Promise.all(summaryQueryStrs.map(s =>
@@ -923,6 +926,43 @@ function defined(val) {
 
 function present(val) {
     return defined(val) && val != "";
+}
+
+router.get('/taxonomy/subclasses/:id(*)', async (req, res) => {
+    let id = req.params.id;
+    //let queryStr = `select * where { <${id}> ?p ?o }`;
+    let queryStr = `SELECT ?cls ?clsLabel
+        WHERE {
+          ?cls rdfs:subClassOf <${id}> ;
+               rdfs:label ?clsLabel
+        }`;
+    let resp = await queryBlazegraph(queryStr);
+    console.log(resp.results.bindings);
+    res.json(resp.results.bindings);
+});
+
+router.get('/taxonomy/search/:term(*)', async (req, res) => {
+    let term = req.params.term;
+    //let queryStr = `select * where { <${id}> ?p ?o }`;
+    let queryStr = `PREFIX bds: <http://www.bigdata.com/rdf/search#>
+        SELECT ?uri ?label
+        WHERE {
+          ?label bds:search "${term}*" .
+          ?uri ?p ?label .
+        }`;
+    let resp = await queryBlazegraph(queryStr);
+    console.log(resp.results.bindings);
+    res.json(resp.results.bindings);
+});
+
+async function queryBlazegraph(queryStr) {
+    let query = encodeURIComponent(queryStr);
+    let url = config.blazegraphUrl + '?format=json&query=' + query;
+    return await requestp({
+        method: "GET",
+        uri: url,
+        json: true
+    });
 }
 
 module.exports = router;
