@@ -184,12 +184,6 @@ type alias Model =
     -- Search result state
     , searchStatus : SearchStatus
     , searchResponse : RemoteData String SearchResponse
-    --, sampleResults : RemoteData String (List SampleResult)
-    --, fileResults : RemoteData String  (List FileResult)
-    --, mapResults : Encode.Value --List MapResult
-    --, summaryResults : RemoteData String  (List Distribution)
-    --, sampleResultCount : Int
-    --, fileResultCount : Int
     , sampleTableState : SortableTable.State
     , fileTableState : SortableTable.State
     , searchTab : String
@@ -254,12 +248,6 @@ init session =
         -- Search result state
         , searchStatus = SearchInit (List.length initRequests)
         , searchResponse = NotAsked
-        --, sampleResults = NotAsked
-        --, fileResults = NotAsked
-        --, mapResults = Encode.object []
-        --, summaryResults = NotAsked
-        --, sampleResultCount = 0
-        --, fileResultCount = 0
         , sampleTableState = SortableTable.initialState
         , fileTableState = SortableTable.initialState
         , searchTab = "Samples"
@@ -703,10 +691,6 @@ update msg model =
                     ++ model.addedSampleFilters
             in
             ( { model
-                --| sampleResultCount = response.count
-                --, sampleResults = sampleResults
-                --, summaryResults = Success response.summary
-                --, mapResults = response.map
                 | searchResponse = Success response
                 , searchStatus = SearchNot
                 , displayedSampleFilters = displayedFilters
@@ -716,28 +700,6 @@ update msg model =
 
         SearchCompleted (Err error) ->
             ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
-
-        --FileSearchCompleted (Ok response) ->
-        --    let
-        --        fileResults =
-        --            case response.results of
-        --                FileSearchResults results ->
-        --                    Success results
-        --
-        --                _ -> -- impossible
-        --                    Failure "error"
-        --    in
-        --    ( { model
-        --        | fileResultCount = response.count
-        --        , fileResults = fileResults
-        --        , mapResults = response.map
-                --, searchStatus = SearchNot
-              --}
-            --, Cmd.none
-            --)
-        --
-        --FileSearchCompleted (Err error) ->
-        --    ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none ) --TODO
 
         DownloadSearchCompleted (Ok response) ->
             ( { model | searchStatus = SearchNot }
