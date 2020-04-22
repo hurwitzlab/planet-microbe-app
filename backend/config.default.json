@@ -15,7 +15,7 @@
             "redirectUrl": ""
         }
     },
-    "blazegraphUrl": "http://192.168.0.7:9999/blazegraph/namespace/planetmicrobe/sparql",
+    "blazegraphUrl": "http://localhost:9999/blazegraph/namespace/planetmicrobe/sparql",
     "searchableTerms": "ontologies/pmo_searchable_terms.tsv",
     "ontologies": [
         {

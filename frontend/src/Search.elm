@@ -21,6 +21,14 @@ type alias Filter =
     }
 
 
+type alias OntologyFilter = --TODO change to treeviewstate
+    { id : String
+    , searchVal : String
+    , rootClass : String
+    , classes : List Annotation
+    }
+
+
 type alias SearchTerm =
     { type_ : String
     , id : PURL
@@ -219,7 +227,7 @@ annotationDecoder =
     Decode.succeed Annotation
         |> required "id" Decode.string
         |> required "label" Decode.string
-        |> required "value" Decode.string
+        |> optional "value" Decode.string ""
 
 
 distributionDecoder : Decoder (List (String, Int))
@@ -378,6 +386,50 @@ searchDownloadRequest queryParams =
     HttpBuilder.post url
         |> HttpBuilder.withJsonBody body
         |> HttpBuilder.withExpect Http.expectString
+        |> HttpBuilder.toRequest
+
+
+fetchAllSearchTerms : Http.Request (List SearchTerm)
+fetchAllSearchTerms =
+    let
+        url =
+            apiBaseUrl ++ "/searchTerms"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list searchTermDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchSearchTerms : List PURL -> Http.Request (List SearchTerm)
+fetchSearchTerms ids =
+    let
+        url =
+            apiBaseUrl ++ "/searchTerms/" ++ (String.join "," ids)
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list searchTermDecoder))
+        |> HttpBuilder.toRequest
+
+
+searchOntologyTerms : String -> String -> Http.Request (List Annotation)
+searchOntologyTerms name keyword =
+    let
+        url =
+            apiBaseUrl ++ "/ontology/" ++ name ++ "/search/" ++ keyword
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list annotationDecoder))
+        |> HttpBuilder.toRequest
+
+
+fetchOntologySubclasses : String -> String -> Http.Request (List Annotation)
+fetchOntologySubclasses name id =
+    let
+        url =
+            apiBaseUrl ++ "/ontology/" ++ name ++ "/subclasses/" ++ id
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list annotationDecoder))
         |> HttpBuilder.toRequest
 
 

@@ -7,7 +7,6 @@ const express = require('express');
 const router  = express.Router();
 const config = require('../config.json');
 const db = require('../postgres.js')(config);
-const bg = require('../blazegraph.js');
 
 
 router.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog of terms
@@ -344,6 +343,13 @@ async function search(db, termIndex, params) {
                 return `LOWER(library.${field}) IN (` + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")"; //FIXME use bind param instead
             });
 
+    let taxonClause;
+    if (params['taxon']) {
+        let vals = params['taxon'].split("|");
+        console.log("taxon match", vals);
+        taxonClause = "centrifuge.tax_id IN (" + vals.map(s => "'" + s + "'").join(",") + ")"; //FIXME use bind param instead
+    }
+
     let termsById = {};
 
     for (let id of summaryTermIDs) {
@@ -529,7 +535,7 @@ async function search(db, termIndex, params) {
         )
         .join(" OR ");
 
-    [gisClause, projectClause].concat(libraryClauses).forEach(clause => {
+    [gisClause, projectClause, taxonClause].concat(libraryClauses).forEach(clause => {
         if (clause)
             clauseStr = clause + (clauseStr ? " AND (" + clauseStr + ")" : "");
     });
@@ -558,17 +564,19 @@ async function search(db, termIndex, params) {
         LEFT JOIN run_to_file USING(run_id)
         LEFT JOIN file USING(file_id) `;
 
+    if (taxonClause)
+        tableStr = tableStr +
+            `LEFT JOIN centrifuge USING(run_id) `;
+
     let groupByStr = " GROUP BY sample.sample_id,project.project_id ";
 
     // Build summary queries (for charts) ------------------------------------------------------------------------------
     let projectSummaryQueryStr =
         `SELECT project.name,COUNT(DISTINCT(sample.sample_id))::int
-        FROM project
-        JOIN project_to_sample USING(project_id)
-        JOIN sample USING(sample_id)
-        LEFT JOIN experiment USING(sample_id)
-        LEFT JOIN library USING(experiment_id)
-        ${clauseStr} GROUP BY project.project_id ORDER BY project.name`;
+        ${tableStr}
+        ${clauseStr}
+        GROUP BY project.project_id
+        ORDER BY project.name`;
 
     let summaryQueryStrs = [ projectSummaryQueryStr ];
     for (let termId of summaryTermIDs) { //FIXME dup'ed in /searchTerms/:id(*) endpoint above
@@ -678,6 +686,7 @@ async function search(db, termIndex, params) {
             JOIN run USING(experiment_id)
             JOIN run_to_file USING(run_id)
             JOIN file USING(file_id)
+            LEFT JOIN centrifuge USING(run_id)
             WHERE sample.sample_id = ANY($1)`,
         values: [ sampleResults.rows.map(r => r[1]) ]
     });
@@ -928,30 +937,31 @@ function present(val) {
     return defined(val) && val != "";
 }
 
-router.get('/taxonomy/subclasses/:id(*)', async (req, res) => {
+router.get('/ontology/:name(\\w+)/search/:keyword(*)', async (req, res) => {
+    let keyword = req.params.keyword;
+    let queryStr = `PREFIX bds: <http://www.bigdata.com/rdf/search#>
+        SELECT ?uri ?label
+        WHERE {
+          ?label bds:search "${keyword}*" .
+          ?uri ?p ?label .
+        }`;
+
+    let resp = await queryBlazegraph(queryStr);
+    let result = resp.results.bindings.map(b => {
+        return { id: b.uri.value, label: b.label.value }
+    });
+
+    res.json(result);
+});
+
+router.get('/ontology/:name(\\w+)/subclasses/:id(*)', async (req, res) => {
     let id = req.params.id;
-    //let queryStr = `select * where { <${id}> ?p ?o }`;
     let queryStr = `SELECT ?cls ?clsLabel
         WHERE {
           ?cls rdfs:subClassOf <${id}> ;
                rdfs:label ?clsLabel
         }`;
     let resp = await queryBlazegraph(queryStr);
-    console.log(resp.results.bindings);
-    res.json(resp.results.bindings);
-});
-
-router.get('/taxonomy/search/:term(*)', async (req, res) => {
-    let term = req.params.term;
-    //let queryStr = `select * where { <${id}> ?p ?o }`;
-    let queryStr = `PREFIX bds: <http://www.bigdata.com/rdf/search#>
-        SELECT ?uri ?label
-        WHERE {
-          ?label bds:search "${term}*" .
-          ?uri ?p ?label .
-        }`;
-    let resp = await queryBlazegraph(queryStr);
-    console.log(resp.results.bindings);
     res.json(resp.results.bindings);
 });
 

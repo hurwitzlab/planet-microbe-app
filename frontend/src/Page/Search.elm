@@ -22,8 +22,7 @@ import Route
 import Error
 import Page exposing (viewBlank, viewDialog)
 import Project
-import Sample
-import Search exposing (SearchResponse, SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Distribution, defaultSearchTerm, validFilterValue)
+import Search exposing (SearchResponse, SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, OntologyFilter, Annotation, Distribution, defaultSearchTerm, validFilterValue)
 import RemoteFile
 import SortableTable
 import BarChart
@@ -106,6 +105,10 @@ purlProject = -- Not a real PURL but rather a unique id for this term used in se
     "project"
 
 
+purlTaxon = -- Not a real PURL but rather a unique id for this term used in search query string
+    "taxon"
+
+
 purlFileSource = -- Not a real PURL but rather a unique id for this term used in search query string
     "source"
 
@@ -128,6 +131,7 @@ permanentSampleFilters =
     , Search.defaultFilter purlDepth "Depth"
     , Search.defaultFilter purlDateTimeISO "Date/Time"
     , Search.defaultFilter purlProject "Project"
+    , Search.defaultFilter purlTaxon "Taxon"
     ]
 
 
@@ -177,6 +181,7 @@ type alias Model =
     , addedSampleFilters : List Filter -- user-added sample tab search filters
     , displayedSampleFilters : List Filter -- user-added sample tab search filters currently displayed in search results
     , fileFilters : List Filter -- file tab search filters
+    , ontologyFilters : Dict String OntologyFilter
     , dateRangePickers : Dict PURL DateRangePicker -- Datepicker UI elements (there could be datetime fields in addition to start/end in 4D)
     , showParamSearchDropdown : Bool
     , paramSearchInputVal : String
@@ -226,8 +231,8 @@ init session =
     let
         -- Init requests performed asynchronously -- completion tracked using SearchInit semaphore rather than Task.sequence which is synchronous (slow)
         initRequests =
-            [ Sample.fetchAllSearchTerms |> Http.send GetAllSearchTermsCompleted
-            , Sample.fetchSearchTerms initialAddedSampleTerms |> Http.send GetSearchTermsCompleted
+            [ Search.fetchAllSearchTerms |> Http.send GetAllSearchTermsCompleted
+            , Search.fetchSearchTerms initialAddedSampleTerms |> Http.send GetSearchTermsCompleted
             , Project.fetchCounts |> Http.send GetProjectCountsCompleted
             , RemoteFile.fetchProperties |> Http.send GetFilePropertiesCompleted
             ]
@@ -241,6 +246,7 @@ init session =
         , addedSampleFilters = [] -- set by GetSearchTermsCompleted
         , displayedSampleFilters = [] -- set by SearchCompleted
         , fileFilters = [] -- set by GetFilePropertiesCompleted
+        , ontologyFilters = Dict.empty
         , dateRangePickers = Dict.empty -- set by InitDatePickers
         , showParamSearchDropdown = False
         , paramSearchInputVal = ""
@@ -305,6 +311,10 @@ type Msg
     | SetSearchFilterValue PURL String
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
+    | SetOntologyFilterValue String String
+    | GetOntologyTerms String String
+    | GetOntologyTermsCompleted String (Result Http.Error (List Annotation))
+    | GetOntologySubclassesCompleted String (Result Http.Error (List Annotation))
     | SetSearchTab String
     | SetResultTab String
     | SetSampleSortPos Int
@@ -423,7 +433,7 @@ update msg model =
                 , paramSearchInputVal = ""
                 , dialogState = NoDialog
               }
-            , Sample.fetchSearchTerms [ id ] |> Http.send GetSearchTermsCompleted
+            , Search.fetchSearchTerms [ id ] |> Http.send GetSearchTermsCompleted
             )
 
         RemoveFilter id ->
@@ -530,6 +540,86 @@ update msg model =
               }
             , Cmd.none
             )
+
+        GetOntologyTerms id val ->
+            let
+                newVal =
+                    if val == "" then
+                        NoValue
+                    else
+                        SearchValue val
+
+                newFilters =
+                    Search.updateFilterValue id newVal model.sampleFilters
+            in
+            ( { model | sampleFilters = newFilters }
+            , if String.length val >= 3 then
+                Search.searchOntologyTerms "taxonomy" val |> Http.send (GetOntologyTermsCompleted id)
+              else
+                Cmd.none
+            )
+
+        GetOntologyTermsCompleted id (Ok terms) ->
+            let
+                newFilter =
+                    case Dict.get id model.ontologyFilters of
+                        Just f ->
+                            { f | classes = terms }
+
+                        Nothing ->
+                            { id = id
+                            , searchVal = ""
+                            , rootClass = ""
+                            , classes = terms
+                            }
+
+                newFilters =
+                    Dict.insert id newFilter
+            in
+            ( { model | ontologyFilters = newFilters }, Cmd.none )
+
+        GetOntologyTermsCompleted _ (Err error) ->
+            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
+
+        SetOntologyFilterValue id val ->
+            let
+                newVal =
+                    if val == "" then
+                        NoValue
+                    else
+                        SearchValue val
+
+                newFilters =
+                    Search.updateFilterValue id newVal model.sampleFilters
+            in
+            ( { model | sampleFilters = newFilters }
+            , if String.length val >= 3 then
+                Search.fetchOntologySubclasses "taxonomy" val |> Http.send (GetOntologySubclassesCompleted id)
+              else
+                Cmd.none
+            )
+
+        GetOntologySubclassesCompleted id (Ok classes) ->
+            let
+                newFilter =
+                    case Dict.get id model.ontologyFilters of
+                        Just f ->
+                            { f | classes = classes }
+
+                        Nothing ->
+                            { id = id
+                            , searchVal = ""
+                            , rootClass = ""
+                            , classes = classes
+                            }
+
+                newFilters =
+                    Dict.insert id newFilter
+            in
+            ( { model | ontologyFilters = newFilters }, Cmd.none )
+
+        GetOntologySubclassesCompleted _ (Err error) ->
+            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
 
         SetFilterValue id val ->
             let
@@ -655,6 +745,7 @@ update msg model =
                             , (model.sampleFilters ++ model.addedSampleFilters)
                                 |> List.filter (\f -> f.term.id /= purlLocation) -- summary not possible
                                 |> List.filter (\f -> f.term.id /= purlProject) -- present by default
+                                |> List.filter (\f -> f.term.id /= purlTaxon) -- summary not possible
                                 |> List.map (.term >> .id)
                                 |> String.join ","
                             )
@@ -998,14 +1089,24 @@ viewSampleSearchPanel model =
             model.sampleFilters
                 |> List.filter (\f -> f.term.id == purlProject)
                 |> List.head
-                |> Maybe.withDefault (Search.defaultFilter purlProject "Project")
+
+        taxonFilter =
+            model.sampleFilters
+                |> List.filter (\f -> f.term.id == purlProject)
+                |> List.head
     in
-    div []
-        [ view4DPanel model
-        , viewStringFilterPanel projectFilter
-        , viewAddedFiltersPanel model.addedSampleFilters model.dateRangePickers
-        , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allTerms model.addedSampleFilters
-        ]
+    case (projectFilter, taxonFilter) of
+        (Just pf, Just tf) ->
+            div []
+                [ view4DPanel model
+                , viewStringFilterPanel pf
+                , viewOntologyFilterPanel tf
+                , viewAddedFiltersPanel model.addedSampleFilters model.dateRangePickers
+                , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allTerms model.addedSampleFilters
+                ]
+
+        (_, _) -> -- impossible state
+            text "Error"
 
 
 viewFileSearchPanel : List Filter -> Html Msg
@@ -1089,6 +1190,36 @@ view4DPanel model =
                     , br [] []
                     ]
                 ]
+            ]
+        ]
+
+
+viewOntologyFilterPanel : Filter -> Html Msg
+viewOntologyFilterPanel filter =
+    let
+        options =
+            filter.term.annotations
+                |> List.map
+                    (\anno ->
+                        a [ classList [ ("dropdown-item", True) ], href "", onClick (SetOntologyFilterValue filter.term.id) ]
+                            [ text <| anno.label ]
+                    )
+
+        searchVal =
+            case filter.value of
+                SearchValue s ->
+                    s
+
+                _ ->
+                    ""
+
+        showDropdown =
+            searchVal /= ""
+    in
+    viewPanel "" "Taxon" "" "" Nothing Nothing Nothing
+        [ div [ class "input-group input-group-sm", style "position" "relative" ]
+            [ input [ type_ "text", class "form-control", placeholder "Search ...", value searchVal, onInput (GetOntologyTerms filter.term.id) ] []
+            , div [ class "dropdown-menu", classList [("show", showDropdown)], style "position" "absolute", style "left" "0px", style "max-height" "30vh", style "overflow-y" "auto" ] options
             ]
         ]
 
