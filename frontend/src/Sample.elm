@@ -9,7 +9,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required, optional)
 import Json.Encode as Encode
 import LatLng exposing (LatLng)
-import Search exposing (SearchTerm, PURL, Value)
+import Search exposing (SearchTerm, Value)
 import Config exposing (apiBaseUrl)
 
 
@@ -140,26 +140,4 @@ fetchMetadata id =
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson metadataDecoder)
-        |> HttpBuilder.toRequest
-
-
-fetchAllSearchTerms : Http.Request (List SearchTerm)
-fetchAllSearchTerms =
-    let
-        url =
-            apiBaseUrl ++ "/searchTerms" --FIXME change to samples/searchTerms
-    in
-    HttpBuilder.get url
-        |> HttpBuilder.withExpect (Http.expectJson (Decode.list Search.searchTermDecoder))
-        |> HttpBuilder.toRequest
-
-
-fetchSearchTerms : List PURL -> Http.Request (List SearchTerm)
-fetchSearchTerms ids =
-    let
-        url =
-            apiBaseUrl ++ "/searchTerms/" ++ (String.join "," ids) --FIXME change to samples/searchTerms
-    in
-    HttpBuilder.get url
-        |> HttpBuilder.withExpect (Http.expectJson (Decode.list Search.searchTermDecoder))
         |> HttpBuilder.toRequest
