@@ -22,7 +22,7 @@ import Route
 import Error
 import Page exposing (viewBlank, viewDialog)
 import Project
-import Search exposing (SearchResponse, SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, OntologyFilter, Annotation, Distribution, defaultSearchTerm, validFilterValue)
+import Search exposing (SearchResponse, SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Annotation, Distribution, defaultSearchTerm, validFilterValue)
 import RemoteFile
 import SortableTable
 import BarChart
@@ -181,7 +181,6 @@ type alias Model =
     , addedSampleFilters : List Filter -- user-added sample tab search filters
     , displayedSampleFilters : List Filter -- user-added sample tab search filters currently displayed in search results
     , fileFilters : List Filter -- file tab search filters
-    , ontologyFilters : Dict String OntologyFilter
     , dateRangePickers : Dict PURL DateRangePicker -- Datepicker UI elements (there could be datetime fields in addition to start/end in 4D)
     , showParamSearchDropdown : Bool
     , paramSearchInputVal : String
@@ -246,7 +245,6 @@ init session =
         , addedSampleFilters = [] -- set by GetSearchTermsCompleted
         , displayedSampleFilters = [] -- set by SearchCompleted
         , fileFilters = [] -- set by GetFilePropertiesCompleted
-        , ontologyFilters = Dict.empty
         , dateRangePickers = Dict.empty -- set by InitDatePickers
         , showParamSearchDropdown = False
         , paramSearchInputVal = ""
@@ -311,10 +309,10 @@ type Msg
     | SetSearchFilterValue PURL String
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
-    | SetOntologyFilterValue String String
+    --| SetOntologyFilterValue String String Bool
     | GetOntologyTerms String String
     | GetOntologyTermsCompleted String (Result Http.Error (List Annotation))
-    | GetOntologySubclassesCompleted String (Result Http.Error (List Annotation))
+    --| GetOntologySubclassesCompleted String (Result Http.Error (List Annotation))
     | SetSearchTab String
     | SetResultTab String
     | SetSampleSortPos Int
@@ -547,79 +545,82 @@ update msg model =
                     if val == "" then
                         NoValue
                     else
-                        SearchValue val
+                        --OntologyValue val []
+                        SingleValue val
 
                 newFilters =
                     Search.updateFilterValue id newVal model.sampleFilters
             in
-            ( { model | sampleFilters = newFilters }
+            ( { model | searchStatus = SearchPending, sampleFilters = newFilters }
             , if String.length val >= 3 then
-                Search.searchOntologyTerms "taxonomy" val |> Http.send (GetOntologyTermsCompleted id)
+                Cmd.none --Search.searchOntologyTerms "taxonomy" val |> Http.send (GetOntologyTermsCompleted id)
               else
                 Cmd.none
             )
 
         GetOntologyTermsCompleted id (Ok terms) ->
             let
-                newFilter =
-                    case Dict.get id model.ontologyFilters of
-                        Just f ->
-                            { f | classes = terms }
+                curVal =
+                    Search.getFilterValue id model.sampleFilters
 
-                        Nothing ->
-                            { id = id
-                            , searchVal = ""
-                            , rootClass = ""
-                            , classes = terms
-                            }
+                vals =
+                    terms |> List.map (\t -> (t.id, t.label))
 
-                newFilters =
-                    Dict.insert id newFilter
-            in
-            ( { model | ontologyFilters = newFilters }, Cmd.none )
-
-        GetOntologyTermsCompleted _ (Err error) ->
-            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
-
-        SetOntologyFilterValue id val ->
-            let
                 newVal =
-                    if val == "" then
-                        NoValue
-                    else
-                        SearchValue val
+                    case curVal of
+                        OntologyValue val _ ->
+                            OntologyValue val vals
+
+                        _ ->
+                            OntologyValue "" vals
 
                 newFilters =
                     Search.updateFilterValue id newVal model.sampleFilters
             in
-            ( { model | sampleFilters = newFilters }
-            , if String.length val >= 3 then
-                Search.fetchOntologySubclasses "taxonomy" val |> Http.send (GetOntologySubclassesCompleted id)
-              else
-                Cmd.none
-            )
+            ( { model | sampleFilters = newFilters }, Cmd.none )
 
-        GetOntologySubclassesCompleted id (Ok classes) ->
-            let
-                newFilter =
-                    case Dict.get id model.ontologyFilters of
-                        Just f ->
-                            { f | classes = classes }
-
-                        Nothing ->
-                            { id = id
-                            , searchVal = ""
-                            , rootClass = ""
-                            , classes = classes
-                            }
-
-                newFilters =
-                    Dict.insert id newFilter
-            in
-            ( { model | ontologyFilters = newFilters }, Cmd.none )
-
-        GetOntologySubclassesCompleted _ (Err error) ->
+        GetOntologyTermsCompleted _ (Err error) ->
             ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
+
+        --SetOntologyFilterValue id val selected ->
+        --    let
+        --        newVal =
+        --            if val == "" then
+        --                NoValue
+        --            else
+        --                SearchValue val
+        --
+        --        newFilters =
+        --            Search.updateFilterValue id newVal model.sampleFilters
+        --    in
+        --    ( { model | sampleFilters = newFilters }
+        --    , if String.length val >= 3 then
+        --        Search.fetchOntologySubclasses "taxonomy" val |> Http.send (GetOntologySubclassesCompleted id)
+        --      else
+        --        Cmd.none
+        --    )
+
+        --GetOntologySubclassesCompleted id (Ok classes) ->
+        --    let
+        --        newFilter =
+        --            case Dict.get id model.ontologyFilters of
+        --                Just f ->
+        --                    { f | classes = classes }
+        --
+        --                Nothing ->
+        --                    { id = id
+        --                    , searchVal = ""
+        --                    , rootClass = ""
+        --                    , classes = classes
+        --                    }
+        --
+        --        newFilters =
+        --            Dict.insert id newFilter model.ontologyFilters
+        --    in
+        --    ( { model | ontologyFilters = newFilters }, Cmd.none )
+        --
+        --GetOntologySubclassesCompleted _ (Err error) ->
+        --    ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
 
         SetFilterValue id val ->
             let
@@ -1092,7 +1093,7 @@ viewSampleSearchPanel model =
 
         taxonFilter =
             model.sampleFilters
-                |> List.filter (\f -> f.term.id == purlProject)
+                |> List.filter (\f -> f.term.id == purlTaxon)
                 |> List.head
     in
     case (projectFilter, taxonFilter) of
@@ -1197,29 +1198,30 @@ view4DPanel model =
 viewOntologyFilterPanel : Filter -> Html Msg
 viewOntologyFilterPanel filter =
     let
-        options =
-            filter.term.annotations
-                |> List.map
-                    (\anno ->
-                        a [ classList [ ("dropdown-item", True) ], href "", onClick (SetOntologyFilterValue filter.term.id) ]
-                            [ text <| anno.label ]
-                    )
+        --options =
+        --    filter.term.annotations
+        --        |> List.map
+        --            (\anno ->
+        --                a [ classList [ ("dropdown-item", True) ], href "", onCheck (SetOntologyFilterValue filter.term.id anno.id) ]
+        --                    [ text <| anno.label ]
+        --            )
 
         searchVal =
             case filter.value of
-                SearchValue s ->
+                --OntologyValue s _ ->
+                SingleValue s ->
                     s
 
                 _ ->
                     ""
 
-        showDropdown =
-            searchVal /= ""
+        --showDropdown =
+        --    searchVal /= ""
     in
     viewPanel "" "Taxon" "" "" Nothing Nothing Nothing
         [ div [ class "input-group input-group-sm", style "position" "relative" ]
             [ input [ type_ "text", class "form-control", placeholder "Search ...", value searchVal, onInput (GetOntologyTerms filter.term.id) ] []
-            , div [ class "dropdown-menu", classList [("show", showDropdown)], style "position" "absolute", style "left" "0px", style "max-height" "30vh", style "overflow-y" "auto" ] options
+            --, div [ class "dropdown-menu", classList [("show", showDropdown)], style "position" "absolute", style "left" "0px", style "max-height" "30vh", style "overflow-y" "auto" ] options
             ]
         ]
 
@@ -1879,6 +1881,7 @@ viewSummary model =
                     (model.sampleFilters ++ model.addedSampleFilters)
                         |> List.filter (\f -> f.term.id /= purlLocation)
                         |> List.filter (\f -> f.term.id /= purlProject)
+                        |> List.filter (\f -> f.term.id /= purlTaxon)
                         |> List.map (.term >> .label)
             in
             div [ style "margin" "1em" ]
@@ -1952,7 +1955,8 @@ viewSampleResults model =
             "Project Name" ::
             "Sample ID" ::
             (model.displayedSampleFilters
-                |> List.filter (\f -> f.term.id /= "project")
+                |> List.filter (\f -> f.term.id /= purlProject)
+                |> List.filter (\f -> f.term.id /= purlTaxon)
                 |> List.map
                     (\f ->
                         if f.term.id == purlLocation && f.value /= NoValue && validFilterValue f.value then

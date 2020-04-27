@@ -34,6 +34,19 @@ type alias Metadata =
     }
 
 
+type alias Taxonomy =
+    { experimentId : Int
+    , experimentAccn : String
+    , runId : Int
+    , runAccn : String
+    , taxId : Int
+    , speciesName : String
+    , numReads : Int
+    , numUniqueReads : Int
+    , abundance : Float
+    }
+
+
 
 -- SERIALIZATION --
 
@@ -55,6 +68,20 @@ metadataDecoder =
         |> required "schema_id" Decode.int
         |> required "terms" (Decode.list Search.searchTermDecoder)
         |> required "values" (Decode.list Search.valueDecoder)
+
+
+taxonomyDecoder : Decoder Taxonomy
+taxonomyDecoder =
+    Decode.succeed Taxonomy
+        |> required "experiment_id" Decode.int
+        |> required "experiment_accn" Decode.string
+        |> required "run_id" Decode.int
+        |> required "run_accn" Decode.string
+        |> required "tax_id" Decode.int
+        |> required "name" Decode.string
+        |> required "num_reads" Decode.int
+        |> required "num_unique_reads" Decode.int
+        |> required "abundance" Decode.float
 
 
 
@@ -140,4 +167,15 @@ fetchMetadata id =
     in
     HttpBuilder.get url
         |> HttpBuilder.withExpect (Http.expectJson metadataDecoder)
+        |> HttpBuilder.toRequest
+
+
+fetchTaxonomy : Int -> Http.Request (List Taxonomy)
+fetchTaxonomy id =
+    let
+        url =
+            apiBaseUrl ++ "/samples/" ++ (String.fromInt id) ++ "/taxonomy"
+    in
+    HttpBuilder.get url
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list taxonomyDecoder))
         |> HttpBuilder.toRequest

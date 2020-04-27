@@ -345,9 +345,15 @@ async function search(db, termIndex, params) {
 
     let taxonClause;
     if (params['taxon']) {
-        let vals = params['taxon'].split("|");
-        console.log("taxon match", vals);
-        taxonClause = "centrifuge.tax_id IN (" + vals.map(s => "'" + s + "'").join(",") + ")"; //FIXME use bind param instead
+//        let taxIDs = {};
+//        params['taxon'].split("|").forEach(id => {
+//            let shortID = id.match(/NCBITaxon_(\d+)$/);
+//            if (shortID && shortID[1])
+//                taxIDs[shortID[1]] = 1;
+//        });
+//        console.log("taxon match", Object.keys(taxIDs));
+//        taxonClause = "centrifuge.tax_id IN (" + Object.keys(taxIDs).join(",") + ")"; //FIXME use bind param instead
+        taxonClause = `taxonomy.name LIKE '%${params["taxon"]}%'`
     }
 
     let termsById = {};
@@ -566,7 +572,8 @@ async function search(db, termIndex, params) {
 
     if (taxonClause)
         tableStr = tableStr +
-            `LEFT JOIN centrifuge USING(run_id) `;
+            `LEFT JOIN centrifuge USING(run_id)
+            LEFT JOIN taxonomy USING(tax_id)`;
 
     let groupByStr = " GROUP BY sample.sample_id,project.project_id ";
 
@@ -679,7 +686,7 @@ async function search(db, termIndex, params) {
 
     console.log("Sample File Query:");
     let files = await db.query({
-        text:
+        text: //FIXME use tableStr from above
             `SELECT sample.sample_id,file.file_id
             FROM sample
             JOIN experiment USING(sample_id)
@@ -687,6 +694,7 @@ async function search(db, termIndex, params) {
             JOIN run_to_file USING(run_id)
             JOIN file USING(file_id)
             LEFT JOIN centrifuge USING(run_id)
+            LEFT JOIN taxonomy USING(tax_id)
             WHERE sample.sample_id = ANY($1)`,
         values: [ sampleResults.rows.map(r => r[1]) ]
     });

@@ -21,14 +21,6 @@ type alias Filter =
     }
 
 
-type alias OntologyFilter = --TODO change to treeviewstate
-    { id : String
-    , searchVal : String
-    , rootClass : String
-    , classes : List Annotation
-    }
-
-
 type alias SearchTerm =
     { type_ : String
     , id : PURL
@@ -103,6 +95,7 @@ type FilterValue
     | DateTimeRangeValue String String -- start/end datetime values
     | LatLngRadiusValue (String, String) String -- latitude/longitude with radius
     | LonghurstValue String -- Longhurst province
+    | OntologyValue String (List (String, String)) -- search val and results (id, label)
 
 
 type alias SearchResponse =
@@ -488,6 +481,9 @@ validFilterValue val =
         LonghurstValue s ->
             defined s
 
+        OntologyValue s vals ->
+            vals /= []
+
         NoValue ->
             True
 
@@ -540,6 +536,9 @@ filterValueToString val =
 
         LonghurstValue s ->
             s
+
+        OntologyValue s values ->
+            values |> List.map Tuple.second |> String.join "|"
 
         NoValue ->
             ""

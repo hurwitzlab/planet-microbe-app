@@ -44,6 +44,11 @@ sraUrl =
     "https://www.ncbi.nlm.nih.gov/sra/?term="
 
 
+taxonomyUrl : String
+taxonomyUrl =
+    "https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id="
+
+
 
 ---- Agave API ----
 

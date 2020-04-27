@@ -8,7 +8,7 @@ import Html.Events exposing (onMouseEnter, onMouseLeave, onClick)
 import Page exposing (viewSpinner)
 import Route
 import Error
-import Sample exposing (Sample, Metadata)
+import Sample exposing (Sample, Metadata, Taxonomy)
 import Search exposing (PURL, Value(..), SearchTerm, Annotation)
 import SamplingEvent exposing (SamplingEvent)
 import Experiment exposing (Experiment)
@@ -23,6 +23,7 @@ import List.Extra
 import Json.Encode as Encode
 import Cart
 import Icon
+import Config exposing (sraUrl, taxonomyUrl)
 --import Debug exposing (toString)
 
 
@@ -36,13 +37,15 @@ type alias Model =
     , samplingEvents : Maybe (List SamplingEvent)
     , experiments : Maybe (List Experiment)
     , metadata : Maybe Metadata
+    , taxonomy : RemoteData Http.Error (List Taxonomy)
     , mapLoaded : Bool
     , tooltip : Maybe (ToolTip (List Annotation))
     , showUnannotatedMetadata : Bool
     }
 
 
-type alias ToolTip a = --TODO move tooltip code into own module
+--TODO move tooltip code into own module
+type alias ToolTip a =
     { x : Float
     , y : Float
     , content : a
@@ -56,6 +59,7 @@ init session id =
       , samplingEvents = Nothing
       , experiments = Nothing
       , metadata = Nothing
+      , taxonomy = Loading
       , mapLoaded = False
       , tooltip = Nothing
       , showUnannotatedMetadata = False
@@ -65,6 +69,7 @@ init session id =
         , GMap.changeMapSettings (GMap.Settings False False True False |> GMap.encodeSettings)
         , Sample.fetch id |> Http.send GetSampleCompleted
         , Sample.fetchMetadata id |> Http.send GetMetadataCompleted
+        , Sample.fetchTaxonomy id |> Http.send GetTaxonomyCompleted
         , SamplingEvent.fetchAllBySample id |> Http.send GetSamplingEventsCompleted
         , Experiment.fetchAllBySample id |> Http.send GetExperimentsCompleted
         ]
@@ -94,6 +99,7 @@ type Msg
     | GetSamplingEventsCompleted (Result Http.Error (List SamplingEvent))
     | GetExperimentsCompleted (Result Http.Error (List Experiment))
     | GetMetadataCompleted (Result Http.Error Metadata)
+    | GetTaxonomyCompleted (Result Http.Error (List Taxonomy))
     | MapLoaded Bool
     | TimerTick Time.Posix
     | ShowTooltip PURL
@@ -141,6 +147,12 @@ update msg model =
 --                _ = Debug.log "GetMetadataCompleted" (toString error)
 --            in
             ( model, Cmd.none )
+
+        GetTaxonomyCompleted (Ok taxonomy) ->
+            ( { model | taxonomy = Success taxonomy }, Cmd.none )
+
+        GetTaxonomyCompleted (Err error) -> --TODO
+            ( { model | taxonomy = Failure error }, Cmd.none )
 
         MapLoaded success ->
             ( { model | mapLoaded = success }, Cmd.none )
@@ -271,6 +283,9 @@ view model =
                 , div [ class "pt-3 pb-2" ]
                     [ Page.viewTitle2 "Metadata" False ]
                 , viewMetadata model.metadata model.showUnannotatedMetadata
+                , div [ class "pt-5 pb-2" ]
+                    [ Page.viewTitle2 "Taxonomic Classification" False ]
+                , viewTaxonomy model.taxonomy
                 , case model.tooltip of
                     Just tooltip ->
                         viewTooltip tooltip
@@ -519,3 +534,46 @@ viewTooltip tooltip =
             ]
     else
         text ""
+
+
+viewTaxonomy : RemoteData Http.Error (List Taxonomy) -> Html Msg
+viewTaxonomy taxonomy =
+    let
+        mkRow result =
+            tr []
+                [ td [] [ a [ href (taxonomyUrl ++ (String.fromInt result.taxId)), target "_blank" ] [ text result.speciesName ] ]
+                , td [] [ a [ href (sraUrl ++ result.runAccn), target "_blank" ] [ text result.runAccn ] ]
+                , td [] [ a [ Route.href (Route.Experiment result.experimentId) ] [ text result.experimentAccn ] ]
+                , td [] [ text <| String.fromInt result.numReads ]
+                , td [] [ text <| String.fromInt result.numUniqueReads ]
+                , td [] [ text <| String.fromFloat result.abundance ]
+                ]
+
+        sortByAbundanceDesc a b =
+            case compare a.abundance b.abundance of
+              LT -> GT
+              EQ -> EQ
+              GT -> LT
+    in
+    case taxonomy of
+        Success results ->
+            table [ class "table table-sm" ]
+                [ thead []
+                    [ tr []
+                        [ th [] [ text "Name ", Icon.externalLink ]
+                        , th [] [ text "Run ", Icon.externalLink ]
+                        , th [] [ text "Experiment" ]
+                        , th [] [ text "Num Reads" ]
+                        , th [] [ text "Num Unique Reads" ]
+                        , th [] [ text "Abundance" ]
+                        ]
+                    ]
+                , tbody []
+                    (results |> List.sortWith sortByAbundanceDesc |> List.map mkRow)
+                ]
+
+        Failure error ->
+            Error.view error False
+
+        _ ->
+            viewSpinner
