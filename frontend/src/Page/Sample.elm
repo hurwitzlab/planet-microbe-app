@@ -332,7 +332,7 @@ viewSample sample samplingEvents =
                         )
                 ]
     in
-    table [] -- ugh, use table for layout
+    table []
         [ tr []
             [ td [ style "min-width" "50vw" ]
                 [ table [ class "table table-borderless table-sm" ]

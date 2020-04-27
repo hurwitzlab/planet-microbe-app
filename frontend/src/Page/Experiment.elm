@@ -117,7 +117,7 @@ view model =
 
 viewExperiment : Experiment -> Html Msg
 viewExperiment experiment =
-    table [] -- ugh, use table for layout
+    table []
         [ tr []
             [ td [ style "min-width" "50vw" ]
                 [ table [ class "table table-borderless table-sm" ]

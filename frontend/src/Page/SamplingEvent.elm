@@ -193,7 +193,7 @@ viewSamplingEvent samplingEvent =
                     , td [] [ a [ Route.href (Route.Campaign samplingEvent.campaignId) ] [ text samplingEvent.campaignName ] ]
                     ]
     in
-    table [] -- ugh, use table for layout
+    table []
         [ tr []
             [ td [ style "min-width" "50vw" ]
                 [ table [ class "table table-borderless table-sm" ]
