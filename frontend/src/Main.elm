@@ -423,6 +423,10 @@ update msg model =
                             -- is inside would be unnecessary.
                             ( model, Cmd.none )
 
+                        -- Handle href "" and href "#"
+                        Just "" ->
+                            ( model, Cmd.none )
+
                         Just _ ->
                             ( model
                             , Browser.Navigation.pushUrl (Session.navKey session) (Url.toString url)
