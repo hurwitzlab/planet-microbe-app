@@ -24,7 +24,6 @@ import Json.Encode as Encode
 import Cart
 import Icon
 import Config exposing (sraUrl, taxonomyUrl)
---import Debug exposing (toString)
 
 
 
@@ -115,43 +114,31 @@ update msg model =
         GetSampleCompleted (Ok sample) ->
             ( { model | sample = Success sample }, Cmd.none )
 
-        GetSampleCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSampleCompleted" (toString error)
---            in
+        GetSampleCompleted (Err error) ->
             ( { model | sample = Failure error }, Cmd.none )
 
         GetSamplingEventsCompleted (Ok samplingEvents) ->
             ( { model | samplingEvents = Just samplingEvents }, Cmd.none )
 
-        GetSamplingEventsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSamplingEventsCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetSamplingEventsCompleted (Err error) ->
+            ( { model | sample = Failure error }, Cmd.none )
 
         GetExperimentsCompleted (Ok experiments) ->
             ( { model | experiments = Just experiments }, Cmd.none )
 
-        GetExperimentsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetExperimentsCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetExperimentsCompleted (Err error) ->
+            ( { model | sample = Failure error }, Cmd.none )
 
         GetMetadataCompleted (Ok metadata) ->
             ( { model | metadata = Just metadata }, Cmd.none )
 
-        GetMetadataCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetMetadataCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetMetadataCompleted (Err error) ->
+            ( { model | sample = Failure error }, Cmd.none )
 
         GetTaxonomyCompleted (Ok taxonomy) ->
             ( { model | taxonomy = Success taxonomy }, Cmd.none )
 
-        GetTaxonomyCompleted (Err error) -> --TODO
+        GetTaxonomyCompleted (Err error) ->
             ( { model | taxonomy = Failure error }, Cmd.none )
 
         MapLoaded success ->
@@ -225,9 +212,6 @@ update msg model =
                     ( model, Cmd.none )
 
         GotElement _ (Err error) ->
---            let
---                _ = Debug.log "GotElement" (toString error)
---            in
             ( { model | tooltip = Nothing }, Cmd.none )
 
         ToggleUnannotatedMetadata ->
@@ -502,9 +486,9 @@ viewMetadata maybeMetadata showUnannotated =
                     ]
                 , button [ class "btn btn-primary", onClick ToggleUnannotatedMetadata ]
                     [ if showUnannotated then
-                        text "Hide Unannotated Fields"
+                        text ("Hide Unannotated Fields " ++ (String.fromChar (Char.fromCode 9650)))
                       else
-                        text "Show Unannotated Fields"
+                        text ("Show Unannotated Fields " ++ (String.fromChar (Char.fromCode 9660)))
                     ]
                 ]
 
@@ -557,20 +541,23 @@ viewTaxonomy taxonomy =
     in
     case taxonomy of
         Success results ->
-            table [ class "table table-sm" ]
-                [ thead []
-                    [ tr []
-                        [ th [] [ text "Name ", Icon.externalLink ]
-                        , th [] [ text "Run ", Icon.externalLink ]
-                        , th [] [ text "Experiment" ]
-                        , th [] [ text "Num Reads" ]
-                        , th [] [ text "Num Unique Reads" ]
-                        , th [] [ text "Abundance" ]
+            if results == [] then
+                text "None"
+            else
+                table [ class "table table-sm" ]
+                    [ thead []
+                        [ tr []
+                            [ th [] [ text "Name ", Icon.externalLink ]
+                            , th [] [ text "Run ", Icon.externalLink ]
+                            , th [] [ text "Experiment" ]
+                            , th [] [ text "Num Reads" ]
+                            , th [] [ text "Num Unique Reads" ]
+                            , th [] [ text "Abundance" ]
+                            ]
                         ]
+                    , tbody []
+                        (results |> List.sortWith sortByAbundanceDesc |> List.map mkRow)
                     ]
-                , tbody []
-                    (results |> List.sortWith sortByAbundanceDesc |> List.map mkRow)
-                ]
 
         Failure error ->
             Error.view error False
