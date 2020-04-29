@@ -37,7 +37,6 @@ $orange     : #f65314;
   input[type="checkbox"] {
     margin-right: .5em;
     position: relative;
-    top: .20em;
     display: inline-block;
     background-color: #fff;
     border-radius: 5px;
@@ -82,7 +81,6 @@ $orange     : #f65314;
       outline: none;
       background: transparent;
       transition: box-shadow 0.3s, border 0.3s;
-
 
       &:focus {
         border: solid 1px $blue;
