@@ -345,15 +345,22 @@ async function search(db, termIndex, params) {
 
     let taxonClause;
     if (params['taxon']) {
-        let taxIDs = {};
-        params['taxon'].split("|").forEach(id => {
-            let shortID = id.match(/NCBITaxon_(\d+)$/);
-            if (shortID && shortID[1])
-                taxIDs[shortID[1]] = 1;
-        });
-        console.log("taxon match", Object.keys(taxIDs));
-        taxonClause = "centrifuge.tax_id IN (" + Object.keys(taxIDs).join(",") + ")"; //FIXME use bind param instead
-//        taxonClause = `taxonomy.name LIKE '%${params["taxon"]}%'`
+        let val = params['taxon'];
+
+        if (val.startsWith('~')) {
+            val = val.substr(1).toLowerCase();
+            taxonClause = `LOWER(taxonomy.name) LIKE '%${val}%'`
+        }
+        else {
+            let taxIDs = {};
+            val.split("|").forEach(id => {
+                let shortID = id.match(/NCBITaxon_(\d+)$/);
+                if (shortID && shortID[1])
+                    taxIDs[shortID[1]] = 1;
+            });
+            console.log("taxon match", Object.keys(taxIDs));
+            taxonClause = "centrifuge.tax_id IN (" + Object.keys(taxIDs).join(",") + ")"; //FIXME use bind param instead
+        }
     }
 
     let termsById = {};
@@ -573,7 +580,7 @@ async function search(db, termIndex, params) {
     if (taxonClause)
         tableStr = tableStr +
             `LEFT JOIN centrifuge USING(run_id)
-            LEFT JOIN taxonomy USING(tax_id)`;
+            LEFT JOIN taxonomy USING(tax_id) `;
 
     let groupByStr = " GROUP BY sample.sample_id,project.project_id ";
 

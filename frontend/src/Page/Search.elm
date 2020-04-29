@@ -318,7 +318,7 @@ type Msg
     | SetSearchFilterValue PURL String
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
-    --| SetOntologyFilterValue String String Bool
+    | SetOntologyFilterValue String String
     | GetOntologyTerms String String
     | GetOntologyTermsCompleted String String (Result Http.Error (List OntologyResult))
     --| GetOntologySubclassesCompleted String (Result Http.Error (List Annotation))
@@ -568,23 +568,24 @@ update msg model =
             in
             ( { model | searchStatus = SearchPending, sampleFilters = newFilters }, Cmd.none )
 
-        --SetOntologyFilterValue id val selected ->
-        --    let
-        --        newVal =
-        --            if val == "" then
-        --                NoValue
-        --            else
-        --                SearchValue val
-        --
-        --        newFilters =
-        --            Search.updateFilterValue id newVal model.sampleFilters
-        --    in
-        --    ( { model | sampleFilters = newFilters }
-        --    , if String.length val >= 3 then
-        --        Search.fetchOntologySubclasses "taxonomy" val |> Http.send (GetOntologySubclassesCompleted id)
-        --      else
-        --        Cmd.none
-        --    )
+        SetOntologyFilterValue id val ->
+            let
+                newVal =
+                    if val == "" then
+                        NoValue
+                    else
+                        SearchValue val
+
+                newFilters =
+                    Search.updateFilterValue id newVal model.sampleFilters
+
+                searchStatus =
+                    if String.length val >= 3 then
+                        SearchPending
+                    else
+                        model.searchStatus
+            in
+            ( { model | sampleFilters = newFilters, searchStatus = searchStatus }, Cmd.none )
 
         --GetOntologySubclassesCompleted id (Ok classes) ->
         --    let
@@ -1255,7 +1256,7 @@ viewOntologyFilterPanel filter =
         searchVal =
             case filter.value of
                 --OntologyValue s _ ->
-                SingleValue s ->
+                SearchValue s ->
                     s
 
                 _ ->
@@ -1267,7 +1268,7 @@ viewOntologyFilterPanel filter =
     viewPanel "" "Taxon" "" "" []
         [ span [ class "float-right", style "cursor" "pointer", onClick (OpenDialog (OntologyBrowserDialog filter)) ] [ Icon.hierarchy ] ]
         [ div [ class "input-group input-group-sm", style "position" "relative" ]
-            [ input [ type_ "text", class "form-control", placeholder "Search ...", value searchVal, onInput (GetOntologyTerms filter.term.id) ] []
+            [ input [ type_ "text", class "form-control", placeholder "Search ...", value searchVal, onInput (SetOntologyFilterValue filter.term.id) ] []
             --, div [ class "dropdown-menu", classList [("show", showDropdown)], style "position" "absolute", style "left" "0px", style "max-height" "30vh", style "overflow-y" "auto" ] options
             ]
         ]
