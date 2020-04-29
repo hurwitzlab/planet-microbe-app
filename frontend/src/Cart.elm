@@ -13,7 +13,7 @@ import Config exposing (dataCommonsUrl, sraUrl)
 
 
 
--- TYPES
+-- TYPES --
 
 
 type Cart =
@@ -32,7 +32,7 @@ type CartType
 
 
 
--- SERIALIZATION
+-- SERIALIZATION --
 
 
 decoder : Decoder Cart
@@ -64,7 +64,7 @@ port onCartChange : (String -> msg) -> Sub msg
 
 
 
--- UTILITY FUNCTIONS
+-- UTILITY FUNCTIONS --
 
 
 empty : Cart
