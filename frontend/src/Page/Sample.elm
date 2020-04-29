@@ -268,7 +268,13 @@ view model =
                     [ Page.viewTitle2 "Metadata" False ]
                 , viewMetadata model.metadata model.showUnannotatedMetadata
                 , div [ class "pt-5 pb-2" ]
-                    [ Page.viewTitle2 "Taxonomic Classification" False ]
+                    [ Page.viewTitle2 "Taxonomic Classification" False
+                    , div [ class "text-secondary" ]
+                        [ text "Determined by "
+                        , a [ href "https://ccb.jhu.edu/software/centrifuge/", target "_blank" ] [ text "Centrifuge" ]
+                        , text " with Abundance > 0"
+                        ]
+                    ]
                 , viewTaxonomy model.taxonomy
                 , case model.tooltip of
                     Just tooltip ->
