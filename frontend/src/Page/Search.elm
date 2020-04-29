@@ -22,7 +22,7 @@ import Route
 import Error
 import Page exposing (viewBlank, viewDialog)
 import Project
-import Search exposing (SearchResponse, SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Annotation, Distribution, defaultSearchTerm, validFilterValue)
+import Search exposing (SearchResponse, SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Annotation, Distribution, OntologyResult, defaultSearchTerm, validFilterValue)
 import RemoteFile
 import SortableTable
 import BarChart
@@ -229,7 +229,7 @@ type alias DateRangePicker =
 
 
 initTaxonomy =
-    Search.fetchOntologySubclasses "taxonomy" "http://purl.obolibrary.org/obo/NCBITaxon_1" |> Http.send (GetOntologyTermsCompleted "taxonomy" "")
+    Search.fetchOntologySubclasses "taxonomy" "http://purl.obolibrary.org/obo/NCBITaxon_1" False |> Http.send (GetOntologyTermsCompleted "taxonomy" "")
 
 
 init : Session -> ( Model, Cmd Msg )
@@ -320,8 +320,9 @@ type Msg
     | SetFilterValue PURL FilterValue
     --| SetOntologyFilterValue String String Bool
     | GetOntologyTerms String String
-    | GetOntologyTermsCompleted String String (Result Http.Error (List Annotation))
+    | GetOntologyTermsCompleted String String (Result Http.Error (List OntologyResult))
     --| GetOntologySubclassesCompleted String (Result Http.Error (List Annotation))
+    | SetOntologyTerms String String (Result Http.Error (List OntologyResult))
     | SetSearchTab String
     | SetResultTab String
     | SetSampleSortPos Int
@@ -977,10 +978,28 @@ update msg model =
         GetOntologyTermsCompleted _ _ (Err error) ->
             ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
 
+        SetOntologyTerms ontology id (Ok terms) ->
+            let
+                newVal =
+                    if terms == [] then
+                        NoValue
+                    else
+                        MultipleValues (terms |> List.map (\t -> t.id))
+
+                newFilters =
+                    Search.updateFilterValue "taxon" newVal model.sampleFilters
+            in
+            ( { model | sampleFilters = newFilters, searchStatus = SearchPending }, Cmd.none )
+
+        SetOntologyTerms _ _ (Err error) ->
+            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
+
         OntologyBrowserMsg subMsg ->
             let
                 ( newBrowser, newMsg ) =
                     OntologyBrowser.update subMsg model.ontologyBrowser
+
+                _ = Debug.log "newMsg" (toString newMsg)
             in
             ( { model | ontologyBrowser = newBrowser }
             , case newMsg of
@@ -993,7 +1012,10 @@ update msg model =
                         Cmd.none
 
                 OntologyBrowser.FetchSubclasses id ->
-                    Search.fetchOntologySubclasses "taxonomy" id |> Http.send (GetOntologyTermsCompleted "taxonomy" id)
+                    Search.fetchOntologySubclasses "taxonomy" id False |> Http.send (GetOntologyTermsCompleted "taxonomy" id)
+
+                OntologyBrowser.Selected id ->
+                    Search.fetchOntologySubclasses "taxonomy" id True |> Http.send (SetOntologyTerms "taxonomy" id)
 
                 _ ->
                     Cmd.none

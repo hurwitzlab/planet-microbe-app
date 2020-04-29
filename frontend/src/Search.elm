@@ -84,6 +84,13 @@ type alias Distribution =
     List (String, Int)
 
 
+type alias OntologyResult =
+    { id : String
+    , label : String
+    --, count : Int
+    }
+
+
 type FilterValue
     = NoValue
     | SingleValue String -- numeric/string value
@@ -226,6 +233,14 @@ annotationDecoder =
 distributionDecoder : Decoder (List (String, Int))
 distributionDecoder =
     Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int))
+
+
+ontologyResultDecoder : Decoder OntologyResult
+ontologyResultDecoder =
+    Decode.succeed OntologyResult
+        |> required "id" Decode.string
+        |> required "label" Decode.string
+        --|> required "count" Decode.int
 
 
 decodeSearchResponse : Decoder SearchResponse
@@ -404,25 +419,32 @@ fetchSearchTerms ids =
         |> HttpBuilder.toRequest
 
 
-searchOntologyTerms : String -> String -> Http.Request (List Annotation)
+searchOntologyTerms : String -> String -> Http.Request (List OntologyResult)
 searchOntologyTerms name keyword =
     let
         url =
             apiBaseUrl ++ "/ontology/" ++ name ++ "/search/" ++ keyword
     in
     HttpBuilder.get url
-        |> HttpBuilder.withExpect (Http.expectJson (Decode.list annotationDecoder))
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list ontologyResultDecoder))
         |> HttpBuilder.toRequest
 
 
-fetchOntologySubclasses : String -> String -> Http.Request (List Annotation)
-fetchOntologySubclasses name id =
+fetchOntologySubclasses : String -> String -> Bool -> Http.Request (List OntologyResult)
+fetchOntologySubclasses name id recurse =
     let
         url =
             apiBaseUrl ++ "/ontology/" ++ name ++ "/subclasses/" ++ id
+
+        queryParams =
+            if recurse then
+                [ ( "recurse", "true" ) ]
+            else
+                []
     in
     HttpBuilder.get url
-        |> HttpBuilder.withExpect (Http.expectJson (Decode.list annotationDecoder))
+        |> HttpBuilder.withQueryParams queryParams
+        |> HttpBuilder.withExpect (Http.expectJson (Decode.list ontologyResultDecoder))
         |> HttpBuilder.toRequest
 
 

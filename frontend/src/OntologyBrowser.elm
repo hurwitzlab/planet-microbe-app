@@ -17,6 +17,7 @@ type Msg
     = NoOp
     | SetSearchVal String
     | Search
+    | Selected String
     | FetchSubclasses String
     | TreeviewMsg Treeview.Msg
 
@@ -66,6 +67,16 @@ update msg model =
 
                         _ -> -- impossible
                             ( model, NoOp )
+
+                Treeview.ToggleCheck _ _ id checked ->
+                    let
+                        newTree =
+                            Treeview.update subMsg model.tree
+                    in
+                    ( { model | tree = newTree }
+                    , Selected id
+                    )
+
                 _ ->
                     let
                         newTree =
@@ -116,7 +127,10 @@ insert parentId subClasses model =
     let
         nodes =
             subClasses
-                |> List.map (\(id,lbl) -> Treeview.node id lbl "" True (Just []))
+                |> List.map
+                    (\(id,lbl) ->
+                        Treeview.node id lbl "" True (Just [])
+                    )
     in
     if parentId == "" || model.tree == [] then -- initialize empty tree
         { model | tree = List.map Treeview.toggleNode nodes } -- force closed

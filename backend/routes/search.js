@@ -345,15 +345,15 @@ async function search(db, termIndex, params) {
 
     let taxonClause;
     if (params['taxon']) {
-//        let taxIDs = {};
-//        params['taxon'].split("|").forEach(id => {
-//            let shortID = id.match(/NCBITaxon_(\d+)$/);
-//            if (shortID && shortID[1])
-//                taxIDs[shortID[1]] = 1;
-//        });
-//        console.log("taxon match", Object.keys(taxIDs));
-//        taxonClause = "centrifuge.tax_id IN (" + Object.keys(taxIDs).join(",") + ")"; //FIXME use bind param instead
-        taxonClause = `taxonomy.name LIKE '%${params["taxon"]}%'`
+        let taxIDs = {};
+        params['taxon'].split("|").forEach(id => {
+            let shortID = id.match(/NCBITaxon_(\d+)$/);
+            if (shortID && shortID[1])
+                taxIDs[shortID[1]] = 1;
+        });
+        console.log("taxon match", Object.keys(taxIDs));
+        taxonClause = "centrifuge.tax_id IN (" + Object.keys(taxIDs).join(",") + ")"; //FIXME use bind param instead
+//        taxonClause = `taxonomy.name LIKE '%${params["taxon"]}%'`
     }
 
     let termsById = {};
@@ -966,10 +966,18 @@ router.get('/ontology/:name(\\w+)/search/:keyword(*)', async (req, res) => {
 
 router.get('/ontology/:name(\\w+)/subclasses/:id(*)', async (req, res) => {
     let id = req.params.id;
+    let recurse = req.query.recurse;
     let queryStr =
+//        `SELECT ?uri ?label (count(?children) as ?childCount) WHERE
+//        {
+//          ?uri rdfs:subClassOf <${id}> ;
+//               rdfs:label ?label.
+//          ?children rdfs:subClassOf ?uri
+//        }
+//        GROUP BY ?uri ?label`
         `SELECT ?uri ?label
         WHERE {
-          ?uri rdfs:subClassOf <${id}> ;
+          ?uri rdfs:subClassOf${recurse ? '+' : ''} <${id}> ;
                rdfs:label ?label
         }
         ORDER BY lcase(?label)`;
@@ -977,7 +985,7 @@ router.get('/ontology/:name(\\w+)/subclasses/:id(*)', async (req, res) => {
     let resp = await queryBlazegraph(queryStr);
     let result = resp.results.bindings
         .map(b => {
-            return { id: b.uri.value, label: b.label.value }
+            return { id: b.uri.value, label: b.label.value } //, count: b.childCount.value*1 }
         });
 
     res.json(result);
