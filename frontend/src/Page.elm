@@ -1,4 +1,4 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewToggleText, viewDialog, viewMessageDialog, viewJobStatus)
+module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewSpinnerOverlayCentered, viewToggleText, viewDialog, viewMessageDialog, viewJobStatus)
 
 import Browser exposing (Document)
 import Html exposing (Html, a, button, h1, h2, h5, div, span, img, i, li, nav, p, text, ul, small, footer)
@@ -258,9 +258,14 @@ viewSpinnerCentered =
         ]
 
 
-viewSpinnerOverlay : Html msg
-viewSpinnerOverlay =
-    div [ style "position" "fixed"
+viewSpinnerOverlay : String -> Bool -> Html msg
+viewSpinnerOverlay offset dimBg =
+    div ((if dimBg then
+             style "background-color" "rgba(0,0,0,0.3)"
+         else
+             style "" ""
+        ) ::
+        [ style "position" "fixed"
         , style "width" "100%"
         , style "height" "100%"
         , style "top" "0"
@@ -268,9 +273,13 @@ viewSpinnerOverlay =
         , style "right" "0"
         , style "bottom" "0"
         , style "z-index" "2"
-        , style "background-color" "rgba(0,0,0,0.3)"
-        ]
-        [ div [ style "padding-top" "40vh" ] [ viewSpinner ] ]
+        ])
+        [ div [ style "padding-top" offset ] [ viewSpinner ] ]
+
+
+viewSpinnerOverlayCentered : Html msg
+viewSpinnerOverlayCentered =
+    viewSpinnerOverlay "40vh" True
 
 
 viewToggleText : String -> Bool -> msg -> Html msg

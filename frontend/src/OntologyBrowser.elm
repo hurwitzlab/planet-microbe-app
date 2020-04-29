@@ -1,16 +1,35 @@
-module OntologyBrowser exposing (..)
+module OntologyBrowser exposing (Model, Msg(..), init, update, insert, view)
 
-import Html exposing (Html, div, input)
+import Html exposing (Html, div, input, text)
 import Html.Attributes exposing (type_, class, style, placeholder, value)
 import Html.Events exposing (onInput)
 import Treeview
-import Debug
+import Page
+
+
+
+-- MODEL --
 
 
 type alias Model =
     { tree : Treeview.Model
     , searchVal : String
+    , status : Status
     }
+
+
+type Status
+    = LOADING
+    | READY
+
+
+init : Model
+init =
+    Model [] "" LOADING
+
+
+
+-- UPDATE --
 
 
 type Msg
@@ -26,12 +45,16 @@ update : Msg -> Model -> ( Model, Msg )
 update msg model =
     case msg of
         SetSearchVal s ->
-            ( { model | searchVal = s }, Search )
+            let
+                ( newStatus, newMsg ) =
+                    if s == "" || String.length s >= 4 then
+                        ( LOADING, Search )
+                    else
+                        ( READY, NoOp )
+            in
+            ( { model | searchVal = s, status = newStatus }, newMsg )
 
         TreeviewMsg subMsg ->
-            let
-                _ = Debug.log "TreeviewMsg" (Debug.toString subMsg)
-            in
             case subMsg of
                 Treeview.Select id ->
                     let
@@ -59,9 +82,7 @@ update msg model =
                     case selectedNode of
                         Just node ->
                             if Treeview.nodeChildren node == Just [] then -- load children
-                                ( { model | tree = tree }
-                                , FetchSubclasses id
-                                )
+                                ( { model | tree = tree, status = LOADING }, FetchSubclasses id )
                             else -- already loaded
                                 ( { model | tree = tree }, NoOp )
 
@@ -73,9 +94,7 @@ update msg model =
                         newTree =
                             Treeview.update subMsg model.tree
                     in
-                    ( { model | tree = newTree }
-                    , Selected id
-                    )
+                    ( { model | tree = newTree }, Selected id )
 
                 _ ->
                     let
@@ -131,18 +150,29 @@ insert parentId subClasses model =
                     (\(id,lbl) ->
                         Treeview.node id lbl "" True (Just [])
                     )
+
+        tree =
+            if parentId == "" || model.tree == [] then -- initialize empty tree
+                List.map Treeview.toggleNode nodes -- force closed
+            else
+                insertNodes parentId nodes model.tree
     in
-    if parentId == "" || model.tree == [] then -- initialize empty tree
-        { model | tree = List.map Treeview.toggleNode nodes } -- force closed
-    else
-        { model | tree = insertNodes parentId nodes model.tree }
+    { model | tree = tree, status = READY }
+
+
+
+-- VIEW --
 
 
 view : Model -> Html Msg
 view model =
     div []
-        [ input [ type_ "text", class "form-control", placeholder "Search ...", value model.searchVal, onInput SetSearchVal ] []
-        , div [ class "mt-3 mx-3", style "overflow-y" "auto", style "max-height" "50vh" ]
+        [ if model.status == LOADING then
+            Page.viewSpinnerOverlay "17em" False
+          else
+            text ""
+        , input [ type_ "text", class "form-control", placeholder "Search ...", value model.searchVal, onInput SetSearchVal ] []
+        , div [ class "mt-3 mx-3", style "overflow-y" "auto", style "min-height" "50vh", style "max-height" "50vh" ]
             [ Treeview.view treeConfig model.tree |> Html.map TreeviewMsg
             ]
         ]

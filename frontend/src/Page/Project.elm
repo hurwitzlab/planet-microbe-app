@@ -153,7 +153,7 @@ view model =
             Error.view error False
 
         _ ->
-            Page.viewSpinnerOverlay
+            Page.viewSpinnerOverlayCentered
 
 
 viewProject : Project -> Html Msg
@@ -219,7 +219,7 @@ viewRemoteData viewFunc remoteData =
             Error.view error False
 
         _ ->
-            Page.viewSpinnerOverlay
+            Page.viewSpinnerOverlayCentered
 
 
 viewCampaigns : List Campaign -> Html Msg

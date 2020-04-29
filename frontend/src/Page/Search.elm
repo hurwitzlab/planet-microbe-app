@@ -30,7 +30,7 @@ import Cart
 import Icon
 import OntologyBrowser
 import Config exposing (dataCommonsUrl)
-import Debug exposing (toString)
+--import Debug exposing (toString)
 
 
 
@@ -254,7 +254,7 @@ init session =
         , displayedSampleFilters = [] -- set by SearchCompleted
         , fileFilters = [] -- set by GetFilePropertiesCompleted
         , dateRangePickers = Dict.empty -- set by InitDatePickers
-        , ontologyBrowser = OntologyBrowser.Model [] "" -- set by GetOntologyTermsCompleted
+        , ontologyBrowser = OntologyBrowser.init -- set by GetOntologyTermsCompleted
         , showParamSearchDropdown = False
         , paramSearchInputVal = ""
 
@@ -582,34 +582,12 @@ update msg model =
                     Search.updateFilterValue id newVal model.sampleFilters
 
                 searchStatus =
-                    if String.length val >= 3 then
+                    if val == "" || String.length val >= 3 then
                         SearchPending
                     else
                         model.searchStatus
             in
             ( { model | sampleFilters = newFilters, searchStatus = searchStatus }, Cmd.none )
-
-        --GetOntologySubclassesCompleted id (Ok classes) ->
-        --    let
-        --        newFilter =
-        --            case Dict.get id model.ontologyFilters of
-        --                Just f ->
-        --                    { f | classes = classes }
-        --
-        --                Nothing ->
-        --                    { id = id
-        --                    , searchVal = ""
-        --                    , rootClass = ""
-        --                    , classes = classes
-        --                    }
-        --
-        --        newFilters =
-        --            Dict.insert id newFilter model.ontologyFilters
-        --    in
-        --    ( { model | ontologyFilters = newFilters }, Cmd.none )
-        --
-        --GetOntologySubclassesCompleted _ (Err error) ->
-        --    ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
 
         SetFilterValue id val ->
             let
@@ -1001,8 +979,6 @@ update msg model =
             let
                 ( newBrowser, newMsg ) =
                     OntologyBrowser.update subMsg model.ontologyBrowser
-
-                _ = Debug.log "newMsg" (toString newMsg)
             in
             ( { model | ontologyBrowser = newBrowser }
             , case newMsg of
@@ -1075,7 +1051,7 @@ view : Model -> Html Msg
 view model =
     case model.searchStatus of
         SearchInit _ ->
-            Page.viewSpinnerOverlay
+            Page.viewSpinnerOverlayCentered
 
         _ ->
             div [ class "container-fluid" ]
@@ -1822,7 +1798,7 @@ viewResults model =
     div [ style "min-height" "50em" ]
         [ case model.searchStatus of
             SearchInit _ ->
-                Page.viewSpinnerOverlay
+                Page.viewSpinnerOverlayCentered
 
             SearchError msg ->
                 viewError msg
@@ -1830,7 +1806,7 @@ viewResults model =
             _ ->
                 div []
                     [ if model.searchStatus == SearchPending || model.searchStatus == SearchInProgress then
-                        Page.viewSpinnerOverlay
+                        Page.viewSpinnerOverlayCentered
                       else
                         viewBlank
                     , if maybeCount == Nothing then
