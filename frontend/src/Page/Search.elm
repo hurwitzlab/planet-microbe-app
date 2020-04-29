@@ -985,7 +985,7 @@ update msg model =
                     if terms == [] then
                         NoValue
                     else
-                        MultipleValues (terms |> List.map (\t -> t.id))
+                        MultipleValues (id :: List.map (\t -> t.id) terms) -- add selected class id to list of children
 
                 newFilters =
                     Search.updateFilterValue "taxon" newVal model.sampleFilters

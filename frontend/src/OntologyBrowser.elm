@@ -114,7 +114,7 @@ insertNodes parentId nodes tree =
 
                     children =
                         if key == parentId then
-                            Just (List.map (\(Treeview.Node k t _ c) -> Treeview.Node k t { opt | opened = False } c) nodes)
+                            Just (List.map (\(Treeview.Node k t _ c) -> Treeview.Node k t { opt | opened = False } c) nodes) -- kludgey way to ensure node is closed
                         else
                             Just (insertNodes parentId nodes (Treeview.nodeChildren n |> Maybe.withDefault []))
                 in
