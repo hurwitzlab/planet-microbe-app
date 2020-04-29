@@ -947,12 +947,14 @@ function present(val) {
 
 router.get('/ontology/:name(\\w+)/search/:keyword(*)', async (req, res) => {
     let keyword = req.params.keyword;
-    let queryStr = `PREFIX bds: <http://www.bigdata.com/rdf/search#>
+    let queryStr =
+        `PREFIX bds: <http://www.bigdata.com/rdf/search#>
         SELECT ?uri ?label
         WHERE {
           ?label bds:search "${keyword}*" .
           ?uri ?p ?label .
-        }`;
+        }
+        ORDER BY lcase(?label)`;
 
     let resp = await queryBlazegraph(queryStr);
     let result = resp.results.bindings.map(b => {
@@ -964,13 +966,21 @@ router.get('/ontology/:name(\\w+)/search/:keyword(*)', async (req, res) => {
 
 router.get('/ontology/:name(\\w+)/subclasses/:id(*)', async (req, res) => {
     let id = req.params.id;
-    let queryStr = `SELECT ?cls ?clsLabel
+    let queryStr =
+        `SELECT ?uri ?label
         WHERE {
-          ?cls rdfs:subClassOf <${id}> ;
-               rdfs:label ?clsLabel
-        }`;
+          ?uri rdfs:subClassOf <${id}> ;
+               rdfs:label ?label
+        }
+        ORDER BY lcase(?label)`;
+
     let resp = await queryBlazegraph(queryStr);
-    res.json(resp.results.bindings);
+    let result = resp.results.bindings
+        .map(b => {
+            return { id: b.uri.value, label: b.label.value }
+        });
+
+    res.json(result);
 });
 
 async function queryBlazegraph(queryStr) {

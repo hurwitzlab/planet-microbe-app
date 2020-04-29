@@ -121,3 +121,8 @@ trash =
 book : Html msg
 book =
     i [ class "fas fa-fw fa-book" ] []
+
+
+hierarchy : Html msg
+hierarchy =
+    i [ class "fas fa-fw fa-project-diagram" ] []

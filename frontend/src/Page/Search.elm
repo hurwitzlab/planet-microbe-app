@@ -28,6 +28,7 @@ import SortableTable
 import BarChart
 import Cart
 import Icon
+import OntologyBrowser
 import Config exposing (dataCommonsUrl)
 import Debug exposing (toString)
 
@@ -182,6 +183,7 @@ type alias Model =
     , displayedSampleFilters : List Filter -- user-added sample tab search filters currently displayed in search results
     , fileFilters : List Filter -- file tab search filters
     , dateRangePickers : Dict PURL DateRangePicker -- Datepicker UI elements (there could be datetime fields in addition to start/end in 4D)
+    , ontologyBrowser : OntologyBrowser.Model
     , showParamSearchDropdown : Bool
     , paramSearchInputVal : String
 
@@ -213,16 +215,21 @@ type SearchStatus
 
 type DialogState
     = NoDialog
+    | MessageDialog String
     | AddFilterDialog String
     | StringFilterDialog Filter
     | FilterSummaryDialog SearchTerm
-    | MessageDialog String
+    | OntologyBrowserDialog Filter
 
 
 type alias DateRangePicker =
     { start : DatePicker
     , end : DatePicker
     }
+
+
+initTaxonomy =
+    Search.fetchOntologySubclasses "taxonomy" "http://purl.obolibrary.org/obo/NCBITaxon_1" |> Http.send (GetOntologyTermsCompleted "taxonomy" "")
 
 
 init : Session -> ( Model, Cmd Msg )
@@ -232,6 +239,7 @@ init session =
         initRequests =
             [ Search.fetchAllSearchTerms |> Http.send GetAllSearchTermsCompleted
             , Search.fetchSearchTerms initialAddedSampleTerms |> Http.send GetSearchTermsCompleted
+            , initTaxonomy
             , Project.fetchCounts |> Http.send GetProjectCountsCompleted
             , RemoteFile.fetchProperties |> Http.send GetFilePropertiesCompleted
             ]
@@ -246,6 +254,7 @@ init session =
         , displayedSampleFilters = [] -- set by SearchCompleted
         , fileFilters = [] -- set by GetFilePropertiesCompleted
         , dateRangePickers = Dict.empty -- set by InitDatePickers
+        , ontologyBrowser = OntologyBrowser.Model [] "" -- set by GetOntologyTermsCompleted
         , showParamSearchDropdown = False
         , paramSearchInputVal = ""
 
@@ -311,7 +320,7 @@ type Msg
     | SetFilterValue PURL FilterValue
     --| SetOntologyFilterValue String String Bool
     | GetOntologyTerms String String
-    | GetOntologyTermsCompleted String (Result Http.Error (List Annotation))
+    | GetOntologyTermsCompleted String String (Result Http.Error (List Annotation))
     --| GetOntologySubclassesCompleted String (Result Http.Error (List Annotation))
     | SetSearchTab String
     | SetResultTab String
@@ -330,6 +339,7 @@ type Msg
     | SetStartDatePicker PURL FilterValue DatePicker.Msg
     | SetEndDatePicker PURL FilterValue DatePicker.Msg
     | CartMsg Cart.Msg
+    | OntologyBrowserMsg OntologyBrowser.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -343,8 +353,12 @@ update msg model =
                     else
                         SearchInit (n - 1)
 
+                --SearchError e ->
+                --    SearchError e
+
                 _ ->
-                    SearchPending
+                    searchStatus
+                    --SearchPending
     in
     case msg of
         GetProjectCountsCompleted (Ok counts) ->
@@ -539,7 +553,7 @@ update msg model =
             , Cmd.none
             )
 
-        GetOntologyTerms id val ->
+        GetOntologyTerms id val -> --FIXME Merge into SetSearchFilterValue
             let
                 newVal =
                     if val == "" then
@@ -551,36 +565,7 @@ update msg model =
                 newFilters =
                     Search.updateFilterValue id newVal model.sampleFilters
             in
-            ( { model | searchStatus = SearchPending, sampleFilters = newFilters }
-            , if String.length val >= 3 then
-                Cmd.none --Search.searchOntologyTerms "taxonomy" val |> Http.send (GetOntologyTermsCompleted id)
-              else
-                Cmd.none
-            )
-
-        GetOntologyTermsCompleted id (Ok terms) ->
-            let
-                curVal =
-                    Search.getFilterValue id model.sampleFilters
-
-                vals =
-                    terms |> List.map (\t -> (t.id, t.label))
-
-                newVal =
-                    case curVal of
-                        OntologyValue val _ ->
-                            OntologyValue val vals
-
-                        _ ->
-                            OntologyValue "" vals
-
-                newFilters =
-                    Search.updateFilterValue id newVal model.sampleFilters
-            in
-            ( { model | sampleFilters = newFilters }, Cmd.none )
-
-        GetOntologyTermsCompleted _ (Err error) ->
-            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
+            ( { model | searchStatus = SearchPending, sampleFilters = newFilters }, Cmd.none )
 
         --SetOntologyFilterValue id val selected ->
         --    let
@@ -978,6 +963,42 @@ update msg model =
                 in
                 ( { model | dialogState = messageDialog }, Cmd.none )
 
+        GetOntologyTermsCompleted ontology id (Ok terms) ->
+            let
+                newClasses =
+                    terms
+                        |> List.map (\t -> (t.id, t.label))
+
+                ontologyBrowser =
+                    OntologyBrowser.insert id newClasses model.ontologyBrowser
+            in
+            ( { model | ontologyBrowser = ontologyBrowser, searchStatus = updateSearchStatus model.searchStatus }, Cmd.none )
+
+        GetOntologyTermsCompleted _ _ (Err error) ->
+            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
+
+        OntologyBrowserMsg subMsg ->
+            let
+                ( newBrowser, newMsg ) =
+                    OntologyBrowser.update subMsg model.ontologyBrowser
+            in
+            ( { model | ontologyBrowser = newBrowser }
+            , case newMsg of
+                OntologyBrowser.Search ->
+                    if newBrowser.searchVal == "" then
+                        initTaxonomy
+                    else if String.length newBrowser.searchVal >= 3 then
+                        Search.searchOntologyTerms "taxonomy" newBrowser.searchVal |> Http.send (GetOntologyTermsCompleted "taxonomy" "")
+                    else
+                        Cmd.none
+
+                OntologyBrowser.FetchSubclasses id ->
+                    Search.fetchOntologySubclasses "taxonomy" id |> Http.send (GetOntologyTermsCompleted "taxonomy" id)
+
+                _ ->
+                    Cmd.none
+            )
+
 
 --TODO finish validation and error reporting
 generateQueryParams : List Filter -> Result String (List (String, String))
@@ -1050,6 +1071,9 @@ viewDialogs model =
         NoDialog ->
             viewBlank
 
+        MessageDialog msg ->
+            Page.viewMessageDialog msg CloseDialog
+
         AddFilterDialog searchStr ->
             viewAddFilterDialog model.allTerms searchStr
 
@@ -1059,8 +1083,8 @@ viewDialogs model =
         FilterSummaryDialog term ->
             viewSearchTermSummaryDialog term
 
-        MessageDialog msg ->
-            Page.viewMessageDialog msg CloseDialog
+        OntologyBrowserDialog filter ->
+            viewOntologyBrowserDialog model.ontologyBrowser filter
 
 
 viewSearchPanel : Model -> Html Msg
@@ -1218,12 +1242,24 @@ viewOntologyFilterPanel filter =
         --showDropdown =
         --    searchVal /= ""
     in
-    viewPanel "" "Taxon" "" "" Nothing Nothing Nothing
+    viewPanel "" "Taxon" "" "" []
+        [ span [ class "float-right", style "cursor" "pointer", onClick (OpenDialog (OntologyBrowserDialog filter)) ] [ Icon.hierarchy ] ]
         [ div [ class "input-group input-group-sm", style "position" "relative" ]
             [ input [ type_ "text", class "form-control", placeholder "Search ...", value searchVal, onInput (GetOntologyTerms filter.term.id) ] []
             --, div [ class "dropdown-menu", classList [("show", showDropdown)], style "position" "absolute", style "left" "0px", style "max-height" "30vh", style "overflow-y" "auto" ] options
             ]
         ]
+
+
+viewOntologyBrowserDialog : OntologyBrowser.Model -> Filter -> Html Msg
+viewOntologyBrowserDialog browser filter =
+    viewDialog "Taxonomy"
+        [ OntologyBrowser.view browser |> Html.map OntologyBrowserMsg
+        ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ]
+            [ text "Close" ]
+        ]
+        CloseDialog
 
 
 viewAddFilterPanel : Bool -> String -> List SearchTerm -> List Filter -> Html Msg
@@ -1261,7 +1297,7 @@ viewAddFilterPanel showDropdown searchVal allTerms filters =
         show =
             searchVal /= "" || showDropdown
     in
-    viewPanel "" "Add Filter" "" "" Nothing Nothing (Just "#d8edf3")
+    viewPanel "" "Add Filter" "" "" [ style "background" "#d8edf3" ] []
         [ div [ class "input-group input-group-sm", style "position" "relative" ]
             [ input [ type_ "text", class "form-control", placeholder "Search parameters", value searchVal, onInput SetParamSearchInput ] []
             , div [ class "input-group-append" ]
@@ -1679,22 +1715,27 @@ viewLocationFilterInput val =
 viewTermPanel : SearchTerm -> List (Html Msg) -> Html Msg
 viewTermPanel term nodes =
     let
-        removeMsg =
-            if (List.map (.term >> .id) permanentSampleFilters) ++ permanentFileTerms |> List.member term.id then
-                Nothing
-            else
-                Just RemoveFilter
+        removeable =
+            (List.map (.term >> .id) permanentSampleFilters) ++ permanentFileTerms
+                |> List.member term.id
+                |> not
     in
-    viewPanel term.id term.label term.unitId term.unitLabel removeMsg (Just (OpenDialog (FilterSummaryDialog term))) Nothing nodes
+    viewPanel term.id term.label term.unitId term.unitLabel []
+        [ if removeable then
+            viewPanelRemoveButton (RemoveFilter term.id)
+          else
+            viewBlank
+        , viewPanelChartButton (OpenDialog (FilterSummaryDialog term))
+        ]
+        nodes
 
 
---TODO move configuration params into type alias (like "type alias PanelConfig = {}")
-viewPanel : PURL -> String -> PURL -> String -> Maybe (PURL -> Msg) -> Maybe Msg -> Maybe String -> List (Html Msg) -> Html Msg
-viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChartMsg maybeBgColor nodes =
+viewPanel : PURL -> String -> PURL -> String -> List (Attribute Msg) -> List (Html Msg) -> List (Html Msg) -> Html Msg
+viewPanel id title unitId unitLabel attributes iconButtons nodes =
     let
         header =
-            h6 [ style "color" "darkblue"]
-                [ text (String.fromChar (Char.fromCode 9660))
+            h6 [ style "color" "darkblue" ]
+                ([ text (String.fromChar (Char.fromCode 9660))
                 , text " "
                 , if String.startsWith "http" id then
                     a [ href id, target "_blank" ]
@@ -1709,26 +1750,26 @@ viewPanel id title unitId unitLabel maybeRemoveMsg maybeOpenChartMsg maybeBgColo
                         ]
                   else
                     viewBlank
-                , case maybeRemoveMsg of
-                    Just removeMsg ->
-                        span [ class "float-right ml-2", style "cursor" "pointer", onClick (removeMsg id) ]
-                            [ text (String.fromChar (Char.fromCode 10005)) ]
-
-                    Nothing ->
-                        viewBlank
-                , case maybeOpenChartMsg of
-                    Just openMsg ->
-                        span [ class "float-right", style "cursor" "pointer", onClick openMsg ]
-                            [ Icon.barChart ]
-
-                    Nothing ->
-                        viewBlank
                 ]
+                ++ iconButtons
+                )
     in
-    div [ class "card", style "font-size" "0.85em", style "background" (maybeBgColor |> Maybe.withDefault "") ]
+    div (class "card" :: style "font-size" "0.85em" :: attributes)
         [ div [ class "card-body" ]
             (header :: nodes)
         ]
+
+
+viewPanelRemoveButton : Msg -> Html Msg
+viewPanelRemoveButton removeMsg =
+    span [ class "float-right ml-2", style "cursor" "pointer", onClick removeMsg ]
+        [ text (String.fromChar (Char.fromCode 10005)) ]
+
+
+viewPanelChartButton : Msg -> Html Msg
+viewPanelChartButton openMsg =
+    span [ class "float-right", style "cursor" "pointer", onClick openMsg ]
+        [ Icon.barChart ]
 
 
 viewResults : Model -> Html Msg
