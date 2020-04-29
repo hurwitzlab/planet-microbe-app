@@ -347,9 +347,14 @@ async function search(db, termIndex, params) {
     if (params['taxon']) {
         let val = params['taxon'];
 
-        if (val.startsWith('~')) {
+        if (val.startsWith('~')) { // string search
             val = val.substr(1).toLowerCase();
             taxonClause = `LOWER(taxonomy.name) LIKE '%${val}%'`
+            console.log("taxon string search", val);
+        }
+        else if (!isNaN(val)) { // numeric
+            taxonClause = `taxonomy.tax_id=${val}`;
+            console.log("taxon numeric match", val);
         }
         else {
             let taxIDs = {};
@@ -358,8 +363,8 @@ async function search(db, termIndex, params) {
                 if (shortID && shortID[1])
                     taxIDs[shortID[1]] = 1;
             });
-            console.log("taxon match", Object.keys(taxIDs));
-            taxonClause = "centrifuge.tax_id IN (" + Object.keys(taxIDs).join(",") + ")"; //FIXME use bind param instead
+            console.log("taxon multiple match", Object.keys(taxIDs));
+            taxonClause = "taxonomy.tax_id IN (" + Object.keys(taxIDs).join(",") + ")"; //FIXME use bind param instead
         }
     }
 
@@ -999,6 +1004,7 @@ router.get('/ontology/:name(\\w+)/subclasses/:id(*)', async (req, res) => {
 });
 
 async function queryBlazegraph(queryStr) {
+    console.log(queryStr);
     let query = encodeURIComponent(queryStr);
     let url = config.blazegraphUrl + '?format=json&query=' + query;
     return await requestp({

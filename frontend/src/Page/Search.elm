@@ -573,6 +573,8 @@ update msg model =
                 newVal =
                     if val == "" then
                         NoValue
+                    else if Search.validNumber val then
+                        SingleValue val
                     else
                         SearchValue val
 
@@ -1257,6 +1259,9 @@ viewOntologyFilterPanel filter =
             case filter.value of
                 --OntologyValue s _ ->
                 SearchValue s ->
+                    s
+
+                SingleValue s ->
                     s
 
                 _ ->
