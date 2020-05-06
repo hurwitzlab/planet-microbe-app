@@ -1222,15 +1222,15 @@ view4DPanel model =
 
 viewOntologyFilterPanel : Filter -> Html Msg
 viewOntologyFilterPanel filter =
-    let
-        --options =
-        --    filter.term.annotations
-        --        |> List.map
-        --            (\anno ->
-        --                a [ classList [ ("dropdown-item", True) ], href "", onCheck (SetOntologyFilterValue filter.term.id anno.id) ]
-        --                    [ text <| anno.label ]
-        --            )
+    viewPanel "" "Ontology" "" "" []
+        [ span [ class "float-right", style "cursor" "pointer", onClick (OpenDialog (OntologyBrowserDialog filter)) ] [ Icon.hierarchy ] ]
+        [ viewOntologyFilterInput filter
+        ]
 
+
+viewOntologyFilterInput : Filter -> Html Msg
+viewOntologyFilterInput filter =
+    let
         searchVal =
             case filter.value of
                 --OntologyValue s _ ->
@@ -1243,15 +1243,16 @@ viewOntologyFilterPanel filter =
                 _ ->
                     ""
 
-        --showDropdown =
-        --    searchVal /= ""
+        btn label =
+            button [ class (if "ENVO" == label then "btn btn-primary" else "btn btn-outline-secondary") ] [ text label ]
     in
-    viewPanel "" "Taxon" "" "" []
-        [ span [ class "float-right", style "cursor" "pointer", onClick (OpenDialog (OntologyBrowserDialog filter)) ] [ Icon.hierarchy ] ]
-        [ div [ class "input-group input-group-sm", style "position" "relative" ]
-            [ input [ type_ "text", class "form-control", placeholder "Search ...", value searchVal, onInput (SetOntologyFilterValue filter.term.id) ] []
-            --, div [ class "dropdown-menu", classList [("show", showDropdown)], style "position" "absolute", style "left" "0px", style "max-height" "30vh", style "overflow-y" "auto" ] options
+    div [ class "input-group input-group-sm" ]
+        [ div [ class "input-group-prepend" ]
+            [ btn "ENVO"
+            , btn "Tax"
+            , btn "GO"
             ]
+        , input [ type_ "text", class "form-control", placeholder "Search ...", value searchVal, onInput (SetOntologyFilterValue filter.term.id) ] []
         ]
 
 

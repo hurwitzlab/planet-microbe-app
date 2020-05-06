@@ -1,6 +1,6 @@
 module OntologyBrowser exposing (Model, Msg(..), init, update, insert, view)
 
-import Html exposing (Html, div, input, text)
+import Html exposing (Html, div, button, input, text)
 import Html.Attributes exposing (type_, class, style, placeholder, value)
 import Html.Events exposing (onInput)
 import Treeview
@@ -13,6 +13,7 @@ import Page
 
 type alias Model =
     { tree : Treeview.Model
+    , ontoVal : String
     , searchVal : String
     , status : Status
     }
@@ -25,7 +26,7 @@ type Status
 
 init : Model
 init =
-    Model [] "" LOADING
+    Model [] "ENVO" "" LOADING
 
 
 
@@ -171,10 +172,27 @@ view model =
             Page.viewSpinnerOverlay "17em" False
           else
             text ""
-        , input [ type_ "text", class "form-control", placeholder "Search ...", value model.searchVal, onInput SetSearchVal ] []
+        --, input [ type_ "text", class "form-control", placeholder "Search ...", value model.searchVal, onInput SetSearchVal ] []
+        , viewSearchInput model.ontoVal model.searchVal
         , div [ class "mt-3 mx-3", style "overflow-y" "auto", style "min-height" "50vh", style "max-height" "50vh" ]
             [ Treeview.view treeConfig model.tree |> Html.map TreeviewMsg
             ]
+        ]
+
+
+viewSearchInput : String -> String -> Html Msg
+viewSearchInput ontoVal searchVal =
+    let
+        btn label =
+            button [ class (if ontoVal == label then "btn btn-primary" else "btn btn-outline-secondary") ] [ text label ]
+    in
+    div [ class "input-group input-group-sm" ]
+        [ div [ class "input-group-prepend" ]
+            [ btn "ENVO"
+            , btn "Tax"
+            , btn "GO"
+            ]
+        , input [ type_ "text", class "form-control", placeholder "Search ...", value searchVal, onInput SetSearchVal ] []
         ]
 
 
