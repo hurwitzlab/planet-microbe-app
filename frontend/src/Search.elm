@@ -84,11 +84,10 @@ type alias Distribution =
     List (String, Int)
 
 
-type alias OntologyResult =
-    { id : String
-    , label : String
-    --, count : Int
-    }
+--type alias OntologyResult =
+--    { id : String
+--    , label : String
+--    }
 
 
 type FilterValue
@@ -102,7 +101,7 @@ type FilterValue
     | DateTimeRangeValue String String -- start/end datetime values
     | LatLngRadiusValue (String, String) String -- latitude/longitude with radius
     | LonghurstValue String -- Longhurst province
-    | OntologyValue String (List (String, String)) -- search val and results (id, label)
+    --| OntologyValue String (List (String, String)) -- search val and results (id, label)
 
 
 type alias SearchResponse =
@@ -235,12 +234,11 @@ distributionDecoder =
     Decode.list (Decode.map2 Tuple.pair (Decode.index 0 Decode.string) (Decode.index 1 Decode.int))
 
 
-ontologyResultDecoder : Decoder OntologyResult
-ontologyResultDecoder =
-    Decode.succeed OntologyResult
-        |> required "id" Decode.string
-        |> required "label" Decode.string
-        --|> required "count" Decode.int
+--ontologyResultDecoder : Decoder OntologyResult
+--ontologyResultDecoder =
+--    Decode.succeed OntologyResult
+--        |> required "id" Decode.string
+--        |> required "label" Decode.string
 
 
 decodeSearchResponse : Decoder SearchResponse
@@ -419,33 +417,33 @@ fetchSearchTerms ids =
         |> HttpBuilder.toRequest
 
 
-searchOntologyTerms : String -> String -> Http.Request (List OntologyResult)
-searchOntologyTerms name keyword =
-    let
-        url =
-            apiBaseUrl ++ "/ontology/" ++ name ++ "/search/" ++ keyword
-    in
-    HttpBuilder.get url
-        |> HttpBuilder.withExpect (Http.expectJson (Decode.list ontologyResultDecoder))
-        |> HttpBuilder.toRequest
-
-
-fetchOntologySubclasses : String -> String -> Bool -> Http.Request (List OntologyResult)
-fetchOntologySubclasses name id recurse =
-    let
-        url =
-            apiBaseUrl ++ "/ontology/" ++ name ++ "/subclasses/" ++ id
-
-        queryParams =
-            if recurse then
-                [ ( "recurse", "true" ) ]
-            else
-                []
-    in
-    HttpBuilder.get url
-        |> HttpBuilder.withQueryParams queryParams
-        |> HttpBuilder.withExpect (Http.expectJson (Decode.list ontologyResultDecoder))
-        |> HttpBuilder.toRequest
+--searchOntologyTerms : String -> String -> Http.Request (List OntologyResult)
+--searchOntologyTerms name keyword =
+--    let
+--        url =
+--            apiBaseUrl ++ "/ontology/" ++ name ++ "/search/" ++ keyword
+--    in
+--    HttpBuilder.get url
+--        |> HttpBuilder.withExpect (Http.expectJson (Decode.list ontologyResultDecoder))
+--        |> HttpBuilder.toRequest
+--
+--
+--fetchOntologySubclasses : String -> String -> Bool -> Http.Request (List OntologyResult)
+--fetchOntologySubclasses name id recurse =
+--    let
+--        url =
+--            apiBaseUrl ++ "/ontology/" ++ name ++ "/subclasses/" ++ id
+--
+--        queryParams =
+--            if recurse then
+--                [ ( "recurse", "true" ) ]
+--            else
+--                []
+--    in
+--    HttpBuilder.get url
+--        |> HttpBuilder.withQueryParams queryParams
+--        |> HttpBuilder.withExpect (Http.expectJson (Decode.list ontologyResultDecoder))
+--        |> HttpBuilder.toRequest
 
 
 
@@ -503,8 +501,8 @@ validFilterValue val =
         LonghurstValue s ->
             defined s
 
-        OntologyValue s vals ->
-            vals /= []
+        --OntologyValue s vals ->
+        --    vals /= []
 
         NoValue ->
             True
@@ -559,8 +557,8 @@ filterValueToString val =
         LonghurstValue s ->
             s
 
-        OntologyValue s values ->
-            values |> List.map Tuple.second |> String.join "|"
+        --OntologyValue s values ->
+        --    values |> List.map Tuple.second |> String.join "|"
 
         NoValue ->
             ""

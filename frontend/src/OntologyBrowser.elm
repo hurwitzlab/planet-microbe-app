@@ -188,9 +188,8 @@ viewSearchInput ontoVal searchVal =
     in
     div [ class "input-group input-group-sm" ]
         [ div [ class "input-group-prepend" ]
-            [ btn "ENVO"
-            , btn "Tax"
-            , btn "GO"
+            [ btn "Taxonomy"
+            , btn "Gene Ontology"
             ]
         , input [ type_ "text", class "form-control", placeholder "Search ...", value searchVal, onInput SetSearchVal ] []
         ]

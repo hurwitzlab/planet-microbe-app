@@ -343,30 +343,30 @@ async function search(db, termIndex, params) {
                 return `LOWER(library.${field}) IN (` + vals.map(s => "'" + s + "'").join(",").toLowerCase() + ")"; //FIXME use bind param instead
             });
 
-    let taxonClause;
-    if (params['taxon']) {
-        let val = params['taxon'];
-
-        if (val.startsWith('~')) { // string search
-            val = val.substr(1).toLowerCase();
-            taxonClause = `LOWER(taxonomy.name) LIKE '%${val}%'`
-            console.log("taxon string search", val);
-        }
-        else if (!isNaN(val)) { // numeric
-            taxonClause = `taxonomy.tax_id=${val}`;
-            console.log("taxon numeric match", val);
-        }
-        else {
-            let taxIDs = {};
-            val.split("|").forEach(id => {
-                let shortID = id.match(/NCBITaxon_(\d+)$/);
-                if (shortID && shortID[1])
-                    taxIDs[shortID[1]] = 1;
-            });
-            console.log("taxon multiple match", Object.keys(taxIDs));
-            taxonClause = "taxonomy.tax_id IN (" + Object.keys(taxIDs).join(",") + ")"; //FIXME use bind param instead
-        }
-    }
+//    let taxonClause;
+//    if (params['taxon']) {
+//        let val = params['taxon'];
+//
+//        if (val.startsWith('~')) { // string search
+//            val = val.substr(1).toLowerCase();
+//            taxonClause = `LOWER(taxonomy.name) LIKE '%${val}%'`
+//            console.log("taxon string search", val);
+//        }
+//        else if (!isNaN(val)) { // numeric
+//            taxonClause = `taxonomy.tax_id=${val}`;
+//            console.log("taxon numeric match", val);
+//        }
+//        else {
+//            let taxIDs = {};
+//            val.split("|").forEach(id => {
+//                let shortID = id.match(/NCBITaxon_(\d+)$/);
+//                if (shortID && shortID[1])
+//                    taxIDs[shortID[1]] = 1;
+//            });
+//            console.log("taxon multiple match", Object.keys(taxIDs));
+//            taxonClause = "taxonomy.tax_id IN (" + Object.keys(taxIDs).join(",") + ")"; //FIXME use bind param instead
+//        }
+//    }
 
     let termsById = {};
 
@@ -553,7 +553,7 @@ async function search(db, termIndex, params) {
         )
         .join(" OR ");
 
-    [gisClause, projectClause, taxonClause].concat(libraryClauses).forEach(clause => {
+    [gisClause, projectClause].concat(libraryClauses).forEach(clause => {
         if (clause)
             clauseStr = clause + (clauseStr ? " AND (" + clauseStr + ")" : "");
     });
@@ -581,11 +581,6 @@ async function search(db, termIndex, params) {
         LEFT JOIN run USING(experiment_id)
         LEFT JOIN run_to_file USING(run_id)
         LEFT JOIN file USING(file_id) `;
-
-    if (taxonClause)
-        tableStr = tableStr +
-            `LEFT JOIN centrifuge USING(run_id)
-            LEFT JOIN taxonomy USING(tax_id) `;
 
     let groupByStr = " GROUP BY sample.sample_id,project.project_id ";
 
@@ -705,8 +700,6 @@ async function search(db, termIndex, params) {
             JOIN run USING(experiment_id)
             JOIN run_to_file USING(run_id)
             JOIN file USING(file_id)
-            LEFT JOIN centrifuge USING(run_id)
-            LEFT JOIN taxonomy USING(tax_id)
             WHERE sample.sample_id = ANY($1)`,
         values: [ sampleResults.rows.map(r => r[1]) ]
     });
@@ -957,61 +950,61 @@ function present(val) {
     return defined(val) && val != "";
 }
 
-router.get('/ontology/:name(\\w+)/search/:keyword(*)', async (req, res) => {
-    let keyword = req.params.keyword;
-    let queryStr =
-        `PREFIX bds: <http://www.bigdata.com/rdf/search#>
-        SELECT ?uri ?label
-        WHERE {
-          ?label bds:search "${keyword}*" .
-          ?uri ?p ?label .
-        }
-        ORDER BY lcase(?label)`;
-
-    let resp = await queryBlazegraph(queryStr);
-    let result = resp.results.bindings.map(b => {
-        return { id: b.uri.value, label: b.label.value }
-    });
-
-    res.json(result);
-});
-
-router.get('/ontology/:name(\\w+)/subclasses/:id(*)', async (req, res) => {
-    let id = req.params.id;
-    let recurse = req.query.recurse;
-    let queryStr =
-//        `SELECT ?uri ?label (count(?children) as ?childCount) WHERE
-//        {
-//          ?uri rdfs:subClassOf <${id}> ;
-//               rdfs:label ?label.
-//          ?children rdfs:subClassOf ?uri
+//router.get('/ontology/:name(\\w+)/search/:keyword(*)', async (req, res) => {
+//    let keyword = req.params.keyword;
+//    let queryStr =
+//        `PREFIX bds: <http://www.bigdata.com/rdf/search#>
+//        SELECT ?uri ?label
+//        WHERE {
+//          ?label bds:search "${keyword}*" .
+//          ?uri ?p ?label .
 //        }
-//        GROUP BY ?uri ?label`
-        `SELECT ?uri ?label
-        WHERE {
-          ?uri rdfs:subClassOf${recurse ? '+' : ''} <${id}> ;
-               rdfs:label ?label
-        }
-        ORDER BY lcase(?label)`;
-
-    let resp = await queryBlazegraph(queryStr);
-    let result = resp.results.bindings
-        .map(b => {
-            return { id: b.uri.value, label: b.label.value } //, count: b.childCount.value*1 }
-        });
-
-    res.json(result);
-});
-
-async function queryBlazegraph(queryStr) {
-    console.log(queryStr);
-    let query = encodeURIComponent(queryStr);
-    let url = config.blazegraphUrl + '?format=json&query=' + query;
-    return await requestp({
-        method: "GET",
-        uri: url,
-        json: true
-    });
-}
+//        ORDER BY lcase(?label)`;
+//
+//    let resp = await queryBlazegraph(queryStr);
+//    let result = resp.results.bindings.map(b => {
+//        return { id: b.uri.value, label: b.label.value }
+//    });
+//
+//    res.json(result);
+//});
+//
+//router.get('/ontology/:name(\\w+)/subclasses/:id(*)', async (req, res) => {
+//    let id = req.params.id;
+//    let recurse = req.query.recurse;
+//    let queryStr =
+////        `SELECT ?uri ?label (count(?children) as ?childCount) WHERE
+////        {
+////          ?uri rdfs:subClassOf <${id}> ;
+////               rdfs:label ?label.
+////          ?children rdfs:subClassOf ?uri
+////        }
+////        GROUP BY ?uri ?label`
+//        `SELECT ?uri ?label
+//        WHERE {
+//          ?uri rdfs:subClassOf${recurse ? '+' : ''} <${id}> ;
+//               rdfs:label ?label
+//        }
+//        ORDER BY lcase(?label)`;
+//
+//    let resp = await queryBlazegraph(queryStr);
+//    let result = resp.results.bindings
+//        .map(b => {
+//            return { id: b.uri.value, label: b.label.value } //, count: b.childCount.value*1 }
+//        });
+//
+//    res.json(result);
+//});
+//
+//async function queryBlazegraph(queryStr) {
+//    console.log(queryStr);
+//    let query = encodeURIComponent(queryStr);
+//    let url = config.blazegraphUrl + '?format=json&query=' + query;
+//    return await requestp({
+//        method: "GET",
+//        uri: url,
+//        json: true
+//    });
+//}
 
 module.exports = router;

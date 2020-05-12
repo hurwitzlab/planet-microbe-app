@@ -22,13 +22,13 @@ import Route
 import Error
 import Page exposing (viewBlank, viewDialog)
 import Project
-import Search exposing (SearchResponse, SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Annotation, Distribution, OntologyResult, defaultSearchTerm, validFilterValue)
+import Search exposing (SearchResponse, SampleResult, FileResult, SearchResultValue(..), Value(..), Filter, FilterValue(..), SearchTerm, PURL, Annotation, Distribution, defaultSearchTerm, validFilterValue)
 import RemoteFile
 import SortableTable
 import BarChart
 import Cart
 import Icon
-import OntologyBrowser
+--import OntologyBrowser
 import Config exposing (dataCommonsUrl)
 --import Debug exposing (toString)
 
@@ -106,8 +106,8 @@ purlProject = -- Not a real PURL but rather a unique id for this term used in se
     "project"
 
 
-purlTaxon = -- Not a real PURL but rather a unique id for this term used in search query string
-    "taxon"
+--purlTaxon = -- Not a real PURL but rather a unique id for this term used in search query string
+--    "taxon"
 
 
 purlFileSource = -- Not a real PURL but rather a unique id for this term used in search query string
@@ -132,7 +132,7 @@ permanentSampleFilters =
     , Search.defaultFilter purlDepth "Depth"
     , Search.defaultFilter purlDateTimeISO "Date/Time"
     , Search.defaultFilter purlProject "Project"
-    , Search.defaultFilter purlTaxon "Taxon"
+    --, Search.defaultFilter purlTaxon "Taxon"
     ]
 
 
@@ -183,7 +183,7 @@ type alias Model =
     , displayedSampleFilters : List Filter -- user-added sample tab search filters currently displayed in search results
     , fileFilters : List Filter -- file tab search filters
     , dateRangePickers : Dict PURL DateRangePicker -- Datepicker UI elements (there could be datetime fields in addition to start/end in 4D)
-    , ontologyBrowser : OntologyBrowser.Model
+    --, ontologyBrowser : OntologyBrowser.Model
     , showParamSearchDropdown : Bool
     , paramSearchInputVal : String
 
@@ -219,7 +219,7 @@ type DialogState
     | AddFilterDialog String
     | StringFilterDialog Filter
     | FilterSummaryDialog SearchTerm
-    | OntologyBrowserDialog Filter
+    --| OntologyBrowserDialog Filter
 
 
 type alias DateRangePicker =
@@ -228,8 +228,8 @@ type alias DateRangePicker =
     }
 
 
-initTaxonomy =
-    Search.fetchOntologySubclasses "taxonomy" "http://purl.obolibrary.org/obo/NCBITaxon_1" False |> Http.send (GetOntologyTermsCompleted "taxonomy" "")
+--initTaxonomy =
+--    Search.fetchOntologySubclasses "taxonomy" "http://purl.obolibrary.org/obo/NCBITaxon_1" False |> Http.send (GetOntologyTermsCompleted "taxonomy" "")
 
 
 init : Session -> ( Model, Cmd Msg )
@@ -239,7 +239,7 @@ init session =
         initRequests =
             [ Search.fetchAllSearchTerms |> Http.send GetAllSearchTermsCompleted
             , Search.fetchSearchTerms initialAddedSampleTerms |> Http.send GetSearchTermsCompleted
-            , initTaxonomy
+            --, initTaxonomy
             , Project.fetchCounts |> Http.send GetProjectCountsCompleted
             , RemoteFile.fetchProperties |> Http.send GetFilePropertiesCompleted
             ]
@@ -254,7 +254,7 @@ init session =
         , displayedSampleFilters = [] -- set by SearchCompleted
         , fileFilters = [] -- set by GetFilePropertiesCompleted
         , dateRangePickers = Dict.empty -- set by InitDatePickers
-        , ontologyBrowser = OntologyBrowser.init -- set by GetOntologyTermsCompleted
+        --, ontologyBrowser = OntologyBrowser.init -- set by GetOntologyTermsCompleted
         , showParamSearchDropdown = False
         , paramSearchInputVal = ""
 
@@ -318,11 +318,10 @@ type Msg
     | SetSearchFilterValue PURL String
     | SetStringFilterValue PURL String Bool
     | SetFilterValue PURL FilterValue
-    | SetOntologyFilterValue String String
-    | GetOntologyTerms String String
-    | GetOntologyTermsCompleted String String (Result Http.Error (List OntologyResult))
-    --| GetOntologySubclassesCompleted String (Result Http.Error (List Annotation))
-    | SetOntologyTerms String String (Result Http.Error (List OntologyResult))
+    --| SetOntologyFilterValue String String
+    --| GetOntologyTerms String String
+    --| GetOntologyTermsCompleted String String (Result Http.Error (List OntologyResult))
+    --| SetOntologyTerms String String (Result Http.Error (List OntologyResult))
     | SetSearchTab String
     | SetResultTab String
     | SetSampleSortPos Int
@@ -340,7 +339,7 @@ type Msg
     | SetStartDatePicker PURL FilterValue DatePicker.Msg
     | SetEndDatePicker PURL FilterValue DatePicker.Msg
     | CartMsg Cart.Msg
-    | OntologyBrowserMsg OntologyBrowser.Msg
+    --| OntologyBrowserMsg OntologyBrowser.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -354,12 +353,12 @@ update msg model =
                     else
                         SearchInit (n - 1)
 
-                --SearchError e ->
-                --    SearchError e
+                SearchError e ->
+                    SearchError e
 
                 _ ->
-                    searchStatus
-                    --SearchPending
+                    --searchStatus
+                    SearchPending
     in
     case msg of
         GetProjectCountsCompleted (Ok counts) ->
@@ -554,40 +553,40 @@ update msg model =
             , Cmd.none
             )
 
-        GetOntologyTerms id val -> --FIXME Merge into SetSearchFilterValue
-            let
-                newVal =
-                    if val == "" then
-                        NoValue
-                    else
-                        --OntologyValue val []
-                        SingleValue val
-
-                newFilters =
-                    Search.updateFilterValue id newVal model.sampleFilters
-            in
-            ( { model | searchStatus = SearchPending, sampleFilters = newFilters }, Cmd.none )
-
-        SetOntologyFilterValue id val ->
-            let
-                newVal =
-                    if val == "" then
-                        NoValue
-                    else if Search.validNumber val then
-                        SingleValue val
-                    else
-                        SearchValue val
-
-                newFilters =
-                    Search.updateFilterValue id newVal model.sampleFilters
-
-                searchStatus =
-                    if val == "" || String.length val >= 3 then
-                        SearchPending
-                    else
-                        model.searchStatus
-            in
-            ( { model | sampleFilters = newFilters, searchStatus = searchStatus }, Cmd.none )
+        --GetOntologyTerms id val ->
+        --    let
+        --        newVal =
+        --            if val == "" then
+        --                NoValue
+        --            else
+        --                --OntologyValue val []
+        --                SingleValue val
+        --
+        --        newFilters =
+        --            Search.updateFilterValue id newVal model.sampleFilters
+        --    in
+        --    ( { model | searchStatus = SearchPending, sampleFilters = newFilters }, Cmd.none )
+        --
+        --SetOntologyFilterValue id val ->
+        --    let
+        --        newVal =
+        --            if val == "" then
+        --                NoValue
+        --            else if Search.validNumber val then
+        --                SingleValue val
+        --            else
+        --                SearchValue val
+        --
+        --        newFilters =
+        --            Search.updateFilterValue id newVal model.sampleFilters
+        --
+        --        searchStatus =
+        --            if val == "" || String.length val >= 3 then
+        --                SearchPending
+        --            else
+        --                model.searchStatus
+        --    in
+        --    ( { model | sampleFilters = newFilters, searchStatus = searchStatus }, Cmd.none )
 
         SetFilterValue id val ->
             let
@@ -713,7 +712,7 @@ update msg model =
                             , (model.sampleFilters ++ model.addedSampleFilters)
                                 |> List.filter (\f -> f.term.id /= purlLocation) -- summary not possible
                                 |> List.filter (\f -> f.term.id /= purlProject) -- present by default
-                                |> List.filter (\f -> f.term.id /= purlTaxon) -- summary not possible
+                                --|> List.filter (\f -> f.term.id /= purlTaxon) -- summary not possible
                                 |> List.map (.term >> .id)
                                 |> String.join ","
                             )
@@ -945,60 +944,60 @@ update msg model =
                 in
                 ( { model | dialogState = messageDialog }, Cmd.none )
 
-        GetOntologyTermsCompleted ontology id (Ok terms) ->
-            let
-                newClasses =
-                    terms
-                        |> List.map (\t -> (t.id, t.label))
-
-                ontologyBrowser =
-                    OntologyBrowser.insert id newClasses model.ontologyBrowser
-            in
-            ( { model | ontologyBrowser = ontologyBrowser, searchStatus = updateSearchStatus model.searchStatus }, Cmd.none )
-
-        GetOntologyTermsCompleted _ _ (Err error) ->
-            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
-
-        SetOntologyTerms ontology id (Ok terms) ->
-            let
-                newVal =
-                    if terms == [] then
-                        NoValue
-                    else
-                        MultipleValues (id :: List.map (\t -> t.id) terms) -- add selected class id to list of children
-
-                newFilters =
-                    Search.updateFilterValue "taxon" newVal model.sampleFilters
-            in
-            ( { model | sampleFilters = newFilters, searchStatus = SearchPending }, Cmd.none )
-
-        SetOntologyTerms _ _ (Err error) ->
-            ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
-
-        OntologyBrowserMsg subMsg ->
-            let
-                ( newBrowser, newMsg ) =
-                    OntologyBrowser.update subMsg model.ontologyBrowser
-            in
-            ( { model | ontologyBrowser = newBrowser }
-            , case newMsg of
-                OntologyBrowser.Search ->
-                    if newBrowser.searchVal == "" then
-                        initTaxonomy
-                    else if String.length newBrowser.searchVal >= 3 then
-                        Search.searchOntologyTerms "taxonomy" newBrowser.searchVal |> Http.send (GetOntologyTermsCompleted "taxonomy" "")
-                    else
-                        Cmd.none
-
-                OntologyBrowser.FetchSubclasses id ->
-                    Search.fetchOntologySubclasses "taxonomy" id False |> Http.send (GetOntologyTermsCompleted "taxonomy" id)
-
-                OntologyBrowser.Selected id ->
-                    Search.fetchOntologySubclasses "taxonomy" id True |> Http.send (SetOntologyTerms "taxonomy" id)
-
-                _ ->
-                    Cmd.none
-            )
+        --GetOntologyTermsCompleted ontology id (Ok terms) ->
+        --    let
+        --        newClasses =
+        --            terms
+        --                |> List.map (\t -> (t.id, t.label))
+        --
+        --        ontologyBrowser =
+        --            OntologyBrowser.insert id newClasses model.ontologyBrowser
+        --    in
+        --    ( { model | ontologyBrowser = ontologyBrowser, searchStatus = updateSearchStatus model.searchStatus }, Cmd.none )
+        --
+        --GetOntologyTermsCompleted _ _ (Err error) ->
+        --    ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
+        --
+        --SetOntologyTerms ontology id (Ok terms) ->
+        --    let
+        --        newVal =
+        --            if terms == [] then
+        --                NoValue
+        --            else
+        --                MultipleValues (id :: List.map (\t -> t.id) terms) -- add selected class id to list of children
+        --
+        --        newFilters =
+        --            Search.updateFilterValue "taxon" newVal model.sampleFilters
+        --    in
+        --    ( { model | sampleFilters = newFilters, searchStatus = SearchPending }, Cmd.none )
+        --
+        --SetOntologyTerms _ _ (Err error) ->
+        --    ( { model | searchStatus = SearchError (Error.toString error) }, Cmd.none )
+        --
+        --OntologyBrowserMsg subMsg ->
+        --    let
+        --        ( newBrowser, newMsg ) =
+        --            OntologyBrowser.update subMsg model.ontologyBrowser
+        --    in
+        --    ( { model | ontologyBrowser = newBrowser }
+        --    , case newMsg of
+        --        OntologyBrowser.Search ->
+        --            if newBrowser.searchVal == "" then
+        --                initTaxonomy
+        --            else if String.length newBrowser.searchVal >= 3 then
+        --                Search.searchOntologyTerms "taxonomy" newBrowser.searchVal |> Http.send (GetOntologyTermsCompleted "taxonomy" "")
+        --            else
+        --                Cmd.none
+        --
+        --        OntologyBrowser.FetchSubclasses id ->
+        --            Search.fetchOntologySubclasses "taxonomy" id False |> Http.send (GetOntologyTermsCompleted "taxonomy" id)
+        --
+        --        OntologyBrowser.Selected id ->
+        --            Search.fetchOntologySubclasses "taxonomy" id True |> Http.send (SetOntologyTerms "taxonomy" id)
+        --
+        --        _ ->
+        --            Cmd.none
+        --    )
 
 
 --TODO finish validation and error reporting
@@ -1084,8 +1083,8 @@ viewDialogs model =
         FilterSummaryDialog term ->
             viewSearchTermSummaryDialog term
 
-        OntologyBrowserDialog filter ->
-            viewOntologyBrowserDialog model.ontologyBrowser filter
+        --OntologyBrowserDialog filter ->
+        --    viewOntologyBrowserDialog model.ontologyBrowser filter
 
 
 viewSearchPanel : Model -> Html Msg
@@ -1116,22 +1115,22 @@ viewSampleSearchPanel model =
                 |> List.filter (\f -> f.term.id == purlProject)
                 |> List.head
 
-        taxonFilter =
-            model.sampleFilters
-                |> List.filter (\f -> f.term.id == purlTaxon)
-                |> List.head
+        --taxonFilter =
+        --    model.sampleFilters
+        --        |> List.filter (\f -> f.term.id == purlTaxon)
+        --        |> List.head
     in
-    case (projectFilter, taxonFilter) of
-        (Just pf, Just tf) ->
+    case projectFilter of
+        Just pf ->
             div []
                 [ view4DPanel model
                 , viewStringFilterPanel pf
-                , viewOntologyFilterPanel tf
+                --, viewOntologyFilterPanel tf
                 , viewAddedFiltersPanel model.addedSampleFilters model.dateRangePickers
                 , viewAddFilterPanel model.showParamSearchDropdown model.paramSearchInputVal model.allTerms model.addedSampleFilters
                 ]
 
-        (_, _) -> -- impossible state
+        _ -> -- impossible state
             text "Error"
 
 
@@ -1220,51 +1219,50 @@ view4DPanel model =
         ]
 
 
-viewOntologyFilterPanel : Filter -> Html Msg
-viewOntologyFilterPanel filter =
-    viewPanel "" "Ontology" "" "" []
-        [ span [ class "float-right", style "cursor" "pointer", onClick (OpenDialog (OntologyBrowserDialog filter)) ] [ Icon.hierarchy ] ]
-        [ viewOntologyFilterInput filter
-        ]
-
-
-viewOntologyFilterInput : Filter -> Html Msg
-viewOntologyFilterInput filter =
-    let
-        searchVal =
-            case filter.value of
-                --OntologyValue s _ ->
-                SearchValue s ->
-                    s
-
-                SingleValue s ->
-                    s
-
-                _ ->
-                    ""
-
-        btn label =
-            button [ class (if "ENVO" == label then "btn btn-primary" else "btn btn-outline-secondary") ] [ text label ]
-    in
-    div [ class "input-group input-group-sm" ]
-        [ div [ class "input-group-prepend" ]
-            [ btn "ENVO"
-            , btn "Tax"
-            , btn "GO"
-            ]
-        , input [ type_ "text", class "form-control", placeholder "Search ...", value searchVal, onInput (SetOntologyFilterValue filter.term.id) ] []
-        ]
-
-
-viewOntologyBrowserDialog : OntologyBrowser.Model -> Filter -> Html Msg
-viewOntologyBrowserDialog browser filter =
-    viewDialog "Taxonomy"
-        [ OntologyBrowser.view browser |> Html.map OntologyBrowserMsg
-        ]
-        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ]
-            [ text "Close" ]
-        ]
-        CloseDialog
+--viewOntologyFilterPanel : Filter -> Html Msg
+--viewOntologyFilterPanel filter =
+--    viewPanel "" "Ontology" "" "" []
+--        [ span [ class "float-right", style "cursor" "pointer", onClick (OpenDialog (OntologyBrowserDialog filter)) ] [ Icon.hierarchy ] ]
+--        [ viewOntologyFilterInput filter
+--        ]
+--
+--
+--viewOntologyFilterInput : Filter -> Html Msg
+--viewOntologyFilterInput filter =
+--    let
+--        searchVal =
+--            case filter.value of
+--                --OntologyValue s _ ->
+--                SearchValue s ->
+--                    s
+--
+--                SingleValue s ->
+--                    s
+--
+--                _ ->
+--                    ""
+--
+--        btn label =
+--            button [ class (if "ENVO" == label then "btn btn-primary" else "btn btn-outline-secondary") ] [ text label ]
+--    in
+--    div [ class "input-group input-group-sm" ]
+--        [ div [ class "input-group-prepend" ]
+--            [ btn "Tax"
+--            , btn "GO"
+--            ]
+--        , input [ type_ "text", class "form-control", placeholder "Search ...", value searchVal, onInput (SetOntologyFilterValue filter.term.id) ] []
+--        ]
+--
+--
+--viewOntologyBrowserDialog : OntologyBrowser.Model -> Filter -> Html Msg
+--viewOntologyBrowserDialog browser filter =
+--    viewDialog "Taxonomy"
+--        [ OntologyBrowser.view browser |> Html.map OntologyBrowserMsg
+--        ]
+--        [ button [ type_ "button", class "btn btn-secondary", onClick CloseDialog ]
+--            [ text "Close" ]
+--        ]
+--        CloseDialog
 
 
 viewAddFilterPanel : Bool -> String -> List SearchTerm -> List Filter -> Html Msg
@@ -1927,7 +1925,7 @@ viewSummary model =
                     (model.sampleFilters ++ model.addedSampleFilters)
                         |> List.filter (\f -> f.term.id /= purlLocation)
                         |> List.filter (\f -> f.term.id /= purlProject)
-                        |> List.filter (\f -> f.term.id /= purlTaxon)
+                        --|> List.filter (\f -> f.term.id /= purlTaxon)
                         |> List.map (.term >> .label)
             in
             div [ style "margin" "1em" ]
@@ -2002,7 +2000,7 @@ viewSampleResults model =
             "Sample ID" ::
             (model.displayedSampleFilters
                 |> List.filter (\f -> f.term.id /= purlProject)
-                |> List.filter (\f -> f.term.id /= purlTaxon)
+                --|> List.filter (\f -> f.term.id /= purlTaxon)
                 |> List.map
                     (\f ->
                         if f.term.id == purlLocation && f.value /= NoValue && validFilterValue f.value then
