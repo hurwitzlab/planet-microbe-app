@@ -3,7 +3,7 @@
 const fs = require('fs');
 const express = require('express');
 const config = require('./config.json');
-const db = require('./postgres.js')(config);
+const client = require('./postgres');
 
 class TermIndex {
     constructor(props) {
@@ -191,7 +191,7 @@ function loadSearchableTerms(path) { // TSV file
 (async function() {
     let searchableTerms = loadSearchableTerms(config.searchableTerms);
     let termIndex = new TermIndex({ searchableTerms: searchableTerms });
-    await termIndex.build(db, config.ontologies);
+    await termIndex.build(client, config.ontologies);
 
     const app = express();
     app.set('termIndex', termIndex);

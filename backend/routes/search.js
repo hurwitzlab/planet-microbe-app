@@ -2,22 +2,19 @@
 
 const stringSimilarity = require('string-similarity');
 const Promise = require('promise');
-const requestp = require('request-promise');
-const express = require('express');
-const router  = express.Router();
-const config = require('../config.json');
-const db = require('../postgres.js')(config);
-
+const router = require('express').Router();
+const client = require('../postgres');
+const { asyncHandler } = require('../util');
 
 router.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog of terms
     let termIndex = req.app.get('termIndex');
     res.json(termIndex);
 });
 
-router.get('/schema', async (req, res) => {
-    let fields = await db.query("SELECT schema_id,name,type,fields->'fields' AS fields FROM schema");
+router.get('/schema', asyncHandler(async (req, res) => {
+    let fields = await client.query("SELECT schema_id,name,type,fields->'fields' AS fields FROM schema");
     res.json(fields.rows);
-});
+}));
 
 router.get('/searchTerms', (req, res) => {
     let query = req.query.query;
@@ -74,7 +71,7 @@ router.get('/searchTerms', (req, res) => {
     }
 });
 
-router.get('/searchTerms/:ids(*)', async (req, res) => {
+router.get('/searchTerms/:ids(*)', asyncHandler(async (req, res) => {
     let ids = decodeURIComponent(req.params.ids);
 
     let terms = await Promise.all(
@@ -87,7 +84,7 @@ router.get('/searchTerms/:ids(*)', async (req, res) => {
         })
     );
     res.json(terms);
-});
+}));
 
 async function getSearchTerm(id, termIndex) {
     let term = termIndex.getTerm(id);
@@ -123,7 +120,7 @@ async function getSearchTerm(id, termIndex) {
     if (term.type == "string") {
         let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
         let caseStr = "CASE " + cases.join(" ") + " END";
-        let result = await db.query({ text: `SELECT COALESCE(LOWER(${caseStr}),'none') AS val,COUNT(*)::int FROM sample GROUP BY val ORDER BY val`, rowMode: 'array' });
+        let result = await client.query({ text: `SELECT COALESCE(LOWER(${caseStr}),'none') AS val,COUNT(*)::int FROM sample GROUP BY val ORDER BY val`, rowMode: 'array' });
 
         // Convert purl values to labels
         let purlLabels = {};
@@ -155,12 +152,12 @@ async function getSearchTerm(id, termIndex) {
         let caseStr = "CASE " + cases.join(" ") + " END";
         let clauses = [].concat.apply([], Object.values(term.schemas)).map(schema => `(schema_id=${schema.schemaId} AND number_vals[${schema.position}] != 'NaN')`);
         let clauseStr = clauses.join(' OR ');
-        let rangeResult = await db.query({ text: `SELECT MIN(${caseStr}),MAX(${caseStr}) FROM sample WHERE ${clauseStr}`, rowMode: "array" });
+        let rangeResult = await client.query({ text: `SELECT MIN(${caseStr}),MAX(${caseStr}) FROM sample WHERE ${clauseStr}`, rowMode: "array" });
         let [min, max] = rangeResult.rows[0];
         let range = max - min;
         let binLen = range/10;
 
-        let binResult = await db.query({
+        let binResult = await client.query({
             text:
                 `SELECT label, count FROM
                     (WITH min_max AS (
@@ -236,13 +233,13 @@ async function getSearchTerm(id, termIndex) {
 
 // Support POST and GET methods for search endpoint
 // POST is easier to debug in browser debugger, GET is easier to use with curl
-router.get('/search', async (req, res) => {
+router.get('/search', asyncHandler(async (req, res) => {
     handleSearchRequest(req, res, req.query);
-});
+}));
 
-router.post('/search', async (req, res) => {
+router.post('/search', asyncHandler(async (req, res) => {
     handleSearchRequest(req, res, req.body);
-});
+}));
 
 async function handleSearchRequest(req, res, params) {
     let termIndex = req.app.get('termIndex');
@@ -254,7 +251,7 @@ async function handleSearchRequest(req, res, params) {
     }
 
     try {
-        let results = await search(db, termIndex, params);
+        let results = await search(termIndex, params);
 
         if (download) {
             let table =
@@ -275,7 +272,7 @@ async function handleSearchRequest(req, res, params) {
 }
 
 //FIXME refactor this ugly code
-async function search(db, termIndex, params) {
+async function search(termIndex, params) {
     console.log("params:", params);
 
     let limit = params['limit'] || 20;
@@ -654,7 +651,7 @@ async function search(db, termIndex, params) {
     console.log("Count Query:");
     let countQueryStr =
         `SELECT sample.sample_id,file.file_id ${tableStr} ${clauseStr} GROUP BY sample.sample_id,file.file_id`;
-    let countResult = await db.query({
+    let countResult = await client.query({
         text: countQueryStr,
         rowMode: 'array'
     });
@@ -665,7 +662,7 @@ async function search(db, termIndex, params) {
 
     console.log("Summary Queries:");
     summaries = await Promise.all(summaryQueryStrs.map(s =>
-        db.query({
+        client.query({
             text: s,
             rowMode: 'array'
         })
@@ -686,13 +683,13 @@ async function search(db, termIndex, params) {
     }
 
     console.log("Sample Query:");
-    sampleResults = await db.query({
+    sampleResults = await client.query({
         text: sampleQueryStr,
         rowMode: 'array'
     });
 
     console.log("Sample File Query:");
-    let files = await db.query({
+    let files = await client.query({
         text: //FIXME use tableStr from above
             `SELECT sample.sample_id,file.file_id
             FROM sample
@@ -752,7 +749,7 @@ async function search(db, termIndex, params) {
         ${clauseStr}
         ${groupByStr}`;
 
-    clusters = await db.query(locationClusterQuery);
+    clusters = await client.query(locationClusterQuery);
 
     // Build file query ------------------------------------------------------------------------------------------------
     sortCol = Math.abs(fileSort) + 1;
@@ -776,13 +773,13 @@ async function search(db, termIndex, params) {
         ${groupByStr} ${sortStr}
         ${offsetStr} ${limitStr}`;
 
-//    count = await db.query({
+//    count = await client.query({
 //        text: countQueryStr,
 //        rowMode: 'array'
 //    });
 //    count = count.rows[0][0];
 
-    let fileResults = await db.query(queryStr);
+    let fileResults = await client.query(queryStr);
     fileResults = fileResults.rows;
 
     return {
@@ -938,7 +935,7 @@ function buildTermSQL(arrIndex, term, val) {
 }
 
 async function batchQuery(queryObjArray) {
-  const promises = queryObjArray.map(obj => db.query(obj));
+  const promises = queryObjArray.map(obj => client.query(obj));
   return await Promise.all(promises);
 }
 

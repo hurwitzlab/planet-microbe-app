@@ -1,9 +1,13 @@
 'use strict';
 
 const { Client } = require('pg');
+const config = require('./config.json');
 
-module.exports = function(config) {
-    let client = new Client({
+module.exports = function() {
+    if (!('postgres' in config))
+        throw('Missing postgres configuration');
+
+    const client = new Client({
         user: config.postgres.username,
         host: 'localhost',
         database: config.postgres.db,
@@ -19,4 +23,4 @@ module.exports = function(config) {
     };
 
     return client;
-}
+}();

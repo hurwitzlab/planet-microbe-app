@@ -1,11 +1,10 @@
 'use strict';
 
-const express = require('express');
-const router  = express.Router();
-const config = require('../config.json');
-const db = require('../postgres.js')(config);
+const router = require('express').Router();
+const client = require('../postgres');
+const { asyncHandler } = require('../util');
 
-router.post('/samples', async (req, res) => {
+router.post('/samples', asyncHandler(async (req, res) => {
     let result;
     let ids;
 
@@ -15,7 +14,7 @@ router.post('/samples', async (req, res) => {
     }
 
     if (ids) {
-        result = await db.query({
+        result = await client.query({
             text:
                 `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name
                 FROM sample s
@@ -26,7 +25,7 @@ router.post('/samples', async (req, res) => {
         });
     }
     else {
-        result = await db.query(
+        result = await client.query(
             `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,p.project_id,p.name AS project_name
             FROM sample s
             JOIN project_to_sample USING(sample_id)
@@ -40,12 +39,12 @@ router.post('/samples', async (req, res) => {
     }
 
     res.json(result.rows);
-});
+}));
 
-router.get('/samples/:id(\\d+)', async (req, res) => {
+router.get('/samples/:id(\\d+)', asyncHandler(async (req, res) => {
     let id = req.params.id;
 
-    let result = await db.query({
+    let result = await client.query({
         text:
             `SELECT s.sample_id,s.accn,
                 ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,
@@ -68,11 +67,11 @@ router.get('/samples/:id(\\d+)', async (req, res) => {
     }
 
     res.json(result.rows[0]);
-});
+}));
 
-router.get('/samples/:id(\\d+)/sampling_events', async (req, res) => {
+router.get('/samples/:id(\\d+)/sampling_events', asyncHandler(async (req, res) => {
     let id = req.params.id;
-    let result = await db.query({
+    let result = await client.query({
         text:
             `SELECT se.sampling_event_id,se.sampling_event_type,se.name,
                 c.campaign_id,c.campaign_type,c.name AS campaign_name
@@ -85,11 +84,11 @@ router.get('/samples/:id(\\d+)/sampling_events', async (req, res) => {
     });
 
     res.json(result.rows);
-});
+}));
 
-router.get('/samples/:id(\\d+)/experiments', async (req, res) => {
+router.get('/samples/:id(\\d+)/experiments', asyncHandler(async (req, res) => {
     let id = req.params.id;
-    let result = await db.query({
+    let result = await client.query({
         text:
             `SELECT e.experiment_id,e.name,e.accn
             FROM experiment e
@@ -98,9 +97,9 @@ router.get('/samples/:id(\\d+)/experiments', async (req, res) => {
     });
 
     res.json(result.rows);
-});
+}));
 
-router.post('/samples/experiments', async (req, res) => {
+router.post('/samples/experiments', asyncHandler(async (req, res) => {
     let ids;
     if (req.body.ids) {
         ids = req.body.ids.split(',');
@@ -109,7 +108,7 @@ router.post('/samples/experiments', async (req, res) => {
 
     let result;
     if (ids)
-        result = await db.query({
+        result = await client.query({
             text: `SELECT e.experiment_id,e.name,e.accn,l.name AS library_name,l.strategy AS library_strategy, l.source AS library_source, l.selection AS library_selection, l.protocol AS library_protocol, l.layout AS library_layout, l.length AS library_length
                 FROM experiment e
                 LEFT JOIN library l USING(experiment_id)
@@ -117,63 +116,15 @@ router.post('/samples/experiments', async (req, res) => {
             values: [ids]
         });
     else
-        result = await db.query(
+        result = await client.query(
             `SELECT e.experiment_id,e.name,e.accn
             FROM experiment e`
         );
 
     res.json(result.rows);
-});
+}));
 
-//router.post('/samples/runs', async (req, res) => {
-//    let ids;
-//    if (req.body.ids) {
-//        ids = req.body.ids.split(',');
-//        console.log("ids:", ids);
-//    }
-//
-//    let id = req.params.id;
-//    let result = await db.query({
-//        text:
-//            `SELECT r.run_id,r.accn,r.total_spots,r.total_bases,
-//                f.file_id,f.url AS file_url,ft.name AS file_type,ff.name AS file_format
-//            FROM experiment e
-//            LEFT JOIN run r USING(experiment_id)
-//            LEFT JOIN run_to_file USING(run_id)
-//            LEFT JOIN file f USING(file_id)
-//            LEFT JOIN file_type ft USING(file_type_id)
-//            LEFT JOIN file_format ff USING(file_format_id)
-//            WHERE e.sample_id = ANY($1)`,
-//        values: [ids]
-//    });
-//
-//    // FIXME kludgey
-//    let rowsById = {};
-//    result.rows.forEach(row => {
-//        if (!(row.row_id in rowsById)) {
-//            rowsById[row.row_id] = {
-//                run_id: row.run_id,
-//                accn: row.accn,
-//                total_spots: row.total_spots * 1, // convert to int
-//                total_bases: row.total_bases * 1, // convert to int
-//                files: []
-//            }
-//        }
-//        if (row.file_id)
-//            rowsById[row.row_id]['files'].push({
-//                file_id: row.file_id,
-//                file_type: row.file_type,
-//                file_format: row.file_format,
-//                file_url: row.file_url,
-//            });
-//    })
-//
-//    res.json(
-//        Object.values(rowsById)
-//    );
-//});
-
-router.post('/samples/files', async (req, res) => {
+router.post('/samples/files', asyncHandler(async (req, res) => {
     let ids; // file IDs
     if (req.body.ids) {
         ids = req.body.ids.split(',');
@@ -197,21 +148,21 @@ router.post('/samples/files', async (req, res) => {
 
     let result;
     if (ids)
-        result = await db.query({
+        result = await client.query({
             text: query + ' WHERE f.file_id = ANY($1)',
             values: [ids]
         });
     else
-        result = await db.query(query);
+        result = await client.query(query);
 
     res.json(result.rows);
-});
+}));
 
-router.get('/samples/files/properties', async (req, res) => {
+router.get('/samples/files/properties', asyncHandler(async (req, res) => {
     let results =
         await Promise.all([
 // Not needed for now
-//            db.query({
+//            client.query({
 //                text:
 //                    `SELECT 'format' AS field,ff.name,COUNT(f.file_id)::int
 //                    FROM experiment e
@@ -222,7 +173,7 @@ router.get('/samples/files/properties', async (req, res) => {
 //                    GROUP BY ff.file_format_id`,
 //                rowMode: 'array'
 //            }),
-//            db.query({
+//            client.query({
 //                text:
 //                    `SELECT 'type' AS field,ft.name,COUNT(f.file_id)::int
 //                    FROM experiment e
@@ -235,7 +186,7 @@ router.get('/samples/files/properties', async (req, res) => {
 //            }),
         ].concat(
             [ 'source', 'strategy', 'selection', 'layout'].map(col =>
-                db.query({
+                client.query({
                     text:
                         `SELECT '${col}' AS field,COALESCE(${col},'none'),COUNT(rtf.file_id)::int
                         FROM experiment e
@@ -259,13 +210,13 @@ router.get('/samples/files/properties', async (req, res) => {
     });
 
     res.json(dist);
-});
+}));
 
-router.get('/samples/:id(\\d+)/metadata', async (req, res) => {
+router.get('/samples/:id(\\d+)/metadata', asyncHandler(async (req, res) => {
     let id = req.params.id;
     let termIndex = req.app.get('termIndex');
 
-    let result = await db.query({
+    let result = await client.query({
         text:
             `SELECT s.schema_id,schema.fields->'fields' AS fields,s.number_vals,s.string_vals,s.datetime_vals
             FROM sample s
@@ -327,12 +278,12 @@ router.get('/samples/:id(\\d+)/metadata', async (req, res) => {
         terms: terms,
         values: values
     });
-});
+}));
 
-router.get('/samples/:id(\\d+)/taxonomy', async (req, res) => {
+router.get('/samples/:id(\\d+)/taxonomy', asyncHandler(async (req, res) => {
     let id = req.params.id;
 
-    let result = await db.query({
+    let result = await client.query({
         text:
             `SELECT e.experiment_id,e.accn AS experiment_accn,r.run_id,r.accn AS run_accn,t.tax_id,t.name,c.num_reads,c.num_unique_reads,c.abundance
             FROM sample s
@@ -345,6 +296,6 @@ router.get('/samples/:id(\\d+)/taxonomy', async (req, res) => {
     });
 
     res.json(result.rows);
-});
+}));
 
 module.exports = router;

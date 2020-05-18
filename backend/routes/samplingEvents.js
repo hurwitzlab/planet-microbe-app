@@ -1,13 +1,12 @@
 'use strict';
 
-const express = require('express');
-const router  = express.Router();
-const config = require('../config.json');
-const db = require('../postgres.js')(config);
+const router = require('express').Router();
+const client = require('../postgres');
+const { asyncHandler } = require('../util');
 
-router.get('/sampling_events/:id(\\d+)', async (req, res) => {
+router.get('/sampling_events/:id(\\d+)', asyncHandler(async (req, res) => {
     let id = req.params.id;
-    let result = await db.query({
+    let result = await client.query({
         text:
             `SELECT se.sampling_event_id,se.sampling_event_type,se.name,se.start_time,se.end_time,
                 ST_AsGeoJson(se.locations)::json->'coordinates' AS locations,
@@ -24,11 +23,11 @@ router.get('/sampling_events/:id(\\d+)', async (req, res) => {
     });
 
     res.json(result.rows[0]);
-});
+}));
 
-router.get('/sampling_events/:id(\\d+)/samples', async (req, res) => {
+router.get('/sampling_events/:id(\\d+)/samples', asyncHandler(async (req, res) => {
     let id = req.params.id;
-    let result = await db.query({
+    let result = await client.query({
         text:
             `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations
             FROM sample s
@@ -38,14 +37,14 @@ router.get('/sampling_events/:id(\\d+)/samples', async (req, res) => {
     });
 
     res.json(result.rows);
-});
+}));
 
-router.get('/sampling_events/:id(\\d+)/data/(:type(\\w+))', async (req, res) => {
+router.get('/sampling_events/:id(\\d+)/data/(:type(\\w+))', asyncHandler(async (req, res) => {
     let id = req.params.id;
     let type = req.params.type;
     let termIndex = req.app.get('termIndex');
 
-    let result = await db.query({
+    let result = await client.query({
         text:
             `SELECT s.schema_id,s.type,s.fields->'fields' AS fields,sed.number_vals,sed.string_vals,sed.datetime_vals
             FROM sampling_event se
@@ -116,6 +115,6 @@ router.get('/sampling_events/:id(\\d+)/data/(:type(\\w+))', async (req, res) => 
         terms: terms,
         values: values
     });
-});
+}));
 
 module.exports = router;

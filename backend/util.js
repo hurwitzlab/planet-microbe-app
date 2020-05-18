@@ -18,4 +18,11 @@ function requireAuth(req) {
         throw(ERR_UNAUTHORIZED);
 }
 
-module.exports.requireAuth = requireAuth;
+// From https://zellwk.com/blog/async-await-express/
+const asyncHandler = fn => (req, res, next) => {
+    return Promise
+        .resolve(fn(req, res, next))
+        .catch(next);
+};
+
+module.exports = { requireAuth, asyncHandler };

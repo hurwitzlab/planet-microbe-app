@@ -4,8 +4,7 @@ const logger = require('morgan');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const requestp = require('request-promise');
-const config = require('../config.json');
-const db = require('../postgres.js')(config);
+const client = require('../postgres');
 
 module.exports = function(app) {
     app.use(logger('dev'));
@@ -13,14 +12,13 @@ module.exports = function(app) {
     app.use(bodyParser.json()); // support json encoded bodies
     app.use(agaveTokenValidator);
 
-    app.use(require('./apps.js'));
+    app.use(require('./apps'));
     app.use(require('./campaigns.js'));
     app.use(require('./experiments.js'));
     app.use(require('./misc.js'));
     app.use(require('./projects.js'));
     app.use(require('./samples.js'));
     app.use(require('./samplingEvents.js'));
-    //app.use(require('./ontologies.js'));
     app.use(require('./search.js'));
 
     app.use(errorHandler);
@@ -70,13 +68,13 @@ module.exports = function(app) {
                     };
 
                     // Add user if not already present
-                    let user = await db.query({
+                    let user = await client.query({
                         text: "SELECT * FROM \"user\" WHERE user_name=$1",
                         values: [profile.username]
                     });
 
                     if (user.rowCount == 0) {
-                        user = await db.query({
+                        user = await client.query({
                             text: "INSERT INTO \"user\" (user_name) VALUES ($1) RETURNING *",
                             values: [profile.username]
                         });

@@ -1,13 +1,12 @@
 'use strict';
 
-const express = require('express');
-const router  = express.Router();
-const config = require('../config.json');
-const db = require('../postgres.js')(config);
+const router = require('express').Router();
+const client = require('../postgres');
+const { asyncHandler } = require('../util');
 
-router.get('/experiments/:id(\\d+)', async (req, res) => {
+router.get('/experiments/:id(\\d+)', asyncHandler(async (req, res) => {
     let id = req.params.id;
-    let result = await db.query({
+    let result = await client.query({
         text:
             `SELECT e.experiment_id,e.name,e.accn,
                 l.name AS library_name,l.strategy AS library_strategy, l.source AS library_source,
@@ -23,11 +22,11 @@ router.get('/experiments/:id(\\d+)', async (req, res) => {
     });
 
     res.json(result.rows[0]);
-});
+}));
 
-router.get('/experiments/:id(\\d+)/runs', async (req, res) => {
+router.get('/experiments/:id(\\d+)/runs', asyncHandler(async (req, res) => {
     let id = req.params.id;
-    let result = await db.query({
+    let result = await client.query({
         text:
             `SELECT r.run_id,r.accn,r.total_spots,r.total_bases,
                 f.file_id,f.url AS file_url,ft.name AS file_type,ff.name AS file_format
@@ -64,6 +63,6 @@ router.get('/experiments/:id(\\d+)/runs', async (req, res) => {
     res.json(
         Object.values(rowsById)
     );
-});
+}));
 
 module.exports = router;

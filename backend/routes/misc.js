@@ -4,11 +4,10 @@ const requestp = require('request-promise');
 const https = require('https');
 const path = require('path');
 const sendmail = require('sendmail')();
-const express = require('express');
-const router = express.Router();
+const router = require('express').Router();
 const config = require('../config.json');
-const db = require('../postgres.js')(config);
-const requireAuth = require('../util.js').requireAuth;
+const { requireAuth, asyncHandler } = require('../util');
+const client = require('../postgres');
 
 router.post('/contact', (req, res) => {
     console.log(req.body);
@@ -81,19 +80,19 @@ router.post('/token', async (req, res) => {
     res.send(tokenResponse);
 });
 
-router.post('/users/login', async (req, res) => { // TODO add try/catch error handling
+router.post('/users/login', asyncHandler(async (req, res) => {
     requireAuth(req);
 
     var username = req.auth.user.user_name;
 
     // Add user if not already present
-    let user = await db.query({
+    let user = await client.query({
         text: "SELECT * FROM \"user\" WHERE user_name=$1",
         values: [username]
     });
 
     if (user.rowCount == 0) {
-        user = await db.query({
+        user = await client.query({
             text: "INSERT INTO \"user\" (user_name) VALUES ($1) RETURNING *",
             values: [username]
         });
@@ -101,23 +100,23 @@ router.post('/users/login', async (req, res) => { // TODO add try/catch error ha
 
     // For new user set first_name/last_name/email, or update for existing user (in case they changed any of those fields)
     // Only do this once at login and not in agaveTokenValidator
-    user = await db.query({
+    user = await client.query({
         text: "UPDATE \"user\" SET first_name=$1, last_name=$2, email=$3 WHERE user_name=$4",
         values: [req.auth.user.first_name,req.auth.user.last_name, req.auth.user.email, username]
     });
 
-    user = await db.query({
+    user = await client.query({
         text: "SELECT * FROM \"user\" WHERE user_name=$1",
         values: [username]
     });
 
-    let login = await db.query({
+    let login = await client.query({
         text: "INSERT INTO login (user_id) VALUES ($1) RETURNING *",
         values: [user.rows[0].user_id]
     });
 
     res.json(user.rows[0]);
-});
+}));
 
 async function agaveGetToken(provider, code) {
     let url = config.oauthProviders[provider].tokenUrl;
