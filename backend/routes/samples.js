@@ -329,22 +329,22 @@ router.get('/samples/:id(\\d+)/metadata', async (req, res) => {
     });
 });
 
-//router.get('/samples/:id(\\d+)/taxonomy', async (req, res) => {
-//    let id = req.params.id;
-//
-//    let result = await db.query({
-//        text:
-//            `SELECT e.experiment_id,e.accn AS experiment_accn,r.run_id,r.accn AS run_accn,t.tax_id,t.name,c.num_reads,c.num_unique_reads,c.abundance
-//            FROM sample s
-//            JOIN experiment e USING(sample_id)
-//            JOIN run r USING(experiment_id)
-//            LEFT JOIN centrifuge c USING(run_id)
-//            LEFT JOIN taxonomy t USING(tax_id)
-//            WHERE c.abundance > 0 AND s.sample_id=$1`,
-//        values: [id]
-//    });
-//
-//    res.json(result.rows);
-//});
+router.get('/samples/:id(\\d+)/taxonomy', async (req, res) => {
+    let id = req.params.id;
+
+    let result = await db.query({
+        text:
+            `SELECT e.experiment_id,e.accn AS experiment_accn,r.run_id,r.accn AS run_accn,t.tax_id,t.name,c.num_reads,c.num_unique_reads,c.abundance
+            FROM sample s
+            JOIN experiment e USING(sample_id)
+            JOIN run r USING(experiment_id)
+            LEFT JOIN centrifuge c USING(run_id)
+            LEFT JOIN taxonomy t USING(tax_id)
+            WHERE c.abundance > 0 AND s.sample_id=$1`,
+        values: [id]
+    });
+
+    res.json(result.rows);
+});
 
 module.exports = router;
