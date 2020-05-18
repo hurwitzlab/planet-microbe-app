@@ -10,6 +10,7 @@ import Html.Events exposing (onClick)
 import FormatNumber exposing (format)
 import FormatNumber.Locales exposing (usLocale)
 import Http
+import RemoteData exposing (RemoteData(..))
 import Route
 import Page exposing (viewJobStatus)
 import Task exposing (Task)
@@ -33,9 +34,7 @@ type alias Model =
     , job : Maybe Job
     , app : Maybe App
     , loadingJob : Bool
-    , loadingHistory : Bool
-    , loadedHistory : Bool
-    , history : List Agave.JobHistory
+    , history : RemoteData Http.Error (List Agave.JobHistory)
     , loadingResults : Bool
     , loadedResults : Bool
     , results : Maybe (List (String, String))
@@ -77,9 +76,7 @@ init session id =
       , job = Nothing
       , app = Nothing
       , loadingJob = False
-      , loadingHistory = False
-      , loadedHistory = False
-      , history = []
+      , history = NotAsked
       , loadingResults = False
       , loadedResults = False
       , results = Nothing
@@ -200,14 +197,14 @@ update msg model =
 --                            in
                             SetHistory []
             in
-            ( { model | loadingHistory = True }, Task.attempt handleHistory loadHistory )
+            ( { model | history = Loading }, Task.attempt handleHistory loadHistory )
 
         SetHistory history ->
 --            let
 --                filtered =
 --                    List.filter (\output -> output.name /= ".") outputs
 --            in
-            ( { model | history = history, loadingHistory = False, loadedHistory = True }, Cmd.none )
+            ( { model | history = Success history }, Cmd.none )
 
         ShowOutputs ->
             let
@@ -435,7 +432,7 @@ view model =
                   else
                     text ""
                 , Page.viewTitle2 "History" False
-                , viewHistory model.history model.loadedHistory model.loadingHistory
+                , viewHistory model.history
                 , br [] []
                 , div [ class "mt-4 border-bottom", style "width" "100%" ]
                     [ h2 [ class "font-weight-bold d-inline" ]
@@ -633,21 +630,27 @@ viewSettings job =
         ]
 
 
-viewHistory : List Agave.JobHistory -> Bool -> Bool -> Html Msg
-viewHistory history loaded loading =
-    if history == [] then
-        div [ class "border-top w-100 pt-2" ]
-            [ if loaded then
-                text "None"
-              else if loading then
+viewHistory : RemoteData Http.Error (List Agave.JobHistory) -> Html Msg
+viewHistory history =
+    div [ class "border-top w-100 pt-2" ]
+        [ case history of
+            Success h ->
+                if h == [] then
+                    text "None"
+                else
+                    table [ class "table table-sm" ]
+                        [ tbody []
+                            (List.map viewEvent h)
+                        ]
+
+            Loading ->
                 Page.viewSpinner
-              else
+
+            Failure error ->
+                Error.view error False
+
+            NotAsked ->
                 button [ class "btn btn-outline-secondary", onClick GetHistory ] [ text "Show History" ]
-            ]
-    else
-    table [ class "table table-sm" ]
-        [ tbody []
-            (List.map viewEvent history)
         ]
 
 
