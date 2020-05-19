@@ -6,13 +6,9 @@ import Html.Attributes exposing (..)
 import Page
 import Route exposing (Route)
 import Http
-import Json.Decode as Decode exposing (Decoder)
-import Json.Decode.Pipeline exposing (optional, required)
---import Page.Error as Error exposing (PageLoadError)
-import Task exposing (Task)
+import RemoteData exposing (RemoteData(..))
 import String.Extra
 import Dict exposing (Dict)
---import Debug exposing (toString)
 import Project exposing (Project)
 import Sample exposing (Sample)
 import Icon
@@ -24,8 +20,8 @@ import Icon
 
 type alias Model =
     { session : Session
-    , projects : Maybe (List Project)
-    , samples : Maybe (List Sample)
+    , projects : RemoteData Http.Error (List Project)
+    , samples : RemoteData Http.Error (List Sample)
     , projectDescriptionStates : Dict Int Bool
     }
 
@@ -33,8 +29,8 @@ type alias Model =
 init : Session -> ( Model, Cmd Msg )
 init session =
     ( { session = session
-      , projects = Nothing
-      , samples = Nothing
+      , projects = Loading
+      , samples = Loading
       , projectDescriptionStates = Dict.empty
       }
       , Cmd.batch
@@ -62,23 +58,11 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GetProjectsCompleted (Ok projects) ->
-            ( { model | projects = Just projects }, Cmd.none )
+        GetProjectsCompleted result ->
+            ( { model | projects = RemoteData.fromResult result }, Cmd.none )
 
-        GetProjectsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetProjectsCompleted" (toString error)
---            in
-            ( model, Cmd.none )
-
-        GetSamplesCompleted (Ok samples) ->
-            ( { model | samples = Just samples }, Cmd.none )
-
-        GetSamplesCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSamplesCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetSamplesCompleted result ->
+            ( { model | samples = RemoteData.fromResult result }, Cmd.none )
 
         ToggleProjectDescription id ->
             let
@@ -102,10 +86,10 @@ view : Model -> Html Msg
 view model =
     let
         numProjects =
-            model.projects |> Maybe.withDefault [] |> List.length
+            model.projects |> RemoteData.toMaybe |> Maybe.withDefault [] |> List.length
 
         numSamples =
-            model.samples |> Maybe.withDefault [] |> List.length
+            model.samples |> RemoteData.toMaybe |> Maybe.withDefault [] |> List.length
     in
     div [ class "container" ]
         [ div [ class "pt-5" ]
@@ -139,11 +123,9 @@ view model =
         ]
 
 
-viewProjects : Maybe (List Project) -> Dict Int Bool -> Html Msg
-viewProjects maybeProjects descriptionStates =
+viewProjects : RemoteData Http.Error (List Project) -> Dict Int Bool -> Html Msg
+viewProjects projects descriptionStates =
     let
-
-
         mkRow project =
             tr []
                 [ td [ class "text-nowrap" ]
@@ -153,12 +135,9 @@ viewProjects maybeProjects descriptionStates =
                 , td [] [ text (String.fromInt project.sampleCount) ]
                 ]
     in
-    case maybeProjects of
-        Nothing ->
-            Page.viewSpinner
-
-        Just projects ->
-            if projects == [] then
+    Page.viewRemoteData projects
+        (\p ->
+            if p == [] then
                 text "None"
             else
                 table [ class "table" ]
@@ -171,12 +150,13 @@ viewProjects maybeProjects descriptionStates =
                             ]
                         ]
                     , tbody []
-                        (projects |> List.sortBy .name |> List.map mkRow)
+                        (p |> List.sortBy .name |> List.map mkRow)
                     ]
+        )
 
 
-viewSamples : Maybe (List Sample) -> Html Msg
-viewSamples maybeSamples =
+viewSamples : RemoteData Http.Error (List Sample) -> Html Msg
+viewSamples samples =
     let
         mkRow sample =
             tr []
@@ -186,12 +166,9 @@ viewSamples maybeSamples =
                     [ a [ Route.href (Route.Project sample.projectId) ] [ text sample.projectName ] ]
                 ]
     in
-    case maybeSamples of
-        Nothing ->
-            Page.viewSpinner
-
-        Just samples ->
-            if samples == [] then
+    Page.viewRemoteData samples
+        (\s ->
+            if s == [] then
                 text "None"
             else
                 table [ class "table" ]
@@ -202,5 +179,6 @@ viewSamples maybeSamples =
                             ]
                         ]
                     , tbody []
-                        (samples |> List.sortBy .accn |> List.map mkRow)
+                        (s |> List.sortBy .accn |> List.map mkRow)
                     ]
+        )

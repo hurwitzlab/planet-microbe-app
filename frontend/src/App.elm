@@ -23,7 +23,7 @@ type alias App =
     , provider : String
 --    , app_tags : List AppTag
 --    , app_data_types : List AppDataType
---    , app_results : List AppResult
+    , app_results : List AppResult
     }
 
 
@@ -79,7 +79,7 @@ appDecoder =
         |> optional "provider" Decode.string ""
 --        |> optional "app_tags" (Decode.list appTagDecoder) []
 --        |> optional "app_data_types" (Decode.list appDataTypeDecoder) []
---        |> optional "app_results" (Decode.list appResultDecoder) []
+        |> optional "app_results" (Decode.list appResultDecoder) []
 
 
 appRunDecoder : Decoder AppRun

@@ -4,6 +4,7 @@ import Session exposing (Session)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Page
+import Error
 import Route
 import SamplingEvent exposing (SamplingEvent, Data)
 import Sample exposing (Sample)
@@ -11,13 +12,10 @@ import Search
 import LatLng
 import GMap
 import Time
-import Page
 import Http
 import RemoteData exposing (RemoteData(..))
-import Task exposing (Task)
 import String.Extra
 import Json.Encode as Encode
---import Debug exposing (toString)
 
 
 
@@ -26,8 +24,8 @@ import Json.Encode as Encode
 
 type alias Model =
     { session : Session
-    , samplingEvent : Maybe SamplingEvent
-    , samples : Maybe (List Sample)
+    , samplingEvent : RemoteData Http.Error SamplingEvent
+    , samples : RemoteData Http.Error (List Sample)
     , niskinData : RemoteData Http.Error Data
     , ctdData : RemoteData Http.Error Data
     , mapLoaded : Bool
@@ -37,8 +35,8 @@ type alias Model =
 init : Session -> Int -> ( Model, Cmd Msg )
 init session id =
     ( { session = session
-      , samplingEvent = Nothing
-      , samples = Nothing
+      , samplingEvent = Loading
+      , samples = Loading
       , niskinData = Loading
       , ctdData = Loading
       , mapLoaded = False
@@ -84,48 +82,24 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GetSamplingEventCompleted (Ok samplingEvent) ->
-            ( { model | samplingEvent = Just samplingEvent }, Cmd.none )
+        GetSamplingEventCompleted result ->
+            ( { model | samplingEvent = RemoteData.fromResult result }, Cmd.none )
 
-        GetSamplingEventCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSamplingEventCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetSamplesCompleted result ->
+            ( { model | samples = RemoteData.fromResult result }, Cmd.none )
 
-        GetSamplesCompleted (Ok samples) ->
-            ( { model | samples = Just samples }, Cmd.none )
+        GetNiskinDataCompleted result ->
+            ( { model | niskinData = RemoteData.fromResult result }, Cmd.none )
 
-        GetSamplesCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSamplesCompleted" (toString error)
---            in
-            ( model, Cmd.none )
-
-        GetNiskinDataCompleted (Ok data) ->
-            ( { model | niskinData = Success data }, Cmd.none )
-
-        GetNiskinDataCompleted (Err error) ->
-            --let
-            --    _ = Debug.log "GetNiskinDataCompleted" (toString error)
-            --in
-            ( { model | niskinData = Failure error }, Cmd.none )
-
-        GetCTDDataCompleted (Ok data) ->
-            ( { model | ctdData = Success data }, Cmd.none )
-
-        GetCTDDataCompleted (Err error) ->
-            --let
-            --    _ = Debug.log "GetCTDDataCompleted" (toString error)
-            --in
-            ( { model | ctdData = Failure error }, Cmd.none )
+        GetCTDDataCompleted result ->
+            ( { model | ctdData = RemoteData.fromResult result }, Cmd.none )
 
         MapLoaded success ->
             ( { model | mapLoaded = success }, Cmd.none )
 
-        TimerTick time ->
+        TimerTick _ ->
             case (model.mapLoaded, model.samplingEvent) of
-                (False, Just samplingEvent) ->
+                (False, Success samplingEvent) ->
                     let
                         map =
                             samplingEvent.locations |> Encode.list LatLng.encode
@@ -143,16 +117,13 @@ update msg model =
 view : Model -> Html Msg
 view model =
     case model.samplingEvent of
-        Nothing ->
-            text ""
-
-        Just samplingEvent ->
+        Success samplingEvent ->
             let
                 pageTitle =
                     "Sampling Event (" ++ (String.Extra.toSentenceCase samplingEvent.type_) ++ ")"
 
                 numSamples =
-                    model.samples |> Maybe.map List.length |> Maybe.withDefault 0
+                    model.samples |> RemoteData.toMaybe |> Maybe.map List.length |> Maybe.withDefault 0
             in
             div [ class "container" ]
                 [ Page.viewTitle pageTitle samplingEvent.name
@@ -176,6 +147,15 @@ view model =
                     [ Page.viewTitle2 "CTD Data" False ]
                 , viewData model.ctdData
                 ]
+
+        Loading ->
+            Page.viewSpinner
+
+        Failure error ->
+            Error.view error False
+
+        NotAsked ->
+            Page.viewBlank
 
 
 viewSamplingEvent : SamplingEvent -> Html Msg
@@ -237,8 +217,8 @@ viewMap =
     GMap.view [ class "border", style "display" "block", style "width" "20em", style "height" "12em" ] []
 
 
-viewSamples : Maybe (List Sample) -> Html Msg
-viewSamples maybeSamples =
+viewSamples : RemoteData Http.Error (List Sample) -> Html Msg
+viewSamples samples =
     let
         mkRow sample =
             tr []
@@ -246,11 +226,8 @@ viewSamples maybeSamples =
                     [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
                 ]
     in
-    case maybeSamples |> Maybe.withDefault [] of
-        [] ->
-            text "None"
-
-        samples ->
+    Page.viewRemoteData samples
+        (\s ->
             table [ class "table" ]
                 [ thead []
                     [ tr []
@@ -258,8 +235,9 @@ viewSamples maybeSamples =
                         ]
                     ]
                 , tbody []
-                    (samples |> List.sortBy .accn |> List.map mkRow)
+                    (s |> List.sortBy .accn |> List.map mkRow)
                 ]
+        )
 
 
 viewData : RemoteData Http.Error Data -> Html Msg

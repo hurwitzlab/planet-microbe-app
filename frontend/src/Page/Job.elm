@@ -20,7 +20,6 @@ import FileBrowser
 import Icon
 import Error
 import Config exposing (apiBaseUrl)
---import Debug exposing (toString)
 
 
 
@@ -35,9 +34,7 @@ type alias Model =
     , app : Maybe App
     , loadingJob : Bool
     , history : RemoteData Http.Error (List Agave.JobHistory)
-    , loadingResults : Bool
-    , loadedResults : Bool
-    , results : Maybe (List (String, String))
+    , results : RemoteData Http.Error (List (String, String))
     , startTime : Int -- milliseconds
     , lastPollTime : Int -- milliseconds
     , showCancelDialog : Bool
@@ -77,9 +74,7 @@ init session id =
       , app = Nothing
       , loadingJob = False
       , history = NotAsked
-      , loadingResults = False
-      , loadedResults = False
-      , results = Nothing
+      , results = NotAsked
       , startTime = 0
       , lastPollTime = 0
       , showCancelDialog = False
@@ -124,7 +119,7 @@ isPlanB id =
 type Msg
     = GetJobCompleted (Result Http.Error (Job, App))
     | GetHistory
-    | SetHistory (List Agave.JobHistory)
+    | SetHistory (Result Http.Error (List Agave.JobHistory))
     | ShowOutputs
     | GetResults
     | SetResults (Result Http.Error (List (String, String)))
@@ -167,9 +162,6 @@ update msg model =
             )
 
         GetJobCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetJobCompleted" (toString error)
---            in
             ( model, Error.redirectLoadError error (Session.navKey model.session) )
 
         GetHistory ->
@@ -185,26 +177,11 @@ update msg model =
                         loadHistoryFromPlanB
                     else
                        loadHistoryFromAgave
-
-                handleHistory history =
-                    case history of
-                        Ok h ->
-                            SetHistory h
-
-                        Err _ ->
---                            let
---                                _ = Debug.log "Error" "could not retrieve job history"
---                            in
-                            SetHistory []
             in
-            ( { model | history = Loading }, Task.attempt handleHistory loadHistory )
+            ( { model | history = Loading }, Task.attempt SetHistory loadHistory )
 
-        SetHistory history ->
---            let
---                filtered =
---                    List.filter (\output -> output.name /= ".") outputs
---            in
-            ( { model | history = Success history }, Cmd.none )
+        SetHistory result ->
+            ( { model | history = RemoteData.fromResult result }, Cmd.none )
 
         ShowOutputs ->
             let
@@ -222,7 +199,7 @@ update msg model =
             in
             ( { model | fileBrowser = Just subModel }, Cmd.map FileBrowserMsg subCmd )
 
-        GetResults -> -- this code is a little complicated
+        GetResults -> --FIXME this code is a little complicated
             let
                 owner =
                     model.job |> Maybe.map .owner |> Maybe.withDefault ""
@@ -255,34 +232,36 @@ update msg model =
                                 |> Task.andThen
                                     (\outputs -> outputs |> List.map loadFile |> Task.sequence |> Task.map List.concat)
 
---                loadResults =
---                    model.app.app_results |> List.map (loadResultData << .path) |> Task.sequence |> Task.map List.concat
+                loadResults =
+                    case model.app of
+                        Just app ->
+                            app.app_results |> List.map (loadResultData << .path) |> Task.sequence |> Task.map List.concat
+
+                        Nothing ->
+                            Task.succeed []
             in
-            ( { model | loadingResults = True }
-            , Cmd.none --Task.attempt SetResults loadResults
+            ( { model | results = Loading }
+            , Task.attempt SetResults loadResults
             )
 
         SetResults (Ok results) ->
---            case results of
---                [] ->
---                    ( { model | loadedResults = True }, Cmd.none ) -- File not found
---
---                _ ->
---                    let
---                        datasets =
---                            List.Extra.lift2 (\a b -> (a.app_data_type.name, Tuple.first b, Tuple.second b)) model.app.app_results results
---                            -- TODO change createSimPlot port to accept record instead of list of tuples
---                    in
---                    ( { model | loadedResults = True, results = Just results }
---                    , Ports.createSimPlot ("sim-plot", datasets)
---                    )
+            --case results of
+            --    [] ->
+            --        ( { model | loadedResults = True }, Cmd.none ) -- File not found
+            --
+            --    _ ->
+            --        let
+            --            datasets =
+            --                List.Extra.lift2 (\a b -> (a.app_data_type.name, Tuple.first b, Tuple.second b)) model.app.app_results results
+            --                -- TODO change createSimPlot port to accept record instead of list of tuples
+            --        in
+            --        ( { model | loadedResults = True, results = Just results }
+            --        , Ports.createSimPlot ("sim-plot", datasets)
+            --        )
             ( model, Cmd.none )
 
         SetResults (Err error) ->
---            let
---                _ = Debug.log "SetResults" ("Error retrieving results: " ++ (toString error))
---            in
-            ( { model | loadedResults = True }, Cmd.none )
+            ( { model | results = Failure error }, Cmd.none )
 
         SetJob job ->
             ( { model | job = Just job, loadingJob = False }, Cmd.none )
@@ -787,22 +766,18 @@ viewResults model =
                 Just job ->
                     case job.status of
                         "FINISHED" ->
-                            case model.loadedResults of
-                                True ->
-                                    case model.results of
-                                        Nothing ->
-                                            text "None"
+                            case model.results of
+                                Success results ->
+                                    div [] []
 
-                                        _ ->
-                                            div [] []
+                                Loading ->
+                                    Page.viewSpinner
 
-                                False ->
-                                    case model.loadingResults of
-                                        True ->
-                                            Page.viewSpinner
+                                Failure error ->
+                                    Error.view error False
 
-                                        False ->
-                                            button [ class "btn btn-default", onClick GetResults ] [ text "Show Results" ]
+                                NotAsked ->
+                                    button [ class "btn btn-default", onClick GetResults ] [ text "Show Results" ]
 
                         "FAILED" ->
                             tr [] [ td [] [ text "None" ] ]
@@ -811,7 +786,7 @@ viewResults model =
                             div [ class "italic" ] [ text "Job is not FINISHED, please wait ..." ]
 
                 Nothing ->
-                    text ""
+                    Page.viewBlank
     in
     div []
         [ h2 [] [ text "Results" ]

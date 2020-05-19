@@ -4,6 +4,7 @@ module Page.Cart exposing (Model, Msg(..), ExternalMsg(..), init, toSession, upd
 
 import Session exposing (Session)
 import Cart exposing (Cart)
+import Page
 --import Sample exposing (Sample)
 import RemoteFile exposing (File)
 import Html exposing (..)
@@ -130,11 +131,8 @@ type ExternalMsg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GetFilesCompleted (Ok files) ->
-            ( { model | files = Success files }, Cmd.none )
-
-        GetFilesCompleted (Err error) -> --TODO
-            ( { model | files = Failure error }, Cmd.none )
+        GetFilesCompleted result ->
+            ( { model | files = RemoteData.fromResult result }, Cmd.none )
 
 --        CartMsg subMsg ->
 --            let
@@ -375,8 +373,8 @@ view model =
         isEmpty =
             count == 0
     in
-    case model.files of
-        Success files ->
+    Page.viewRemoteData model.files
+        (\files ->
             div [ class "container" ]
                 [ div [ class "pb-2 mt-5 mb-2" ]
                     [ h1 [ class "font-weight-bold align-middle d-inline" ]
@@ -408,9 +406,7 @@ view model =
         --                else
         --                    Nothing
         --                )
-
-        _ ->
-            text ""
+        )
 
 
 viewCartControls : Bool -> Bool -> Html Msg -- -> Maybe Int -> List SampleGroup -> Html Msg

@@ -10,11 +10,8 @@ import Route
 import Experiment exposing (Experiment)
 import Run exposing (Run)
 import Http
---import Page.Error as Error exposing (PageLoadError)
-import Task exposing (Task)
+import RemoteData exposing (RemoteData(..))
 import String.Extra
-import Json.Encode as Encode
---import Debug exposing (toString)
 import Icon
 import Config exposing (dataCommonsUrl, sraUrl)
 
@@ -25,16 +22,16 @@ import Config exposing (dataCommonsUrl, sraUrl)
 
 type alias Model =
     { session : Session
-    , experiment : Maybe Experiment
-    , runs : Maybe (List Run)
+    , experiment : RemoteData Http.Error Experiment
+    , runs : RemoteData Http.Error (List Run)
     }
 
 
 init : Session -> Int -> ( Model, Cmd Msg )
 init session id =
     ( { session = session
-      , experiment = Nothing
-      , runs = Nothing
+      , experiment = Loading
+      , runs = Loading
       }
       , Cmd.batch
         [ Experiment.fetch id |> Http.send GetExperimentCompleted
@@ -60,23 +57,11 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GetExperimentCompleted (Ok experiment) ->
-            ( { model | experiment = Just experiment }, Cmd.none )
+        GetExperimentCompleted result ->
+            ( { model | experiment = RemoteData.fromResult result }, Cmd.none )
 
-        GetExperimentCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetExperimentCompleted" (toString error)
---            in
-            ( model, Cmd.none )
-
-        GetRunsCompleted (Ok runs) ->
-            ( { model | runs = Just runs }, Cmd.none )
-
-        GetRunsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetRunsCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetRunsCompleted result ->
+            ( { model | runs = RemoteData.fromResult result }, Cmd.none )
 
 
 
@@ -85,17 +70,14 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    case model.experiment of
-        Nothing ->
-            text ""
-
-        Just experiment ->
+    Page.viewRemoteData model.experiment
+        (\experiment ->
             let
                 pageTitle =
                     "Experiment"
 
                 numRuns =
-                    model.runs |> Maybe.map List.length |> Maybe.withDefault 0
+                    model.runs |> RemoteData.toMaybe |> Maybe.map List.length |> Maybe.withDefault 0
             in
             div [ class "container" ]
                 [ Page.viewTitle pageTitle experiment.accn
@@ -113,6 +95,7 @@ view model =
                 , div [ class "pt-2" ]
                     [ viewRuns model.runs ]
                 ]
+        )
 
 
 viewExperiment : Experiment -> Html Msg
@@ -180,8 +163,8 @@ viewExperiment experiment =
         ]
 
 
-viewRuns : Maybe (List Run) -> Html Msg
-viewRuns maybeRuns =
+viewRuns : RemoteData Http.Error (List Run) -> Html Msg
+viewRuns runs =
     let
         myLocale =
             { usLocale | decimals = 0 }
@@ -223,11 +206,8 @@ viewRuns maybeRuns =
                 , td [] [ a [ href (dataCommonsUrl ++ f.url), target "_blank" ] [ text f.url ] ]
                 ]
     in
-    case maybeRuns |> Maybe.withDefault [] of
-        [] ->
-            text "None"
-
-        runs ->
+    Page.viewRemoteData runs
+        (\r ->
             table [ class "table" ]
                 [ thead []
                     [ tr []
@@ -238,5 +218,6 @@ viewRuns maybeRuns =
                         ]
                     ]
                 , tbody []
-                    (runs |> List.sortBy .accn |> List.map mkRow)
+                    (r |> List.sortBy .accn |> List.map mkRow)
                 ]
+        )

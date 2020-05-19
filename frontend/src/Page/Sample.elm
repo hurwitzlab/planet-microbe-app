@@ -33,9 +33,9 @@ import Config exposing (sraUrl, taxonomyUrl)
 type alias Model =
     { session : Session
     , sample : RemoteData Http.Error Sample
-    , samplingEvents : Maybe (List SamplingEvent)
-    , experiments : Maybe (List Experiment)
-    , metadata : Maybe Metadata
+    , samplingEvents : RemoteData Http.Error (List SamplingEvent)
+    , experiments : RemoteData Http.Error (List Experiment)
+    , metadata : RemoteData Http.Error Metadata
     , taxonomy : RemoteData Http.Error (List Taxonomy)
     , mapLoaded : Bool
     , tooltip : Maybe (ToolTip (List Annotation))
@@ -55,9 +55,9 @@ init : Session -> Int -> ( Model, Cmd Msg )
 init session id =
     ( { session = session
       , sample = Loading
-      , samplingEvents = Nothing
-      , experiments = Nothing
-      , metadata = Nothing
+      , samplingEvents = Loading
+      , experiments = Loading
+      , metadata = Loading
       , taxonomy = Loading
       , mapLoaded = False
       , tooltip = Nothing
@@ -111,40 +111,25 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GetSampleCompleted (Ok sample) ->
-            ( { model | sample = Success sample }, Cmd.none )
+        GetSampleCompleted result ->
+            ( { model | sample = RemoteData.fromResult result }, Cmd.none )
 
-        GetSampleCompleted (Err error) ->
-            ( { model | sample = Failure error }, Cmd.none )
+        GetSamplingEventsCompleted result ->
+            ( { model | samplingEvents = RemoteData.fromResult result }, Cmd.none )
 
-        GetSamplingEventsCompleted (Ok samplingEvents) ->
-            ( { model | samplingEvents = Just samplingEvents }, Cmd.none )
+        GetExperimentsCompleted result ->
+            ( { model | experiments = RemoteData.fromResult result }, Cmd.none )
 
-        GetSamplingEventsCompleted (Err error) ->
-            ( { model | sample = Failure error }, Cmd.none )
+        GetMetadataCompleted result ->
+            ( { model | metadata = RemoteData.fromResult result }, Cmd.none )
 
-        GetExperimentsCompleted (Ok experiments) ->
-            ( { model | experiments = Just experiments }, Cmd.none )
-
-        GetExperimentsCompleted (Err error) ->
-            ( { model | sample = Failure error }, Cmd.none )
-
-        GetMetadataCompleted (Ok metadata) ->
-            ( { model | metadata = Just metadata }, Cmd.none )
-
-        GetMetadataCompleted (Err error) ->
-            ( { model | sample = Failure error }, Cmd.none )
-
-        GetTaxonomyCompleted (Ok taxonomy) ->
-            ( { model | taxonomy = Success taxonomy }, Cmd.none )
-
-        GetTaxonomyCompleted (Err error) ->
-            ( { model | taxonomy = Failure error }, Cmd.none )
+        GetTaxonomyCompleted result ->
+            ( { model | taxonomy = RemoteData.fromResult result }, Cmd.none )
 
         MapLoaded success ->
             ( { model | mapLoaded = success }, Cmd.none )
 
-        TimerTick time ->
+        TimerTick _ ->
             case (model.mapLoaded, model.sample) of
                 (False, Success sample) ->
                     let
@@ -171,7 +156,7 @@ update msg model =
 
         GotElement purl (Ok element) ->
             case model.metadata of
-                Just metadata ->
+                Success metadata ->
                     let
                         x =
                             element.element.x + element.element.width + 10
@@ -208,7 +193,7 @@ update msg model =
                         Nothing ->
                             ( model, Cmd.none )
 
-                Nothing ->
+                _ ->
                     ( model, Cmd.none )
 
         GotElement _ (Err error) ->
@@ -236,11 +221,11 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    case model.sample of
-        Success sample ->
+    Page.viewRemoteData model.sample
+        (\sample ->
             let
                 numExperiments =
-                    model.experiments |> Maybe.map List.length |> Maybe.withDefault 0
+                    model.experiments |> RemoteData.toMaybe |> Maybe.map List.length |> Maybe.withDefault 0
             in
             div [ class "container" ]
                 [ div [ class "pb-2 mt-5 mb-2 border-bottom", style "width" "100%" ]
@@ -252,7 +237,7 @@ view model =
                         [ Cart.addToCartButton (Session.getCart model.session) (Just ("Add to Cart", "Remove from Cart")) sample.files |> Html.map CartMsg ]
                     ]
                 , div []
-                    [ viewSample sample (model.samplingEvents |> Maybe.withDefault []) ]
+                    [ viewSample sample (model.samplingEvents |> RemoteData.toMaybe |> Maybe.withDefault []) ]
                 , div [ class "pt-3" ]
                     [ Page.viewTitle2 "Experiments" False
                     , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
@@ -283,15 +268,7 @@ view model =
                     Nothing ->
                         text ""
                 ]
-
-        Loading ->
-            viewSpinner
-
-        Failure error ->
-            Error.view error False
-
-        _ ->
-            text ""
+        )
 
 
 viewSample : Sample -> List SamplingEvent -> Html Msg
@@ -370,8 +347,8 @@ viewMap =
     GMap.view [ class "border", style "display" "block", style "width" "20em", style "height" "12em" ] []
 
 
-viewExperiments : Maybe (List Experiment) -> Html Msg
-viewExperiments maybeExperiments =
+viewExperiments : RemoteData Http.Error (List Experiment) -> Html Msg
+viewExperiments experiments =
     let
         mkRow exp =
             tr []
@@ -380,11 +357,8 @@ viewExperiments maybeExperiments =
                 , td [] [ text (String.Extra.toSentenceCase exp.name) ]
                 ]
     in
-    case maybeExperiments |> Maybe.withDefault [] of
-        [] ->
-            text "None"
-
-        experiments ->
+    Page.viewRemoteData experiments
+        (\e ->
             table [ class "table" ]
                 [ thead []
                     [ tr []
@@ -393,14 +367,15 @@ viewExperiments maybeExperiments =
                         ]
                     ]
                 , tbody []
-                    (experiments |> List.sortBy .name |> List.map mkRow)
+                    (e |> List.sortBy .name |> List.map mkRow)
                 ]
+        )
 
 
-viewMetadata : Maybe Metadata -> Bool -> Html Msg
-viewMetadata maybeMetadata showUnannotated =
-    case maybeMetadata of
-        Just metadata ->
+viewMetadata : RemoteData Http.Error Metadata -> Bool -> Html Msg
+viewMetadata metadata showUnannotated =
+    Page.viewRemoteData metadata
+        (\md ->
             let
                 valueToString maybeValue =
                     case maybeValue of
@@ -484,7 +459,7 @@ viewMetadata maybeMetadata showUnannotated =
                             ]
                         ]
                     , tbody []
-                        (List.Extra.zip metadata.terms metadata.values
+                        (List.Extra.zip md.terms md.values
                             |> List.filter (\t -> showUnannotated || (Tuple.first t |> .label) /= "")
                             |> List.sortWith sortTerm
                             |> List.map mkRow
@@ -497,9 +472,7 @@ viewMetadata maybeMetadata showUnannotated =
                         text ("Show Unannotated Fields " ++ (String.fromChar (Char.fromCode 9660)))
                     ]
                 ]
-
-        Nothing ->
-            text "None"
+        )
 
 
 viewTooltip : ToolTip (List Annotation) -> Html msg

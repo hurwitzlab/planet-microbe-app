@@ -4,7 +4,6 @@ import Session exposing (Session)
 import App exposing (App, AppRun)
 import Agave
 import PlanB
---import Sample exposing (Sample, SampleFile, SampleGroup)
 import Cart
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -16,8 +15,6 @@ import Page exposing (viewSpinner, viewSpinnerCentered, viewDialog)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Task exposing (Task)
---import List.Extra
---import String.Extra
 import Maybe exposing (withDefault)
 import Dict exposing (Dict)
 import RemoteFile exposing (File)
@@ -201,7 +198,7 @@ update msg model =
             , Cmd.none
             )
 
-        GetAppCompleted (Err error) -> --TODO
+        GetAppCompleted (Err error) ->
             ( { model | apps = Failure error }, Error.redirectLoadError error (Session.navKey model.session) )
 
         SetInput source id value ->
@@ -361,10 +358,7 @@ update msg model =
         ShareJobCompleted _ ->
             ( model, Cmd.none )
 
-        AppRunCompleted (Ok _) ->
-            ( model, Cmd.none )
-
-        AppRunCompleted (Err _) -> --TODO
+        AppRunCompleted _ ->
             ( model, Cmd.none )
 
         CloseRunDialog ->
@@ -393,11 +387,8 @@ update msg model =
             in
             ( { model | cartDialogInputId = Just inputId }, cmd )
 
-        LoadCartCompleted (Ok files) ->
-            ( { model | files = Success files }, Cmd.none )
-
-        LoadCartCompleted (Err error) -> --TODO show error to user
-            ( { model | files = Failure error }, Cmd.none )
+        LoadCartCompleted result ->
+            ( { model | files = RemoteData.fromResult result }, Cmd.none )
 
         CloseCartDialog ->
             let

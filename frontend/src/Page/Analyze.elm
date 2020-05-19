@@ -76,22 +76,13 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GetAppsCompleted (Ok apps) ->
-            ( { model | apps = Success apps }, Cmd.none )
-
-        GetAppsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetAppsCompleted" (Error.toString error)
---            in
-            ( model, Cmd.none )
+        GetAppsCompleted result ->
+            ( { model | apps = RemoteData.fromResult result }, Cmd.none )
 
         GetJobsCompleted (Ok (agaveJobs, planbJobs)) ->
             ( { model | jobs = Success (agaveJobs ++ planbJobs) }, Cmd.none )
 
-        GetJobsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetJobsCompleted" (Error.toString error)
---            in
+        GetJobsCompleted (Err error) ->
             ( { model | jobs = Failure error }, Cmd.none )
 
         SetTab label ->
@@ -121,7 +112,7 @@ view model =
                 Failure error ->
                     ( 0, Error.view error False )
 
-                _ ->
+                NotAsked ->
                     ( 0, text "" )
 
         ( numJobs, jobsRow ) =
@@ -137,7 +128,7 @@ view model =
                 Failure error ->
                     ( 0, Error.view error False )
 
-                _ ->
+                NotAsked ->
                     ( 0
                     , div [ class "mt-2 ml-3 alert alert-secondary" ]
                         [ a [ Route.href Route.Login ] [ text "Sign-in" ]

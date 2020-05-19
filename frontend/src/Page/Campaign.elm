@@ -9,10 +9,8 @@ import Campaign exposing (Campaign)
 import SamplingEvent exposing (SamplingEvent)
 import Sample exposing (Sample)
 import Http
---import Page.Error as Error exposing (PageLoadError)
-import Task exposing (Task)
+import RemoteData exposing (RemoteData(..))
 import String.Extra
---import Debug exposing (toString)
 
 
 
@@ -21,18 +19,18 @@ import String.Extra
 
 type alias Model =
     { session : Session
-    , campaign : Maybe Campaign
-    , samplingEvents : Maybe (List SamplingEvent)
-    , samples : Maybe (List Sample)
+    , campaign : RemoteData Http.Error Campaign
+    , samplingEvents : RemoteData Http.Error (List SamplingEvent)
+    , samples : RemoteData Http.Error (List Sample)
     }
 
 
 init : Session -> Int -> ( Model, Cmd Msg )
 init session id =
     ( { session = session
-      , campaign = Nothing
-      , samplingEvents = Nothing
-      , samples = Nothing
+      , campaign = Loading
+      , samplingEvents = Loading
+      , samples = Loading
       }
       , Cmd.batch
         [ Campaign.fetch id |> Http.send GetCampaignCompleted
@@ -60,32 +58,14 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GetCampaignCompleted (Ok campaign) ->
-            ( { model | campaign = Just campaign }, Cmd.none )
+        GetCampaignCompleted result ->
+            ( { model | campaign = RemoteData.fromResult result }, Cmd.none )
 
-        GetCampaignCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetCampaignCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetSamplingEventsCompleted result ->
+            ( { model | samplingEvents = RemoteData.fromResult result }, Cmd.none )
 
-        GetSamplingEventsCompleted (Ok samplingEvents) ->
-            ( { model | samplingEvents = Just samplingEvents }, Cmd.none )
-
-        GetSamplingEventsCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSamplingEventsCompleted" (toString error)
---            in
-            ( model, Cmd.none )
-
-        GetSamplesCompleted (Ok samples) ->
-            ( { model | samples = Just samples }, Cmd.none )
-
-        GetSamplesCompleted (Err error) -> --TODO
---            let
---                _ = Debug.log "GetSamplesCompleted" (toString error)
---            in
-            ( model, Cmd.none )
+        GetSamplesCompleted result ->
+            ( { model | samples = RemoteData.fromResult result }, Cmd.none )
 
 
 
@@ -94,20 +74,17 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    case model.campaign of
-        Nothing ->
-            text ""
-
-        Just campaign ->
+    Page.viewRemoteData model.campaign
+        (\campaign ->
             let
                 pageTitle =
                     "Campaign (" ++ (String.Extra.toSentenceCase campaign.type_) ++ ")"
 
                 numSamplingEvents =
-                    model.samplingEvents |> Maybe.map List.length |> Maybe.withDefault 0
+                    model.samplingEvents |> RemoteData.toMaybe |> Maybe.map List.length |> Maybe.withDefault 0
 
                 numSamples =
-                    model.samples |> Maybe.map List.length |> Maybe.withDefault 0
+                    model.samples |> RemoteData.toMaybe |> Maybe.map List.length |> Maybe.withDefault 0
             in
             div [ class "container" ]
                 [ Page.viewTitle pageTitle campaign.name
@@ -136,6 +113,7 @@ view model =
                 , div [ class "pt-2" ]
                     [ viewSamples model.samples ]
                 ]
+        )
 
 
 viewCampaign : Campaign -> Html Msg
@@ -187,8 +165,8 @@ viewCampaign campaign =
         ]
 
 
-viewSamplingEvents : Maybe (List SamplingEvent) -> Html Msg
-viewSamplingEvents maybeSamplingEvents =
+viewSamplingEvents : RemoteData Http.Error (List SamplingEvent) -> Html Msg
+viewSamplingEvents samplingEvents =
     let
         mkRow samplingEvent =
             tr []
@@ -197,11 +175,8 @@ viewSamplingEvents maybeSamplingEvents =
                 , td [] [ text (String.Extra.toSentenceCase samplingEvent.type_) ]
                 ]
     in
-    case maybeSamplingEvents |> Maybe.withDefault [] of
-        [] ->
-            text "None"
-
-        samplingEvents ->
+    Page.viewRemoteData samplingEvents
+        (\events ->
             table [ class "table" ]
                 [ thead []
                     [ tr []
@@ -210,12 +185,13 @@ viewSamplingEvents maybeSamplingEvents =
                         ]
                     ]
                 , tbody []
-                    (samplingEvents |> List.sortBy .name |> List.map mkRow)
+                    (events |> List.sortBy .name |> List.map mkRow)
                 ]
+        )
 
 
-viewSamples : Maybe (List Sample) -> Html Msg
-viewSamples maybeSamples =
+viewSamples : RemoteData Http.Error (List Sample) -> Html Msg
+viewSamples samples =
     let
         mkRow sample =
             tr []
@@ -223,11 +199,8 @@ viewSamples maybeSamples =
                     [ a [ Route.href (Route.Sample sample.id) ] [ text sample.accn ] ]
                 ]
     in
-    case maybeSamples |> Maybe.withDefault [] of
-        [] ->
-            text "None"
-
-        samples ->
+    Page.viewRemoteData samples
+        (\s ->
             table [ class "table" ]
                 [ thead []
                     [ tr []
@@ -235,5 +208,6 @@ viewSamples maybeSamples =
                         ]
                     ]
                 , tbody []
-                    (samples |> List.sortBy .accn |> List.map mkRow)
+                    (s |> List.sortBy .accn |> List.map mkRow)
                 ]
+        )

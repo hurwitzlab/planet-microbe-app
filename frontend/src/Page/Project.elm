@@ -66,29 +66,17 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GetProjectCompleted (Ok project) ->
-            ( { model | project = Success project }, Cmd.none )
+        GetProjectCompleted result ->
+            ( { model | project = RemoteData.fromResult result }, Cmd.none )
 
-        GetProjectCompleted (Err error) ->
-            ( { model | project = Failure error }, Cmd.none )
+        GetCampaignsCompleted result ->
+            ( { model | campaigns = RemoteData.fromResult result }, Cmd.none )
 
-        GetCampaignsCompleted (Ok campaigns) ->
-            ( { model | campaigns = Success campaigns }, Cmd.none )
+        GetSamplingEventsCompleted result ->
+            ( { model | samplingEvents = RemoteData.fromResult result }, Cmd.none )
 
-        GetCampaignsCompleted (Err error) ->
-            ( { model | campaigns = Failure error }, Cmd.none )
-
-        GetSamplingEventsCompleted (Ok samplingEvents) ->
-            ( { model | samplingEvents = Success samplingEvents }, Cmd.none )
-
-        GetSamplingEventsCompleted (Err error) ->
-            ( { model | samplingEvents = Failure error }, Cmd.none )
-
-        GetSamplesCompleted (Ok samples) ->
-            ( { model | samples = Success samples }, Cmd.none )
-
-        GetSamplesCompleted (Err error) ->
-            ( { model | samples = Failure error }, Cmd.none )
+        GetSamplesCompleted result ->
+            ( { model | samples = RemoteData.fromResult result }, Cmd.none )
 
 
 
@@ -97,8 +85,8 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    case model.project of
-        Success project ->
+    Page.viewRemoteData model.project
+        (\project ->
             let
                 numCampaigns =
                     model.campaigns |> RemoteData.toMaybe |> Maybe.map List.length |> Maybe.withDefault 0
@@ -124,7 +112,7 @@ view model =
                         ]
                     ]
                 , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
-                    [ viewRemoteData viewCampaigns model.campaigns ]
+                    [ viewList viewCampaigns model.campaigns ]
                 , div [ class "pt-4" ]
                     [ Page.viewTitle2 "Sampling Events" False
                     , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
@@ -135,7 +123,7 @@ view model =
                         ]
                     ]
                 , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
-                    [ viewRemoteData viewSamplingEvents model.samplingEvents ]
+                    [ viewList viewSamplingEvents model.samplingEvents ]
                 , div [ class "pt-4" ]
                     [ Page.viewTitle2 "Samples" False
                     , span [ class "badge badge-pill badge-primary align-middle ml-2" ]
@@ -146,14 +134,9 @@ view model =
                         ]
                     ]
                 , div [ class "pt-2", style "overflow-y" "auto", style "max-height" "80vh" ]
-                    [ viewRemoteData viewSamples model.samples ]
+                    [ viewList viewSamples model.samples ]
                 ]
-
-        Failure error ->
-            Error.view error False
-
-        _ ->
-            Page.viewSpinnerOverlayCentered
+        )
 
 
 viewProject : Project -> Html Msg
@@ -206,20 +189,15 @@ viewProject project =
         ]
 
 
-viewRemoteData : (List a -> Html msg) -> RemoteData Http.Error (List a) -> Html msg
-viewRemoteData viewFunc remoteData =
-    case remoteData of
-        Success data ->
+viewList : (List a -> Html msg) -> RemoteData Http.Error (List a) -> Html msg
+viewList viewFunc remoteData =
+    Page.viewRemoteData remoteData
+        (\data ->
             if List.length data > 0 then
                 viewFunc data
             else
                 text "None"
-
-        Failure error ->
-            Error.view error False
-
-        _ ->
-            Page.viewSpinnerOverlayCentered
+        )
 
 
 viewCampaigns : List Campaign -> Html Msg

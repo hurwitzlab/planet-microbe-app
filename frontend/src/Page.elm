@@ -1,9 +1,12 @@
-module Page exposing (Page(..), view, viewErrors, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewSpinnerOverlayCentered, viewToggleText, viewDialog, viewMessageDialog, viewJobStatus)
+module Page exposing (Page(..), view, viewErrors, viewRemoteData, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewSpinnerOverlayCentered, viewToggleText, viewDialog, viewMessageDialog, viewJobStatus)
 
 import Browser exposing (Document)
 import Html exposing (Html, a, button, h1, h2, h5, div, span, img, i, li, nav, p, text, ul, small, footer)
 import Html.Attributes exposing (id, class, classList, src, href, style, title, type_, attribute, tabindex, target)
 import Html.Events exposing (onClick)
+import Http
+import RemoteData exposing (RemoteData(..))
+import Error
 import Icon
 import Route exposing (Route)
 import Session exposing (Session)
@@ -215,6 +218,22 @@ viewErrors dismissErrors errors =
                 ++ [ button [ onClick dismissErrors ] [ text "Ok" ] ]
 
 
+viewRemoteData : RemoteData Http.Error a -> (a -> Html msg) -> Html msg
+viewRemoteData remoteData viewDataFunc =
+    case remoteData of
+        Success data ->
+            viewDataFunc data
+
+        Loading ->
+            viewSpinner
+
+        Failure error ->
+            Error.view error False
+
+        NotAsked ->
+            viewBlank
+
+
 viewTitle : String -> String -> Html msg
 viewTitle title subTitle =
     h1 [ class "pb-2 mt-5 mb-2 font-weight-bold border-bottom", style "width" "100%" ]
@@ -297,7 +316,7 @@ viewToggleText s expanded toggleMsg =
             ]
 
 
--- TODO move into module.  This is our own Boostrap modal since elm-dialog has not yet been ported to Elm 0.19
+-- This is our own Boostrap modal since elm-dialog has not yet been ported to Elm 0.19
 viewDialog : String -> List (Html msg) -> List (Html msg) -> msg -> Html msg
 viewDialog title body footer closeMsg =
     div []
