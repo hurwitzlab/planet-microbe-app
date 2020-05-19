@@ -28,7 +28,6 @@ import Config exposing (apiBaseUrl)
 
 type alias Model =
     { session : Session
-    , username : String --FIXME use session instead
     , jobId : String
     , job : Maybe Job
     , app : Maybe App
@@ -37,10 +36,14 @@ type alias Model =
     , results : RemoteData Http.Error (List (String, String))
     , startTime : Int -- milliseconds
     , lastPollTime : Int -- milliseconds
-    , showCancelDialog : Bool
-    , cancelDialogMessage : Maybe String
+    , dialogState : DialogState
     , fileBrowser : Maybe FileBrowser.Model
     }
+
+
+type DialogState
+    = NoDialog
+    | CancelDialog (Maybe String)
 
 
 init : Session -> String -> ( Model, Cmd Msg )
@@ -63,12 +66,8 @@ init session id =
 
         loadApp app_name =
             App.fetchByName app_name |> Http.toTask
-
-        username =
-            Session.getUser session |> Maybe.map .user_name |> Maybe.withDefault ""
     in
     ( { session = session
-      , username = username
       , jobId = id
       , job = Nothing
       , app = Nothing
@@ -77,14 +76,13 @@ init session id =
       , results = NotAsked
       , startTime = 0
       , lastPollTime = 0
-      , showCancelDialog = False
-      , cancelDialogMessage = Nothing
+      , dialogState = NoDialog
       , fileBrowser = Nothing
       }
       , loadJob
             |> Task.andThen
                 (\job ->
-                    (loadApp job.app_id)
+                    loadApp job.app_id
                         |> Task.andThen
                             (\app ->
                                 Task.succeed (job, app)
@@ -105,11 +103,6 @@ subscriptions _ =
         [ Time.every 500 (\time -> FileBrowserMsg (FileBrowser.SearchUsers time)) -- milliseconds
         , Time.every (10*1000) PollJob -- milliseconds
         ]
-
-
-isPlanB : String -> Bool
-isPlanB id =
-    String.startsWith "planb" id
 
 
 
@@ -136,9 +129,6 @@ update msg model =
     let
         token =
             Session.token model.session
-
-        username =
-            Session.getUser model.session |> Maybe.map .user_name |> Maybe.withDefault ""
 
         loadJobFromAgave =
             Agave.getJob token model.jobId |> Http.toTask |> Task.map .result
@@ -343,7 +333,7 @@ update msg model =
                         |> Http.toTask
                         |> Task.andThen (\_ -> loadJob)
             in
-            ( { model | showCancelDialog = True, cancelDialogMessage = Nothing }
+            ( { model | dialogState = CancelDialog Nothing }
             , Task.attempt CancelJobCompleted stopJob
             )
 
@@ -352,13 +342,13 @@ update msg model =
                 errorMsg =
                     "A cancellation request was sent.  This may or may not result in the termination of the job depending on its state."
             in
-            ( { model | cancelDialogMessage = Just errorMsg, job = Just job }, Cmd.none )
+            ( { model | dialogState = CancelDialog (Just errorMsg), job = Just job }, Cmd.none )
 
         CancelJobCompleted (Err error) ->
-            ( { model | cancelDialogMessage = Just (Error.toString error) }, Cmd.none )
+            ( { model | dialogState = CancelDialog (Just <| Error.toString error) }, Cmd.none )
 
         CloseCancelDialog ->
-            ( { model | showCancelDialog = False }, Cmd.none )
+            ( { model | dialogState = NoDialog }, Cmd.none )
 
         FileBrowserMsg subMsg ->
             case model.fileBrowser of
@@ -382,8 +372,11 @@ view model =
     case ( model.job, model.app ) of
         ( Just job, Just app ) ->
             let
+                username =
+                    Session.getUser model.session |> Maybe.map .user_name |> Maybe.withDefault ""
+
                 deUrl =
-                    "https://de.cyverse.org/de/?type=data&folder=/iplant/home/" ++ model.username ++ "/archive/jobs/job-" ++ model.jobId --FIXME move base url to config
+                    "https://de.cyverse.org/de/?type=data&folder=/iplant/home/" ++ username ++ "/archive/jobs/job-" ++ model.jobId --FIXME move base url to config
             in
             div [ class "container" ]
                 [ div [ class "pb-2 mt-5 mb-2 border-bottom", style "width" "100%" ]
@@ -428,10 +421,12 @@ view model =
                 , viewOutputs model
 --                , Page.viewTitle2 "Results" False
 --                , viewResults model
-                , if model.showCancelDialog then
-                    viewCancelDialog model
-                  else
-                    text ""
+                , case model.dialogState of
+                    CancelDialog msg ->
+                        viewCancelDialog msg
+
+                    _ ->
+                        Page.viewBlank
               ]
 
         ( _, _ ) ->
@@ -485,23 +480,13 @@ viewJob job app =
         ]
 
 
-isRunning : Agave.Job -> Bool
-isRunning job =
-    job.status /= "FINISHED" && job.status /= "FAILED" && job.status /= "STOPPED"
-
-
-isFailed : Agave.Job -> Bool
-isFailed job =
-    job.status == "FAILED" || job.status == "STOPPED"
-
-
 viewProgress : String -> Html msg
 viewProgress status =
     let
         progressBar pct =
             let
                 label =
-                    String.replace "_" " " status -- replace _ with space
+                    String.replace "_" " " status
             in
             div [ class "progress float-left d-inline-block", style "width" "20em", style "height" "2.5em" ]
                 [ div [ class "progress-bar progress-bar-striped progress-bar-animated", style "width" ((String.fromInt pct) ++ "%"), style "height" "2.5em",
@@ -803,53 +788,36 @@ viewResults model =
         ]
 
 
---cancelDialogConfig : Model -> Dialog.Config Msg
---cancelDialogConfig model =
---    let
---        content =
---            case model.cancelDialogMessage of
---                Nothing ->
---                    spinner
---
---                Just message ->
---                    div [ class "alert alert-info" ]
---                        [ p [] [ text message ]
---                        ]
---
---        footer =
---            if model.cancelDialogMessage == Nothing then
---                div [] [ text " " ]
---            else
---                button [ class "btn btn-default", onClick CloseCancelDialog ] [ text "OK" ]
---    in
---    { closeMessage = Nothing
---    , containerClass = Nothing
---    , header = Just (h3 [] [ text "Cancel Job" ])
---    , body = Just content
---    , footer = Just footer
---    }
-
-
-viewCancelDialog : Model -> Html Msg
-viewCancelDialog model =
+viewCancelDialog : Maybe String -> Html Msg
+viewCancelDialog maybeMessage =
     let
-        body =
-            case model.cancelDialogMessage of
+        (body, footer) =
+            case maybeMessage of
                 Nothing ->
-                    Page.viewSpinner
+                    ( Page.viewSpinner, div [] [ text " " ] )
 
                 Just message ->
-                    div [ class "alert alert-info m-3" ]
-                        [ p [] [ text message ]
-                        ]
-
-        footer =
-            if model.cancelDialogMessage == Nothing then
-                div [] [ text " " ]
-            else
-                button [ class "btn btn-outline-secondary", onClick CloseCancelDialog ] [ text "OK" ]
+                    ( div [ class "alert alert-info m-3" ]
+                        [ p [] [ text message ] ]
+                    , button [ class "btn btn-outline-secondary", onClick CloseCancelDialog ] [ text "OK" ]
+                    )
     in
     Page.viewDialog "Submitting Job"
         [ body ]
         [ footer ]
         CloseCancelDialog
+
+
+isPlanB : String -> Bool
+isPlanB id =
+    String.startsWith "planb" id
+
+
+isRunning : Agave.Job -> Bool
+isRunning job =
+    job.status /= "FINISHED" && job.status /= "FAILED" && job.status /= "STOPPED"
+
+
+isFailed : Agave.Job -> Bool
+isFailed job =
+    job.status == "FAILED" || job.status == "STOPPED"
