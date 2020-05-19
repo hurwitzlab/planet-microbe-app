@@ -1,3 +1,4 @@
+//TODO break this into separate modules
 import '../assets/scss/bootstrap_custom.scss'
 import '../assets/css/landing-page.css';
 import '../assets/css/elm-datepicker.css';
@@ -5,10 +6,10 @@ import '../assets/scss/elm-treeview.scss'
 import $ from "jquery";
 //import popper from "popper.js"; // for Bootstrap but not used
 import bootstrap from "bootstrap";
+import * as simplots from '../node_modules/sim-plots/src/sim-plots.js';
 //import "@fortawesome/fontawesome-free/js/all.min.js" // DO NOT USE!  Include CSS as below
 import "@fortawesome/fontawesome-free/css/all.min.css"
 import { Elm } from './Main.elm';
-
 
 
 /*
@@ -86,6 +87,54 @@ window.addEventListener("storage",
     },
     false
 );
+
+
+/*
+ * Define ports for Sequence Similarity Plots
+ */
+
+app.ports.createSimPlot.subscribe(function(args) {
+    console.log("createSimPlot: ", args);
+    var elementId = args[0],
+        datasets = args[1];
+
+    if (!elementId || !datasets) {
+        console.error("createSimPlot: missing required args");
+        return;
+    }
+
+    var element = $("#"+elementId);
+
+    datasets.forEach(d => {
+        var dataType = d[0];
+        var filepath = d[1];
+        var data = d[2];
+
+        dataType = dataType.toLowerCase();
+        console.log("Plot type:", dataType, filepath);
+
+        if (dataType == "matrix") { // similarity matrix
+            element.append("<h3>Similarity Heatmap</h3>");
+            simplots.symmetricalHeatmap(elementId, data);
+            element.append("<hr style='border:1px dashed #E0E0E0'>");
+            element.append("<h3>Similarity Edge Boundary Graph</h3>");
+            simplots.edgeboundary(elementId, data);
+            element.append("<hr style='border:1px dashed #E0E0E0'>");
+            element.append("<h3>Similarity PCoA Plot</h3>");
+            simplots.pcoaPlot(elementId, data);
+        }
+        else if (dataType == "centrifuge") { // centrifuge format
+            simplots.bubblePlot(elementId, data);
+        }
+        else if (dataType == "blast-tab") { // blast tabular format
+            var basename = filepath.split('/').reverse()[0];
+            element.append("<h3>" + basename + ": Frequency of HSPs by sample and depth (m)</h3>")
+            simplots.heatmap(elementId, data);
+        }
+
+        element.append("<hr style='border:0;clear:both'>")
+    });
+});
 
 
 /*

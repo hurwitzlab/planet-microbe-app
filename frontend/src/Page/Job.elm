@@ -1,4 +1,4 @@
-module Page.Job exposing (Model, Msg(..), init, toSession, subscriptions, update, view)
+port module Page.Job exposing (Model, Msg(..), init, toSession, subscriptions, update, view)
 
 import Session exposing (Session)
 import Agave exposing (Job, FileResult)
@@ -15,6 +15,7 @@ import Route
 import Page exposing (viewJobStatus)
 import Task exposing (Task)
 import Dict exposing (Dict)
+import List.Extra
 import Time
 import FileBrowser
 import Icon
@@ -105,6 +106,10 @@ subscriptions _ =
         ]
 
 
+--TODO change to accept record instead of list of tuples
+port createSimPlot : (String, List (String, String, String)) -> Cmd msg
+
+
 
 -- UPDATE --
 
@@ -151,7 +156,7 @@ update msg model =
             , Cmd.none
             )
 
-        GetJobCompleted (Err error) -> --TODO
+        GetJobCompleted (Err error) ->
             ( model, Error.redirectLoadError error (Session.navKey model.session) )
 
         GetHistory ->
@@ -189,7 +194,7 @@ update msg model =
             in
             ( { model | fileBrowser = Just subModel }, Cmd.map FileBrowserMsg subCmd )
 
-        GetResults -> --FIXME this code is a little complicated
+        GetResults ->
             let
                 owner =
                     model.job |> Maybe.map .owner |> Maybe.withDefault ""
@@ -210,17 +215,15 @@ update msg model =
                     Agave.getFile token path
                         |> Http.toTask |> Task.map (\data -> List.singleton (path, data))
 
-                -- Gets a single file or every file in a directory if path ends in "/"
+                -- Get a file or every file in a directory if path ends in "/"
                 loadResultData path =
-                    case String.endsWith "/" path of
-                        False ->
-                            loadOutput path
-
-                        True ->
-                            -- Get contents of every file in the path
-                            loadOutputs path
-                                |> Task.andThen
-                                    (\outputs -> outputs |> List.map loadFile |> Task.sequence |> Task.map List.concat)
+                    if String.endsWith "/" path then
+                        -- Get contents of every file in the path
+                        loadOutputs path
+                            |> Task.andThen
+                                (\outputs -> outputs |> List.map loadFile |> Task.sequence |> Task.map List.concat)
+                    else
+                        loadOutput path
 
                 loadResults =
                     case model.app of
@@ -235,20 +238,24 @@ update msg model =
             )
 
         SetResults (Ok results) ->
-            --case results of
-            --    [] ->
-            --        ( { model | loadedResults = True }, Cmd.none ) -- File not found
-            --
-            --    _ ->
-            --        let
-            --            datasets =
-            --                List.Extra.lift2 (\a b -> (a.app_data_type.name, Tuple.first b, Tuple.second b)) model.app.app_results results
-            --                -- TODO change createSimPlot port to accept record instead of list of tuples
-            --        in
-            --        ( { model | loadedResults = True, results = Just results }
-            --        , Ports.createSimPlot ("sim-plot", datasets)
-            --        )
-            ( model, Cmd.none )
+            let
+                cmd =
+                    if results == [] then -- File not found
+                        Cmd.none
+                    else
+                        case model.app of
+                            Just app ->
+                                let
+                                    datasets =
+                                        List.Extra.lift2 (\a b -> (a.data_type, Tuple.first b, Tuple.second b)) app.app_results results
+                                        --TODO change createSimPlot port to accept record instead of list of tuples
+                                in
+                                createSimPlot ("sim-plot", datasets)
+
+                            Nothing ->
+                                Cmd.none
+            in
+            ( { model | results = Success results }, cmd )
 
         SetResults (Err error) ->
             ( { model | results = Failure error }, Cmd.none )
@@ -261,8 +268,6 @@ update msg model =
                 Just job ->
                     if model.loadingJob == False && isRunning job then
                         let
---                            _ = Debug.log "Job.Poll" ("polling job " ++ job.id)
-
                             startTime =
                                 if model.startTime == 0 then
                                     Time.posixToMillis time
@@ -286,10 +291,7 @@ update msg model =
                                     Ok j ->
                                         SetJob j
 
-                                    Err error ->
---                                        let
---                                            _ = Debug.log "Error" ("could not poll job" ++ (errorString error))
---                                        in
+                                    Err _ -> -- Ignore polling failure and try next time
                                         SetJob job
 
                             second =
@@ -314,12 +316,10 @@ update msg model =
                             newModel =
                                 { model | startTime = startTime, lastPollTime = Time.posixToMillis time }
                         in
-                        case doPoll of
-                            True ->
-                                ( { newModel | loadingJob = True }, Task.attempt handleJob loadJob )
-
-                            False ->
-                                ( newModel, Cmd.none )
+                        if doPoll then
+                            ( { newModel | loadingJob = True }, Task.attempt handleJob loadJob )
+                        else
+                            ( newModel, Cmd.none )
                     else
                         ( model, Cmd.none )
 
@@ -419,8 +419,10 @@ view model =
                         ]
                     ]
                 , viewOutputs model
---                , Page.viewTitle2 "Results" False
---                , viewResults model
+                , br [] []
+                , br [] []
+                , Page.viewTitle2 "Results" False
+                , viewResults model
                 , case model.dialogState of
                     CancelDialog msg ->
                         viewCancelDialog msg
@@ -430,7 +432,7 @@ view model =
               ]
 
         ( _, _ ) ->
-            text ""
+            Page.viewSpinnerCentered
 
 
 viewJob : Job -> App -> Html Msg
@@ -753,7 +755,10 @@ viewResults model =
                         "FINISHED" ->
                             case model.results of
                                 Success results ->
-                                    div [] []
+                                    if results == [] then
+                                        text "None"
+                                    else
+                                        Page.viewBlank
 
                                 Loading ->
                                     Page.viewSpinner
@@ -762,10 +767,10 @@ viewResults model =
                                     Error.view error False
 
                                 NotAsked ->
-                                    button [ class "btn btn-default", onClick GetResults ] [ text "Show Results" ]
+                                    button [ class "btn btn-outline-secondary", onClick GetResults ] [ text "Show Results" ]
 
                         "FAILED" ->
-                            tr [] [ td [] [ text "None" ] ]
+                            text "Failed to load"
 
                         _ ->
                             div [ class "italic" ] [ text "Job is not FINISHED, please wait ..." ]
@@ -773,18 +778,9 @@ viewResults model =
                 Nothing ->
                     Page.viewBlank
     in
-    div []
-        [ h2 [] [ text "Results" ]
-        , table [ class "table" ]
-            [ tbody []
-                [ tr []
-                    [ td []
-                        [ div [] [ body ]
-                        , div [ id "sim-plot" ] [] -- has to be located here for accessibility from heatmap.js
-                        ]
-                    ]
-                ]
-            ]
+    div [ class "border-top w-100 pt-2" ]
+        [ body
+        , div [ id "sim-plot" ] [] -- must always be present for accessibility from heatmap.js
         ]
 
 

@@ -10,24 +10,22 @@ router.get('/apps', asyncHandler(async (req, res) => {
 }));
 
 router.get('/apps/:id(\\d+)', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let result = await client.query({
-        text: "SELECT app_id,name,provider,is_active,is_maintenance FROM app WHERE app_id=$1",
-        values: [id]
-    });
-    if (result.rowCount == 0)
+    const id = req.params.id;
+    const app = await getApp(id);
+    if (!app)
         res.status(404);
     else
-        res.json(result.rows[0]);
+        res.json(app);
 }));
 
 router.get('/apps/:name([\\w\\.\\-\\_]+)', asyncHandler(async (req, res) => {
-    let name = req.params.name;
-    let result = await client.query("SELECT app_id,name,provider,is_active,is_maintenance FROM app ORDER BY name DESC");
+    const name = req.params.name;
+    const result = await client.query("SELECT app_id,name FROM app ORDER BY name DESC");
 
-    for (let app of result.rows) {
-        let nameWithoutVersion = app.name.replace(/-(\d+\.)?\d+\.\d+(u\d+)?$/, '');
-        if (app.name.toLowerCase() == name || nameWithoutVersion.toLowerCase() == name) {
+    for (let row of result.rows) {
+        let nameWithoutVersion = row.name.replace(/-(\d+\.)?\d+\.\d+(u\d+)?$/, '');
+        if (row.name.toLowerCase() == name || nameWithoutVersion.toLowerCase() == name) {
+            const app = await getApp(row.app_id);
             res.json(app);
             return;
         }
@@ -53,5 +51,33 @@ router.post('/apps/runs', asyncHandler(async (req, res) => {
 
     res.json(result.rows[0]);
 }));
+
+async function getApp(id) {
+    let result = await client.query({
+        text:
+            `SELECT app_id,app.name,provider,is_active,is_maintenance
+            FROM app
+            WHERE app_id=$1`,
+        values: [id]
+    });
+
+    if (result.rowCount == 0)
+        return;
+
+    let app = result.rows[0];
+
+    result = await client.query({
+        text:
+            `SELECT app_result_id,path,adt.name
+            FROM app_result
+            JOIN app_data_type adt USING (app_data_type_id)
+            WHERE app_id=$1`,
+        values: [id]
+    });
+
+    app.app_results = result.rows;
+
+    return app;
+}
 
 module.exports = router;
