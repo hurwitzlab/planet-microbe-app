@@ -11,7 +11,7 @@ import Html.Events exposing (onClick, onCheck, onInput)
 import Http
 import RemoteData exposing (RemoteData(..))
 import Route
-import Page exposing (viewSpinner, viewSpinnerCentered, viewDialog)
+import Page exposing (viewBlank, viewSpinner, viewSpinnerCentered, viewDialog)
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Task exposing (Task)
@@ -36,13 +36,18 @@ type alias Model =
 --    , selectedCartId : Maybe Int
     , files : RemoteData Http.Error (List File)
 --    , sampleGroups : List SampleGroup
-    , showRunDialog : Bool
-    , cartDialogInputId : Maybe String
-    , dialogError : Maybe String
     , filterFileFormat : String
-    , inputId : Maybe String
+    , dialogState : DialogState
     , fileBrowser : FileBrowser.Model
     }
+
+
+type DialogState
+    = NoDialog
+    | RunDialog
+    | FileBrowserDialog String
+    | CartDialog String
+    | ErrorDialog String
 
 
 init : Session -> String -> ( Model, Cmd Msg )
@@ -90,11 +95,8 @@ init session term =
 --      , selectedCartId = Nothing -- Current
       , files = NotAsked
 --      , sampleGroups = []
-      , showRunDialog = False
-      , cartDialogInputId = Nothing
-      , dialogError = Nothing
       , filterFileFormat = "All Formats"
-      , inputId = Nothing
+      , dialogState = NoDialog
       , fileBrowser = FileBrowser.init session (Just fileBrowserConfig)
       }
       , loadApp
@@ -141,14 +143,12 @@ type Msg
     | RunJobCompleted (Result Http.Error (Agave.Response Agave.JobStatus))
     | ShareJobCompleted (Result Http.Error (Agave.Response Agave.JobStatus))
     | AppRunCompleted (Result Http.Error AppRun)
-    | CloseRunDialog
+    | CloseDialog
     | OpenFileBrowserDialog String
-    | CloseFileBrowserDialog
     | OpenCart String
     | LoadCartCompleted (Result Http.Error (List File))
 --    | SelectCart (Maybe Int)
     | CloseCartDialog
-    | CancelCartDialog
     | FilterByFileFormat String
     | CartMsg Cart.Msg
     | FileBrowserMsg FileBrowser.Msg
@@ -242,7 +242,7 @@ update msg model =
 --
 --                _ = Debug.log "ext" exts
             in
-            ( { model | inputs = newInputs, inputId = Nothing }, Cmd.none )
+            ( { model | inputs = newInputs, dialogState = NoDialog }, Cmd.none )
 
         SetParameter id value ->
             let
@@ -302,14 +302,14 @@ update msg model =
                                 else
                                     Agave.launchJob token jobRequest jobSettings
                         in
-                        ( { model | showRunDialog = True }
+                        ( { model | dialogState = RunDialog }
                         , Cmd.batch
                             [ launchApp |> Http.send RunJobCompleted
                             , sendAppRun
                             ]
                         )
                     else
-                        ( { model | showRunDialog = True, dialogError = Just "Please enter the required inputs (see asterisk)." }, Cmd.none )
+                        ( { model | dialogState = ErrorDialog "Please enter the required inputs (see asterisk)." }, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -341,19 +341,20 @@ update msg model =
                         Http.BadStatus response ->
                             case response.status.code of
                                 412 ->
-                                    Just "This app is currently unavailable due to CyVerse maintenance. Please try again later."
+                                    "This app is currently unavailable due to CyVerse maintenance. Please try again later."
 
                                 _ ->
                                     case Decode.decodeString Agave.decoderJobError response.body of
                                         Ok result ->
-                                            Just result.message
+                                            result.message
 
                                         Err _ ->
-                                            Just response.body
+                                            response.body
 
-                        _ -> Just (Error.toString error)
+                        _ ->
+                            Error.toString error
             in
-            ( { model | dialogError = errorMsg }, Cmd.none )
+            ( { model | dialogState = ErrorDialog errorMsg }, Cmd.none )
 
         ShareJobCompleted _ ->
             ( model, Cmd.none )
@@ -361,18 +362,15 @@ update msg model =
         AppRunCompleted _ ->
             ( model, Cmd.none )
 
-        CloseRunDialog ->
-            ( { model | showRunDialog = False, dialogError = Nothing }, Cmd.none )
+        CloseDialog ->
+            ( { model | dialogState = NoDialog }, Cmd.none )
 
         OpenFileBrowserDialog inputId ->
             let
                 (subModel, subCmd) =
                     FileBrowser.update model.session FileBrowser.RefreshPath model.fileBrowser
             in
-            ( { model | inputId = Just inputId, fileBrowser = subModel }, Cmd.map FileBrowserMsg subCmd )
-
-        CloseFileBrowserDialog ->
-            ( { model | inputId = Nothing }, Cmd.none )
+            ( { model | dialogState = FileBrowserDialog inputId, fileBrowser = subModel }, Cmd.map FileBrowserMsg subCmd )
 
         OpenCart inputId ->
             let
@@ -385,13 +383,21 @@ update msg model =
                     else
                         Cmd.none
             in
-            ( { model | cartDialogInputId = Just inputId }, cmd )
+            ( { model | dialogState = CartDialog inputId }, cmd )
 
         LoadCartCompleted result ->
             ( { model | files = RemoteData.fromResult result }, Cmd.none )
 
         CloseCartDialog ->
             let
+                inputId =
+                    case model.dialogState of
+                        CartDialog id ->
+                            id
+
+                        _ ->
+                            ""
+
                 selectedIds =
                     model.session |> Session.getCart |> Cart.selectedToList
 
@@ -433,12 +439,9 @@ update msg model =
 --                                |> String.join ";"
 
                 cmd =
-                    SetInput CYVERSE (withDefault "" model.cartDialogInputId) filesStr
+                    SetInput CYVERSE inputId filesStr
             in
-            update cmd { model | cartDialogInputId = Nothing }
-
-        CancelCartDialog ->
-            ( { model | cartDialogInputId = Nothing }, Cmd.none )
+            update cmd { model | dialogState = NoDialog }
 
 --        SelectCart maybeId ->
 --            let
@@ -516,14 +519,21 @@ view model =
                                 ]
 
                     dialog =
-                        if model.inputId /= Nothing then
-                            viewFileBrowserDialog model.fileBrowser (model.inputId |> Maybe.withDefault "") False
-                        else if model.showRunDialog then
-                            viewRunDialog model
-                        else if model.cartDialogInputId /= Nothing then
-                            viewCartDialog model
-                        else
-                            text ""
+                        case model.dialogState of
+                            FileBrowserDialog inputId ->
+                                viewFileBrowserDialog model.fileBrowser inputId False
+
+                            RunDialog ->
+                                viewRunDialog model
+
+                            CartDialog inputId ->
+                                viewCartDialog model
+
+                            ErrorDialog msg ->
+                                Page.viewErrorDialog msg CloseDialog
+
+                            NoDialog ->
+                                viewBlank
                 in
                 [ Page.viewTitle "App" app.name
                 , body
@@ -537,7 +547,7 @@ view model =
                 [ viewSpinnerCentered ]
 
             NotAsked ->
-                [ text "" ]
+                [ viewBlank ]
         )
 
 
@@ -786,31 +796,17 @@ viewSettings settings =
 viewRunDialog : Model -> Html Msg
 viewRunDialog model =
     let
-        body =
-            case model.dialogError of
-                Nothing ->
-                    viewSpinner
-
-                Just error ->
-                    div [ class "alert alert-danger" ]
-                        [ p [] [ text "An error occurred:" ]
-                        , p [] [ text error ]
-                        ]
-
         footer =
-            if model.dialogError == Nothing then
-                div [] [ text " " ]
-            else
-                button
-                    [ class "btn btn-outline-secondary"
-                    , onClick CloseRunDialog
-                    ]
-                    [ text "OK" ]
+            button
+                [ class "btn btn-outline-secondary"
+                , onClick CloseDialog
+                ]
+                [ text "OK" ]
     in
     viewDialog "Submitting Job"
-        [ body ]
+        [ viewSpinner ]
         [ footer ]
-        CloseRunDialog
+        CloseDialog
 
 
 --cartDialogConfig : Model -> Dialog.Config Msg
@@ -885,7 +881,7 @@ viewCartDialog model =
                     viewSpinner
 
         closeButton =
-            button [ class "btn btn-outline-secondary float-right", onClick CancelCartDialog ] [ text "Close" ]
+            button [ class "btn btn-outline-secondary float-right", onClick CloseDialog ] [ text "Close" ]
 
         footer =
             case model.files of
@@ -908,7 +904,7 @@ viewCartDialog model =
     viewDialog "Cart"
         [ body ]
         [ footer ]
-        CancelCartDialog
+        CloseDialog
 
 
 --viewCartDropdown : Maybe Int -> List SampleGroup -> Html Msg
@@ -1058,12 +1054,9 @@ viewFileBrowserDialog fileBrowser inputId isBusy =
                     FileBrowser.getSelected fileBrowser |> List.map .path |> String.join ";"
             in
             div []
-                [ button [ class "btn btn-outline-secondary float-left mr-2", onClick CloseFileBrowserDialog ] [ text "Cancel" ]
+                [ button [ class "btn btn-outline-secondary float-left mr-2", onClick CloseDialog ] [ text "Cancel" ]
                 , button [ class "btn btn-primary", onClick (SetInput CYVERSE inputId selectedFilepaths) ] [ text "Select" ]
                 ]
-
-        closeMsg =
-            CloseFileBrowserDialog
 
         width =
             "40vw"
@@ -1074,7 +1067,7 @@ viewFileBrowserDialog fileBrowser inputId isBusy =
                 [ div [ class "modal-content" ]
                     [ div [ class "modal-header" ]
                         [ h5 [ class "modal-title" ] [ text title ]
-                        , button [ type_ "button", class "close", onClick closeMsg ] [ span [] [ text (String.fromChar (Char.fromCode 215)) ] ]
+                        , button [ type_ "button", class "close", onClick CloseDialog ] [ span [] [ text (String.fromChar (Char.fromCode 215)) ] ]
                         ]
                     , div [ class "modal-body" ] [ body ]
                     , div [ class "modal-footer" ] [ footer ]

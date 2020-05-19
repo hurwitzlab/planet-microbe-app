@@ -1,4 +1,4 @@
-module Page exposing (Page(..), view, viewErrors, viewRemoteData, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewSpinnerOverlayCentered, viewToggleText, viewDialog, viewMessageDialog, viewJobStatus)
+module Page exposing (Page(..), view, viewErrors, viewRemoteData, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewSpinnerOverlayCentered, viewToggleText, viewDialog, viewMessageDialog, viewErrorDialog, viewJobStatus)
 
 import Browser exposing (Document)
 import Html exposing (Html, a, button, h1, h2, h5, div, span, img, i, li, nav, p, text, ul, small, footer)
@@ -341,6 +341,18 @@ viewMessageDialog message closeMsg =
     viewDialog "Note"
         [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin" "2em" ]
             [ text message ]
+        ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick closeMsg ]
+            [ text "Close" ]
+        ]
+        closeMsg
+
+
+viewErrorDialog : String -> msg -> Html msg
+viewErrorDialog message closeMsg =
+    viewDialog "Error"
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh" ]
+            [ div [ class "alert alert-danger p-4" ] [ text message ] ]
         ]
         [ button [ type_ "button", class "btn btn-secondary", onClick closeMsg ]
             [ text "Close" ]

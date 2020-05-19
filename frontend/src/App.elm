@@ -52,7 +52,7 @@ type alias AppDataType =
 type alias AppResult =
     { app_result_id : Int
     , path : String
-    , app_data_type : AppDataType
+    , data_type : String
     }
 
 
@@ -112,7 +112,7 @@ appResultDecoder =
     Decode.succeed AppResult
         |> required "app_result_id" Decode.int
         |> required "path" Decode.string
-        |> required "app_data_type" appDataTypeDecoder
+        |> required "name" Decode.string
 
 
 encodeAppRun : Int -> String -> Encode.Value
