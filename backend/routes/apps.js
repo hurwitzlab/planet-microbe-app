@@ -35,10 +35,8 @@ router.get('/apps/:name([\\w\\.\\-\\_]+)', asyncHandler(async (req, res) => {
 }));
 
 router.post('/apps/runs', asyncHandler(async (req, res) => {
-    let app_id = req.body.app_id;
-    let params = req.body.params;
-
-    //errorOnNull(app_id, params); // TODO
+    const app_id = req.body.app_id;
+    const params = req.body.params;
 
     requireAuth(req);
 

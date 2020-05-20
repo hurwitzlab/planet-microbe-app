@@ -5,8 +5,8 @@ const client = require('../postgres');
 const { asyncHandler } = require('../util');
 
 router.get('/experiments/:id(\\d+)', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let result = await client.query({
+    const id = req.params.id;
+    const result = await client.query({
         text:
             `SELECT e.experiment_id,e.name,e.accn,
                 l.name AS library_name,l.strategy AS library_strategy, l.source AS library_source,
@@ -25,8 +25,8 @@ router.get('/experiments/:id(\\d+)', asyncHandler(async (req, res) => {
 }));
 
 router.get('/experiments/:id(\\d+)/runs', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let result = await client.query({
+    const id = req.params.id;
+    const result = await client.query({
         text:
             `SELECT r.run_id,r.accn,r.total_spots,r.total_bases,
                 f.file_id,f.url AS file_url,ft.name AS file_type,ff.name AS file_format

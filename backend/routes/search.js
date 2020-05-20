@@ -6,19 +6,19 @@ const router = require('express').Router();
 const client = require('../postgres');
 const { asyncHandler } = require('../util');
 
-router.get('/index', (req, res) => { //TODO rename to "catalog", as in a catalog of terms
-    let termIndex = req.app.get('termIndex');
+router.get('/index', (req, res) => {
+    const termIndex = req.app.get('termIndex');
     res.json(termIndex);
 });
 
 router.get('/schema', asyncHandler(async (req, res) => {
-    let fields = await client.query("SELECT schema_id,name,type,fields->'fields' AS fields FROM schema");
+    const fields = await client.query("SELECT schema_id,name,type,fields->'fields' AS fields FROM schema");
     res.json(fields.rows);
 }));
 
 router.get('/searchTerms', (req, res) => {
-    let query = req.query.query;
-    let termIndex = req.app.get('termIndex');
+    const query = req.query.query;
+    const termIndex = req.app.get('termIndex');
 
     if (query) {
         const MIN_MATCH_RATING = 0.1;
@@ -72,9 +72,9 @@ router.get('/searchTerms', (req, res) => {
 });
 
 router.get('/searchTerms/:ids(*)', asyncHandler(async (req, res) => {
-    let ids = decodeURIComponent(req.params.ids);
+    const ids = decodeURIComponent(req.params.ids);
 
-    let terms = await Promise.all(
+    const terms = await Promise.all(
         ids.split(",").map(id => {
             // Workaround for http:// in id changed to http:/ on MYO (NGINX?)
             if (id.startsWith('http:/'))
@@ -87,7 +87,7 @@ router.get('/searchTerms/:ids(*)', asyncHandler(async (req, res) => {
 }));
 
 async function getSearchTerm(id, termIndex) {
-    let term = termIndex.getTerm(id);
+    const term = termIndex.getTerm(id);
     if (!term)
         return;
     console.log("getSearchTerm:", term);
@@ -242,8 +242,8 @@ router.post('/search', asyncHandler(async (req, res) => {
 }));
 
 async function handleSearchRequest(req, res, params) {
-    let termIndex = req.app.get('termIndex');
-    let download = params.download;
+    const termIndex = req.app.get('termIndex');
+    const download = params.download;
 
     if (download) {
         req.query['limit'] = 999999;

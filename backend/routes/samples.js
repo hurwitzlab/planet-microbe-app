@@ -42,9 +42,9 @@ router.post('/samples', asyncHandler(async (req, res) => {
 }));
 
 router.get('/samples/:id(\\d+)', asyncHandler(async (req, res) => {
-    let id = req.params.id;
+    const id = req.params.id;
 
-    let result = await client.query({
+    const result = await client.query({
         text:
             `SELECT s.sample_id,s.accn,
                 ST_AsGeoJson(s.locations)::json->'coordinates' AS locations,
@@ -70,8 +70,8 @@ router.get('/samples/:id(\\d+)', asyncHandler(async (req, res) => {
 }));
 
 router.get('/samples/:id(\\d+)/sampling_events', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let result = await client.query({
+    const id = req.params.id;
+    const result = await client.query({
         text:
             `SELECT se.sampling_event_id,se.sampling_event_type,se.name,
                 c.campaign_id,c.campaign_type,c.name AS campaign_name
@@ -87,8 +87,8 @@ router.get('/samples/:id(\\d+)/sampling_events', asyncHandler(async (req, res) =
 }));
 
 router.get('/samples/:id(\\d+)/experiments', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let result = await client.query({
+    const id = req.params.id;
+    const result = await client.query({
         text:
             `SELECT e.experiment_id,e.name,e.accn
             FROM experiment e
@@ -213,8 +213,8 @@ router.get('/samples/files/properties', asyncHandler(async (req, res) => {
 }));
 
 router.get('/samples/:id(\\d+)/metadata', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let termIndex = req.app.get('termIndex');
+    const id = req.params.id;
+    const termIndex = req.app.get('termIndex');
 
     let result = await client.query({
         text:
@@ -281,9 +281,9 @@ router.get('/samples/:id(\\d+)/metadata', asyncHandler(async (req, res) => {
 }));
 
 router.get('/samples/:id(\\d+)/taxonomy', asyncHandler(async (req, res) => {
-    let id = req.params.id;
+    const id = req.params.id;
 
-    let result = await client.query({
+    const result = await client.query({
         text:
             `SELECT e.experiment_id,e.accn AS experiment_accn,r.run_id,r.accn AS run_accn,t.tax_id,t.name,c.num_reads,c.num_unique_reads,c.abundance
             FROM sample s

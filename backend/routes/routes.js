@@ -32,14 +32,14 @@ module.exports = function(app) {
         console.log("ERROR ".padEnd(80, "!"));
         console.log(error.stack);
 
-        let statusCode = error.statusCode || 500;
-        let message = error.message || "Unknown error";
+        const statusCode = error.statusCode || 500;
+        const message = error.message || "Unknown error";
 
         res.status(statusCode).send(message);
     }
 
     async function agaveTokenValidator(req, res, next) {
-        var token;
+        let token;
         if (req && req.headers)
             token = req.headers.authorization;
         console.log("validateAgaveToken: token:", token);

@@ -49,24 +49,22 @@ class TermIndex {
 }
 
 async function generateTermIndex(db, ontologyDescriptors) {
-    //let result = await query('select fields[1].string from sample limit 1')
-    let schemas = await db.query("SELECT schema_id,name,type,fields FROM schema");
-    //console.log(schemas.rows);
+    const schemas = await db.query("SELECT schema_id,name,type,fields FROM schema");
 
     let index = {};
-    ontologyDescriptors.forEach( desc => {
+    ontologyDescriptors.forEach(desc => {
         console.log("Indexing ontology", desc.name);
         loadOntology(desc.type, desc.path, index);
     });
 
-    schemas.rows.forEach( schema => {
+    schemas.rows.forEach(schema => {
         console.log(`Indexing schema ${schema.name} (id=${schema.schema_id})`);
 
         for (let i = 0; i < schema.fields.fields.length; i++) {
-            let field = schema.fields.fields[i];
+            const field = schema.fields.fields[i];
 
-            let purl = field.rdfType;
-            let unitPurl = field['pm:unitRdfType'];
+            const purl = field.rdfType;
+            const unitPurl = field['pm:unitRdfType'];
             if (!purl) // || ('pm:searchable' in field && !field['pm:searchable']))
                 continue; // skip this field if no PURL or not searchable
 
@@ -133,27 +131,6 @@ function loadOntology(type, path, index) {
                 });
             });
         }
-// Removed 11/27/19 -- no longer needed, pmo.json has all term definitions
-//        else if (type == "term_owl") { // pmo_owl.json
-//            ontology.classAttribute.forEach(node => {
-//                let label = "<unknown>";
-//                if (node["label"]) {
-//                    if (node["label"]["en"])
-//                        label = node["label"]["en"];
-//                    else if (node["label"]["undefined"])
-//                        label = node["label"]["undefined"];
-//                }
-//
-//                if (!(node.iri in index))
-//                    index[node.iri] = {};
-//                index[node.iri] = Object.assign(index[node.iri],
-//                    {
-//                        id: node.iri,
-//                        label: label,
-//                    }
-//                );
-//            });
-//        }
         else {
             throw("Error: unsupported ontology type");
         }
@@ -178,8 +155,8 @@ function loadOntology(type, path, index) {
 }
 
 function loadSearchableTerms(path) { // TSV file
-    let data = fs.readFileSync(path, { encoding: "UTF8" });
-    let terms =
+    const data = fs.readFileSync(path, { encoding: "UTF8" });
+    const terms =
         data
         .split('\n')
         .filter(line => !line.startsWith('#'))
@@ -189,8 +166,8 @@ function loadSearchableTerms(path) { // TSV file
 
 // Initialize
 (async function() {
-    let searchableTerms = loadSearchableTerms(config.searchableTerms);
-    let termIndex = new TermIndex({ searchableTerms: searchableTerms });
+    const searchableTerms = loadSearchableTerms(config.searchableTerms);
+    const termIndex = new TermIndex({ searchableTerms: searchableTerms });
     await termIndex.build(client, config.ontologies);
 
     const app = express();

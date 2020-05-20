@@ -20,9 +20,9 @@ router.post('/contact', (req, res) => {
         return;
     }
 
-    var name = req.body.name || "Unknown";
-    var email = req.body.email || "Unknown";
-    var message = req.body.message || "";
+    const name = req.body.name || "Unknown";
+    const email = req.body.email || "Unknown";
+    const message = req.body.message || "";
 
     sendmail({
         from: email,
@@ -74,16 +74,16 @@ router.get('/download/:filepath(\\S+)', async (req, res, next) => {
 });
 
 router.post('/token', async (req, res) => {
-    let provider = req.body.provider;
-    let code = req.body.code;
-    let tokenResponse = await agaveGetToken(provider, code);
+    const provider = req.body.provider;
+    const code = req.body.code;
+    const tokenResponse = await agaveGetToken(provider, code);
     res.send(tokenResponse);
 });
 
 router.post('/users/login', asyncHandler(async (req, res) => {
     requireAuth(req);
 
-    var username = req.auth.user.user_name;
+    const username = req.auth.user.user_name;
 
     // Add user if not already present
     let user = await client.query({
@@ -110,7 +110,7 @@ router.post('/users/login', asyncHandler(async (req, res) => {
         values: [username]
     });
 
-    let login = await client.query({
+    await client.query({
         text: "INSERT INTO login (user_id) VALUES ($1) RETURNING *",
         values: [user.rows[0].user_id]
     });
@@ -119,8 +119,8 @@ router.post('/users/login', asyncHandler(async (req, res) => {
 }));
 
 async function agaveGetToken(provider, code) {
-    let url = config.oauthProviders[provider].tokenUrl;
-    let options = {
+    const url = config.oauthProviders[provider].tokenUrl;
+    const options = {
         method: "POST",
         uri: url,
         form: {
@@ -133,7 +133,7 @@ async function agaveGetToken(provider, code) {
     };
 
     console.log(provider, ": sending authorization POST", url);
-    let response = await requestp(options);
+    const response = await requestp(options);
     console.log(response);
     return(response);
 }

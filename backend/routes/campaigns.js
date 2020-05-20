@@ -5,7 +5,7 @@ const client = require('../postgres');
 const { asyncHandler } = require('../util');
 
 router.get('/campaigns/:id(\\d+)', asyncHandler(async (req, res) => {
-    let id = req.params.id;
+    const id = req.params.id;
     let result = await client.query({
         text:
             `SELECT c.campaign_id,c.campaign_type,c.name,c.description,c.deployment,c.start_location,c.end_location,c.start_time,c.end_time,c.urls,p.project_id,p.name AS project_name
@@ -22,7 +22,7 @@ router.get('/campaigns/:id(\\d+)', asyncHandler(async (req, res) => {
 }));
 
 router.get('/campaigns/:id(\\d+)/sampling_events', asyncHandler(async (req, res) => {
-    let id = req.params.id;
+    const id = req.params.id;
     let result = await client.query({
         text:
             `SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations)::json->'coordinates' AS locations,se.start_time,se.end_time
@@ -36,7 +36,7 @@ router.get('/campaigns/:id(\\d+)/sampling_events', asyncHandler(async (req, res)
 }));
 
 router.get('/campaigns/:id(\\d+)/samples', asyncHandler(async (req, res) => {
-    let id = req.params.id;
+    const id = req.params.id;
     let result = await client.query({
         text:
             `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations

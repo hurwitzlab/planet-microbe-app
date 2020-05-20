@@ -5,19 +5,18 @@ const client = require('../postgres');
 const { asyncHandler } = require('../util');
 
 router.get('/projects', asyncHandler(async (req, res) => {
-    let result = await client.query(
+    const result = await client.query(
         `SELECT p.project_id,p.name,p.accn,p.description,p.datapackage_url,p.url,pt.name AS type,
-            (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id) AS sample_count
+            (SELECT count(*) FROM project_to_sample pts WHERE pts.project_id=p.project_id)::int AS sample_count
         FROM project p
         JOIN project_type pt USING(project_type_id)`
     );
-    result.rows.forEach(row => row.sample_count *= 1); // convert count to int
     res.json(result.rows);
 }));
 
 router.get('/projects/:id(\\d+)', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let projectResult = await client.query({
+    const id = req.params.id;
+    const projectResult = await client.query({
         text:
             `SELECT
                 p.project_id,p.name,p.accn,p.description,p.datapackage_url,p.url AS project_url,pt.name AS type,
@@ -28,7 +27,7 @@ router.get('/projects/:id(\\d+)', asyncHandler(async (req, res) => {
         values: [id]
     });
 
-    let fileResult = await client.query({
+    const fileResult = await client.query({
         text:
             `SELECT file_id,file_type.name AS file_type,file_format.name AS file_format,url AS file_url
                 FROM project_to_file
@@ -45,8 +44,8 @@ router.get('/projects/:id(\\d+)', asyncHandler(async (req, res) => {
 }));
 
 router.get('/projects/:id(\\d+)/campaigns', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let result = await client.query({
+    const id = req.params.id;
+    const result = await client.query({
         text:
             `SELECT c.campaign_id,c.campaign_type,c.name,c.description,c.deployment,c.start_location,c.end_location,c.start_time,c.end_time,c.urls
             FROM project_to_sample pts
@@ -62,8 +61,8 @@ router.get('/projects/:id(\\d+)/campaigns', asyncHandler(async (req, res) => {
 }));
 
 router.get('/projects/:id(\\d+)/sampling_events', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let result = await client.query({
+    const id = req.params.id;
+    const result = await client.query({
         text:
             `SELECT se.sampling_event_id,se.sampling_event_type,se.name,ST_AsGeoJson(se.locations)::json->'coordinates' AS locations,se.start_time,se.end_time
             FROM project_to_sample pts
@@ -79,8 +78,8 @@ router.get('/projects/:id(\\d+)/sampling_events', asyncHandler(async (req, res) 
 }));
 
 router.get('/projects/:id(\\d+)/samples', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let result = await client.query({
+    const id = req.params.id;
+    const result = await client.query({
         text:
             `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations
             FROM sample s

@@ -5,8 +5,8 @@ const client = require('../postgres');
 const { asyncHandler } = require('../util');
 
 router.get('/sampling_events/:id(\\d+)', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let result = await client.query({
+    const id = req.params.id;
+    const result = await client.query({
         text:
             `SELECT se.sampling_event_id,se.sampling_event_type,se.name,se.start_time,se.end_time,
                 ST_AsGeoJson(se.locations)::json->'coordinates' AS locations,
@@ -26,8 +26,8 @@ router.get('/sampling_events/:id(\\d+)', asyncHandler(async (req, res) => {
 }));
 
 router.get('/sampling_events/:id(\\d+)/samples', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let result = await client.query({
+    const id = req.params.id;
+    const result = await client.query({
         text:
             `SELECT s.sample_id,s.accn,ST_AsGeoJson(s.locations)::json->'coordinates' AS locations
             FROM sample s
@@ -40,9 +40,9 @@ router.get('/sampling_events/:id(\\d+)/samples', asyncHandler(async (req, res) =
 }));
 
 router.get('/sampling_events/:id(\\d+)/data/(:type(\\w+))', asyncHandler(async (req, res) => {
-    let id = req.params.id;
-    let type = req.params.type;
-    let termIndex = req.app.get('termIndex');
+    const id = req.params.id;
+    const type = req.params.type;
+    const termIndex = req.app.get('termIndex');
 
     let result = await client.query({
         text:
