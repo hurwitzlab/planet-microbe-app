@@ -4,7 +4,6 @@ import Session exposing (Session)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Page
-import Error
 import Icon
 import Project exposing (Project)
 import Sample exposing (Sample)

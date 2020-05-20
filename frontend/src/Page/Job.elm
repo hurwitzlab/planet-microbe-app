@@ -127,7 +127,7 @@ type Msg
     | PollJob Time.Posix
     | CancelJob
     | CancelJobCompleted (Result Http.Error Agave.Job)
-    | CloseCancelDialog
+    | CloseDialog
     | FileBrowserMsg FileBrowser.Msg
 
 
@@ -349,7 +349,7 @@ update msg model =
         CancelJobCompleted (Err error) ->
             ( { model | dialogState = CancelDialog (Just <| Error.toString error) }, Cmd.none )
 
-        CloseCancelDialog ->
+        CloseDialog ->
             ( { model | dialogState = NoDialog }, Cmd.none )
 
         FileBrowserMsg subMsg ->
@@ -800,13 +800,13 @@ viewCancelDialog maybeMessage =
                 Just message ->
                     ( div [ class "alert alert-info m-3" ]
                         [ p [] [ text message ] ]
-                    , button [ class "btn btn-outline-secondary", onClick CloseCancelDialog ] [ text "OK" ]
+                    , button [ class "btn btn-outline-secondary", onClick CloseDialog ] [ text "OK" ]
                     )
     in
     Page.viewDialog "Submitting Job"
         [ body ]
         [ footer ]
-        CloseCancelDialog
+        CloseDialog
 
 
 isPlanB : String -> Bool

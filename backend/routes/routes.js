@@ -13,13 +13,13 @@ module.exports = function(app) {
     app.use(agaveTokenValidator);
 
     app.use(require('./apps'));
-    app.use(require('./campaigns.js'));
-    app.use(require('./experiments.js'));
-    app.use(require('./misc.js'));
-    app.use(require('./projects.js'));
-    app.use(require('./samples.js'));
-    app.use(require('./samplingEvents.js'));
-    app.use(require('./search.js'));
+    app.use(require('./campaigns'));
+    app.use(require('./experiments'));
+    app.use(require('./misc'));
+    app.use(require('./projects'));
+    app.use(require('./samples'));
+    app.use(require('./samplingEvents'));
+    app.use(require('./search'));
 
     app.use(errorHandler);
 

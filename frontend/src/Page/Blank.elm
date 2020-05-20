@@ -1,9 +1,9 @@
 module Page.Blank exposing (view)
 
-import Html exposing (Html)
+import Html exposing (Html, text)
 
 
 
 view : Html msg
 view =
-    Html.text ""
+    text ""
