@@ -604,10 +604,7 @@ viewHistory history =
                 if h == [] then
                     text "None"
                 else
-                    table [ class "table table-sm" ]
-                        [ tbody []
-                            (List.map viewEvent h)
-                        ]
+                    div [] (List.map viewEvent h)
 
             Loading ->
                 Page.viewSpinner
@@ -620,12 +617,12 @@ viewHistory history =
         ]
 
 
-viewEvent : Agave.JobHistory -> Html msg
+viewEvent : Agave.JobHistory -> Html Msg
 viewEvent event =
-    tr []
-        [ td [ class "text-nowrap" ] [ text event.created ]
-        , td [ class "text-nowrap" ] [ text event.status ]
-        , td [] [ text event.description ]
+    div [ class "row" ]
+        [ div [ class "col text-nowrap" ] [ text event.created ]
+        , div [ class "col text-nowrap" ] [ text event.status ]
+        , div [ class "col-6" ] [ text event.description ]
         ]
 
 
@@ -770,7 +767,7 @@ viewResults model =
                                     button [ class "btn btn-outline-secondary", onClick GetResults ] [ text "Show Results" ]
 
                         "FAILED" ->
-                            text "Failed to load"
+                            text "None"
 
                         _ ->
                             div [ class "italic" ] [ text "Job is not FINISHED, please wait ..." ]

@@ -143,7 +143,7 @@ view model =
                 , div [ class "pt-3 pb-2" ]
                     [ Page.viewTitle2 "Niskin Data" False ]
                 , viewData model.niskinData
-                , div [ class "pt-3 pb-2" ]
+                , div [ class "pt-5 pb-2" ]
                     [ Page.viewTitle2 "CTD Data" False ]
                 , viewData model.ctdData
                 ]
@@ -231,7 +231,7 @@ viewSamples samples =
             table [ class "table" ]
                 [ thead []
                     [ tr []
-                        [ th [] [ text "Accn" ]
+                        [ th [] [ text "Accession" ]
                         ]
                     ]
                 , tbody []
@@ -313,4 +313,4 @@ viewData maybeData =
             Page.viewSpinner
 
         _ ->
-            text "None"
+            Page.viewBlank
