@@ -32,6 +32,7 @@ type alias Model =
     , jobId : String
     , job : Maybe Job
     , app : Maybe App
+    , error : Maybe String
     , loadingJob : Bool
     , history : RemoteData Http.Error (List Agave.JobHistory)
     , results : RemoteData Http.Error (List (String, String))
@@ -72,6 +73,7 @@ init session id =
       , jobId = id
       , job = Nothing
       , app = Nothing
+      , error = Nothing
       , loadingJob = False
       , history = NotAsked
       , results = NotAsked
@@ -157,7 +159,7 @@ update msg model =
             )
 
         GetJobCompleted (Err error) ->
-            ( model, Error.redirectLoadError error (Session.navKey model.session) )
+            ( { model | error = Just (Error.toString error) }, Error.redirectLoadError error (Session.navKey model.session) )
 
         GetHistory ->
             let
@@ -432,7 +434,13 @@ view model =
               ]
 
         ( _, _ ) ->
-            Page.viewSpinnerCentered
+            case model.error of
+                Nothing ->
+                    Page.viewSpinnerCentered
+
+                Just error ->
+                    div [ class "container" ]
+                        [ div [ class "alert alert-danger m-5 p-5" ] [ text error ] ]
 
 
 viewJob : Job -> App -> Html Msg
