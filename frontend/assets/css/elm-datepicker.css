@@ -10,6 +10,7 @@
 .elm-datepicker--input {
   width: 8.5em;
   padding-left: 0.5em;
+  border: 1px solid rgb(206, 212, 218);
 }
 
 .elm-datepicker--picker {
