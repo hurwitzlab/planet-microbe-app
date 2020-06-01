@@ -1,7 +1,8 @@
 'use strict';
 
 const router = require('express').Router();
-const { requireAuth, asyncHandler } = require('../util');
+const { asyncHandler } = require('../util');
+const { requireAuth } = require('../auth');
 const client = require('../postgres');
 
 router.get('/apps', asyncHandler(async (req, res) => {
@@ -34,15 +35,12 @@ router.get('/apps/:name([\\w\\.\\-\\_]+)', asyncHandler(async (req, res) => {
     res.status(404).json([]);
 }));
 
-router.post('/apps/runs', asyncHandler(async (req, res) => {
+router.post('/apps/runs', requireAuth, asyncHandler(async (req, res) => {
     const app_id = req.body.app_id;
     const params = req.body.params;
+    const user_id = req.auth.user.user_id;
 
-    requireAuth(req);
-
-    let user_id = req.auth.user.user_id;
-
-    let result = await client.query({
+    const result = await client.query({
         text: "INSERT INTO app_run (app_id,user_id,params) VALUES ($1,$2,$3) RETURNING *",
         values: [app_id,user_id,params]
     });

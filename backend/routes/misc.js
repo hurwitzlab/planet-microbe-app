@@ -1,12 +1,12 @@
 'use strict';
 
-const requestp = require('request-promise');
 const https = require('https');
 const path = require('path');
 const sendmail = require('sendmail')();
 const router = require('express').Router();
 const config = require('../config.json');
-const { requireAuth, asyncHandler } = require('../util');
+const { asyncHandler } = require('../util');
+const { requireAuth, getToken } = require('../auth');
 const client = require('../postgres');
 
 router.post('/contact', (req, res) => {
@@ -73,16 +73,16 @@ router.get('/download/:filepath(\\S+)', async (req, res, next) => {
     }
 });
 
+// Get token from authorization code as part of OAUTH2 Authorization Code flow
 router.post('/token', async (req, res) => {
     const provider = req.body.provider;
     const code = req.body.code;
-    const tokenResponse = await agaveGetToken(provider, code);
-    res.send(tokenResponse);
+    const response = await getToken(provider, code);
+    console.log(response);
+    res.send(response);
 });
 
-router.post('/users/login', asyncHandler(async (req, res) => {
-    requireAuth(req);
-
+router.post('/users/login', requireAuth, asyncHandler(async (req, res) => {
     const username = req.auth.user.user_name;
 
     // Add user if not already present
@@ -117,25 +117,5 @@ router.post('/users/login', asyncHandler(async (req, res) => {
 
     res.json(user.rows[0]);
 }));
-
-async function agaveGetToken(provider, code) {
-    const url = config.oauthProviders[provider].tokenUrl;
-    const options = {
-        method: "POST",
-        uri: url,
-        form: {
-            grant_type: "authorization_code",
-            client_id: config.oauthProviders.agave.clientId,
-            client_secret: config.oauthProviders.agave.clientSecret,
-            redirect_uri: config.oauthProviders.agave.redirectUrl,
-            code: code
-        }
-    };
-
-    console.log(provider, ": sending authorization POST", url);
-    const response = await requestp(options);
-    console.log(response);
-    return(response);
-}
 
 module.exports = router;
