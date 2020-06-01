@@ -83,7 +83,7 @@ update msg model =
             ( { model | jobs = Success (agaveJobs ++ planbJobs) }, Cmd.none )
 
         GetJobsCompleted (Err error) ->
-            ( { model | jobs = Failure error }, Cmd.none )
+            ( { model | jobs = NotAsked }, Cmd.none ) -- Show login message
 
         SetTab label ->
             ( { model | tab = label }, Cmd.none )
