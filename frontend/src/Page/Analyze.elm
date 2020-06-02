@@ -1,18 +1,24 @@
-module Page.Analyze exposing (Model, Msg, init, toSession, update, view)
+module Page.Analyze exposing (Model, Msg, init, toSession, subscriptions, update, view)
 
 import Session exposing (Session(..))
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
+import FormatNumber exposing (format)
+import FormatNumber.Locales exposing (usLocale)
 import Page
 import Route exposing (Route)
 import Error
 import Http
 import RemoteData exposing (RemoteData(..))
+import Json.Decode as Decode exposing (Decoder)
 import Task exposing (Task)
+import Icon
 import App exposing (App)
-import Agave exposing (Job)
+import Agave exposing (Job, FileResult)
 import PlanB
+import FileBrowser
+import Config exposing (apiBaseUrl)
 
 
 
@@ -25,6 +31,7 @@ type alias Model =
     , jobs : RemoteData Http.Error (List Job)
     , tab : String
     , query : String
+    , fileBrowser : FileBrowser.Model
     }
 
 
@@ -49,6 +56,7 @@ init session tab =
       , jobs = jobs
       , tab = tab |> Maybe.withDefault "Apps"
       , query = ""
+      , fileBrowser = FileBrowser.init session Nothing
       }
       , Cmd.batch
           [ App.fetchAll |> Http.send GetAppsCompleted
@@ -62,6 +70,14 @@ toSession model =
     model.session
 
 
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    Sub.batch
+        [ Sub.map UploadFileBegin (FileBrowser.fileUploadFileSelected (Decode.decodeString FileBrowser.fileDecoder >> Result.toMaybe))
+        , Sub.map UploadFileEnd (FileBrowser.fileUploadDone (Decode.decodeString (Agave.responseDecoder Agave.decoderUploadResult) >> Result.toMaybe))
+        ]
+
+
 
 -- UPDATE --
 
@@ -71,6 +87,9 @@ type Msg
     | GetJobsCompleted (Result Http.Error (List Job, List Job))
     | SetTab String
     | SetQuery String
+    | FileBrowserMsg FileBrowser.Msg
+    | UploadFileBegin (Maybe FileBrowser.FileToUpload)
+    | UploadFileEnd (Maybe (Agave.Response Agave.UploadResult))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -86,10 +105,42 @@ update msg model =
             ( { model | jobs = NotAsked }, Cmd.none ) -- Show login message
 
         SetTab label ->
-            ( { model | tab = label }, Cmd.none )
+            let
+                (subModel, subCmd) =
+                    case label of
+                        "Data" ->
+                            FileBrowser.update model.session FileBrowser.RefreshPath model.fileBrowser
+
+                        _ ->
+                            ( model.fileBrowser, Cmd.none )
+            in
+            ( { model | tab = label, fileBrowser = subModel }
+            , Cmd.map FileBrowserMsg subCmd
+            )
 
         SetQuery query ->
             ( { model | query = query }, Cmd.none )
+
+        FileBrowserMsg subMsg ->
+            let
+                ( newFileBrowser, subCmd ) =
+                    FileBrowser.update model.session subMsg model.fileBrowser
+            in
+            ( { model | fileBrowser = newFileBrowser }, Cmd.map FileBrowserMsg subCmd )
+
+        UploadFileBegin _ ->
+            let
+                (subModel, subCmd) =
+                    FileBrowser.update model.session (FileBrowser.OpenDialog (FileBrowser.MessageDialog "Uploading...")) model.fileBrowser
+            in
+            ( { model | fileBrowser = subModel }, Cmd.map FileBrowserMsg subCmd )
+
+        UploadFileEnd _ ->
+            let
+                (subModel, subCmd) =
+                    FileBrowser.update model.session FileBrowser.RefreshPath model.fileBrowser
+            in
+            ( { model | fileBrowser = subModel }, Cmd.map FileBrowserMsg subCmd )
 
 
 
@@ -136,8 +187,33 @@ view model =
                         ]
                     )
 
+        dataRow =
+            div [ class "row", style "margin-left" "0.1em" ]
+                [ div [ style "width" "70%", style "min-height" "20em" ]
+                    [ FileBrowser.view model.fileBrowser |> Html.map FileBrowserMsg ]
+                , div [ class "ml-4 pt-2", style "width" "25%" ]
+                    [ case FileBrowser.getSelected model.fileBrowser of
+                        [] ->
+                            p []
+                                [ br [] []
+                                , text "Here are the output files from the job."
+                                , br [] []
+                                , br [] []
+                                , text "Click to select a file or directory."
+                                , br [] []
+                                , text "Double-click to open a file or directory."
+                                ]
+
+                        file :: _ ->
+                            if file.name == ".. (previous)" then -- FIXME
+                                text ""
+                            else
+                                viewFileInfo (Session.token model.session) file
+                    ]
+                ]
+
         navItem label count =
-            li [ class "nav-item" ]
+            li [ class "nav-item text-nowrap", style "min-width" "5em" ]
                 [ a [ class "nav-link", classList [ ("border rounded", model.tab == label) ], href "", onClick (SetTab label) ]
                     [ text label
                     , text " "
@@ -150,13 +226,16 @@ view model =
                 ]
     in
     div [ class "container" ]
-        [ ul [ class "nav nav-justified mt-5 mb-4 h5" ]
+        [ ul [ class "nav nav-pills mt-5 mb-4 h5" ]
             [ navItem "Apps" numApps
             , navItem "Jobs" numJobs
-            , span [ class "w-75" ] [ input [ class "float-right", placeholder "Search", onInput SetQuery ] [] ]
+            , navItem "Data" 0
+            , div [ class "w-50" ] [ input [ class "float-right w-50", placeholder "Search", onInput SetQuery ] [] ]
             ]
         , if model.tab == "Jobs" then
             jobsRow
+          else if model.tab == "Data" then
+            dataRow
           else
             appsRow
         ]
@@ -248,3 +327,68 @@ filterJob query list =
         List.filter filter list
     else
         list
+
+
+--TODO move into FileBrowser.elm
+viewFileInfo : String -> FileResult -> Html Msg
+viewFileInfo token file =
+    let
+        myLocale =
+            { usLocale | decimals = 0 }
+
+        deleteText =
+            "Are you sure you want to remove the " ++
+                (if file.type_ == "dir" then
+                    "directory"
+                 else
+                    file.type_
+                ) ++
+                " '" ++ file.name ++ "'?"
+
+        deleteMsg =
+            FileBrowserMsg (FileBrowser.OpenDialog (FileBrowser.ConfirmationDialog deleteText (FileBrowser.DeletePath file.path)))
+
+        deUrl =
+            "https://de.cyverse.org/de/?type=data&folder=/iplant/home" ++ --TODO move base url to config file
+                (if file.type_ == "dir" then
+                     file.path
+                else
+                    dropFileName file.path
+                )
+
+        dropFileName s =
+            String.split "/" s |> List.reverse |> List.drop 1 |> List.reverse |> String.join "/" -- pretty inefficient
+    in
+    div []
+        [ table [ class "table table-borderless table-sm" ]
+            [ tbody []
+                [ tr []
+                    [ th [] [ text "Name " ]
+                    , td [] [ text file.name ]
+                    ]
+                , tr []
+                    [ th [] [ text "Type " ]
+                    , td [] [ text file.type_ ]
+                    ]
+                , tr []
+                    [ th [] [ text "Size " ]
+                    , td [] [ text ((file.length |> toFloat |> format myLocale) ++ " bytes") ]
+                    ]
+                , tr []
+                    [ th [] [ text "Last modified " ]
+                    , td [] [ text file.lastModified ]
+                    ]
+                ]
+            ]
+        , if file.type_ == "file" then
+            a [ class "mt-2", href (apiBaseUrl ++ "/download" ++ file.path ++ "?token=" ++ token) ]
+                [ Icon.cloudDownload, text " Download" ]
+          else
+            text ""
+        , a [ class "mt-2 d-block", href "", onClick (FileBrowserMsg (FileBrowser.OpenShareDialog file.path)) ]
+            [ Icon.user, text " Share" ]
+        , a [ class "mt-2 d-block", href deUrl, target "_blank" ]
+            [ Icon.externalLinkSquare, text " View in CyVerse DE" ]
+        , a [ class "mt-2 d-block", href "", onClick deleteMsg ]
+            [ Icon.trash, text " Delete" ]
+        ]

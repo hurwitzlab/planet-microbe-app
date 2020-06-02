@@ -1,4 +1,4 @@
-module Page exposing (Page(..), view, viewErrors, viewRemoteData, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewSpinnerOverlayCentered, viewToggleText, viewDialog, viewMessageDialog, viewErrorDialog, viewJobStatus)
+module Page exposing (Page(..), view, viewErrors, viewRemoteData, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewSpinnerOverlayCentered, viewToggleText, viewDialog, viewMessageDialog, viewProgressDialog, viewConfirmationDialog, viewErrorDialog, viewJobStatus)
 
 import Browser exposing (Document)
 import Html exposing (Html, a, button, h1, h2, h5, div, span, img, i, li, nav, p, text, ul, small, footer)
@@ -346,6 +346,32 @@ viewMessageDialog message closeMsg =
             [ text "Close" ]
         ]
         closeMsg
+
+
+viewProgressDialog : String -> msg -> Html msg
+viewProgressDialog message closeMsg =
+    viewDialog "Please wait ..."
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin" "2em" ]
+            [ text message
+            , viewSpinner
+            ]
+        ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick closeMsg ]
+            [ text "Close" ]
+        ]
+        closeMsg
+
+
+viewConfirmationDialog : String -> msg -> msg -> Html msg
+viewConfirmationDialog message noMsg yesMsg =
+    viewDialog "Note"
+        [ div [ style "overflow-y" "auto", style "max-height" "50vh", style "text-align" "center", style "margin" "2em" ]
+            [ text message ]
+        ]
+        [ button [ type_ "button", class "btn btn-secondary", onClick noMsg ] [ text "Cancel" ]
+        , button [ type_ "button", class "btn btn-primary", onClick yesMsg ] [ text "OK" ]
+        ]
+        noMsg
 
 
 viewErrorDialog : String -> msg -> Html msg

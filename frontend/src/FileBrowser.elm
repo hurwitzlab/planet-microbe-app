@@ -1,4 +1,4 @@
-module FileBrowser exposing (..)
+port module FileBrowser exposing (..)
 
 {-| A heavy-weight file browser component
 
@@ -20,9 +20,10 @@ import SearchableDropdown
 import Session exposing (Session)
 import Agave exposing (FileResult, PermissionResult, Permission)
 import List.Extra
+import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline as Pipeline exposing (required)
 import Icon
 import Error
---import Debug exposing (toString)
 
 
 
@@ -44,22 +45,16 @@ type alias InternalModel =
     , contents : List FileResult
     , isBusy : Bool
     , config : Config
-    , showNewFolderDialog : Bool
-    , showNewFolderBusy : Bool
     , newFolderName : String
-    , showViewFileDialog : Bool
-    , showViewFileBusy : Bool
     , filePath : Maybe String
     , fileContent : Maybe String
     , fileErrorMessage : Maybe String
-    , showShareDialog : Bool
-    , showShareBusy : Bool
     , doUserSearch : Bool
     , searchStartTime : Int -- milliseconds
     , filePermissions : Maybe (List PermissionResult)
     , shareDropdownState : SearchableDropdown.State
     , errorMessage : Maybe String
---    , confirmationDialog : Maybe (Dialog.Config Msg)
+    , dialogState : DialogState
     }
 
 
@@ -86,6 +81,15 @@ defaultConfig =
     }
 
 
+type DialogState
+    = NoDialog
+    | ConfirmationDialog String Msg
+    | MessageDialog String
+    | NewFolderDialog
+    | ShareDialog
+    | ViewFileDialog
+
+
 init : Session -> Maybe Config -> Model --Task Http.Error Model
 init session maybeConfig =
     let
@@ -109,22 +113,16 @@ init session maybeConfig =
         , contents = []
         , isBusy = True
         , config = config
-        , showNewFolderDialog = False
-        , showNewFolderBusy = False
         , newFolderName = ""
-        , showViewFileDialog = False
-        , showViewFileBusy = False
         , filePath = Nothing
         , fileContent = Nothing
         , fileErrorMessage = Nothing
-        , showShareDialog = False
-        , showShareBusy = False
         , doUserSearch = False
         , searchStartTime = 0
         , filePermissions = Nothing
         , shareDropdownState = SearchableDropdown.init
         , errorMessage = Nothing
---        , confirmationDialog = Nothing
+        , dialogState = NoDialog
         }
 
 
@@ -150,16 +148,11 @@ type Msg
     | LoadPathCompleted (Result Http.Error (List FileResult))
     | OpenPath String Int
     | OpenPathCompleted (Result Http.Error String)
-    | CloseViewFileDialog
-    | OpenNewFolderDialog
-    | CloseNewFolderDialog
     | SetNewFolderName String
     | CreateNewFolderCompleted (Result Http.Error (Agave.EmptyResponse))
     | CreateNewFolder
     | DeletePath String
     | DeletePathCompleted (Result Http.Error (Agave.EmptyResponse))
-    | OpenShareDialog String
-    | CloseShareDialog
     | GetPermissionCompleted (Result Http.Error (List PermissionResult))
     | SetShareUserName String
     | SetSearchStartTime Time.Posix
@@ -167,8 +160,9 @@ type Msg
     | SearchUsersCompleted (Result Http.Error (List Agave.Profile))
     | ShareWithUser String String String
     | ShareWithUserCompleted (Result Http.Error (Agave.EmptyResponse))
-    | OpenConfirmationDialog String Msg
-    | CloseConfirmationDialog
+    | OpenShareDialog String
+    | OpenDialog DialogState
+    | CloseDialog
     | UploadFile
 
 
@@ -223,7 +217,7 @@ updateInternal session msg model =
             ( { model | selectedPaths = newPaths }, Cmd.none )
 
         RefreshPath ->
-            updateInternal session (LoadPath model.path) model
+            updateInternal session (LoadPath model.path) { model | dialogState = NoDialog }
 
         LoadPath path ->
             ( { model | path = path, selectedPaths = Nothing, errorMessage = Nothing, isBusy = True }
@@ -292,24 +286,15 @@ updateInternal session msg model =
                 openPath =
                     Agave.getFileRange token path (Just (0, chunkSz)) |> Http.toTask
             in
-            ( { model | showViewFileDialog = True, showViewFileBusy = True, filePath = Just path }
+            ( { model | dialogState = ViewFileDialog, filePath = Just path }
             , Task.attempt OpenPathCompleted openPath
             )
 
         OpenPathCompleted (Ok data) ->
-            ( { model | fileContent = Just data, showViewFileBusy = False }, Cmd.none )
+            ( { model | fileContent = Just data }, Cmd.none )
 
         OpenPathCompleted (Err error) ->
             ( { model | fileErrorMessage = (Just (Error.toString error)) }, Cmd.none )
-
-        CloseViewFileDialog ->
-            ( { model | showViewFileDialog = False }, Cmd.none )
-
-        OpenNewFolderDialog ->
-            ( { model | showNewFolderDialog = True, showNewFolderBusy = False }, Cmd.none )
-
-        CloseNewFolderDialog ->
-            ( { model | showNewFolderDialog = False }, Cmd.none )
 
         SetNewFolderName name ->
             ( { model | newFolderName = name }, Cmd.none )
@@ -319,27 +304,23 @@ updateInternal session msg model =
                 createFolder =
                     Agave.mkdir token model.path model.newFolderName |> Http.toTask
             in
-            ( { model | showNewFolderBusy = True }
-            , Task.attempt CreateNewFolderCompleted createFolder
-            )
+            ( model, Task.attempt CreateNewFolderCompleted createFolder )
 
         CreateNewFolderCompleted (Ok _) ->
-            updateInternal session RefreshPath { model | showNewFolderDialog = False }
+            updateInternal session RefreshPath { model | dialogState = NoDialog }
 
         CreateNewFolderCompleted (Err error) ->
-            ( { model | showNewFolderDialog = False, errorMessage = Just (Error.toString error) }, Cmd.none )
+            ( { model | dialogState = NoDialog, errorMessage = Just (Error.toString error) }, Cmd.none )
 
         DeletePath path ->
             if path == "" || path == "/" || path == model.homePath then -- don't let them try something stupid
---                ( { model | confirmationDialog = Nothing }, Cmd.none )
-                ( model, Cmd.none )
+                ( { model | dialogState = NoDialog }, Cmd.none )
             else
                 let
                     delete =
                         Agave.delete token path |> Http.toTask
                 in
---                ( { model | isBusy = True, confirmationDialog = Nothing }, Task.attempt DeletePathCompleted delete )
-                ( { model | isBusy = True }, Task.attempt DeletePathCompleted delete )
+                ( { model | isBusy = True, dialogState = NoDialog }, Task.attempt DeletePathCompleted delete )
 
         DeletePathCompleted (Ok _) ->
             updateInternal session RefreshPath model
@@ -352,10 +333,7 @@ updateInternal session msg model =
                 getPermission =
                     Agave.getFilePermission token path |> Http.toTask |> Task.map .result
             in
-            ( { model | showShareDialog = True, showShareBusy = True }, Task.attempt GetPermissionCompleted getPermission )
-
-        CloseShareDialog ->
-            ( { model | showShareDialog = False }, Cmd.none )
+            ( { model | dialogState = ShareDialog }, Task.attempt GetPermissionCompleted getPermission )
 
         GetPermissionCompleted (Ok permissions) ->
             let
@@ -368,7 +346,7 @@ updateInternal session msg model =
                 filtered =
                     List.filter (\p -> List.member p.username notAllowed |> not) permissions
             in
-            ( { model | showShareBusy = False, filePermissions = Just filtered }, Cmd.none )
+            ( { model | filePermissions = Just filtered }, Cmd.none )
 
         GetPermissionCompleted (Err error) -> -- TODO
             ( { model | filePermissions = Nothing }, Cmd.none )
@@ -416,9 +394,6 @@ updateInternal session msg model =
             ( { model | shareDropdownState = { dropdownState | results = results } }, Cmd.none )
 
         SearchUsersCompleted (Err error) -> -- TODO
---            let
---                _ = Debug.log "SearchUsersCompleted" (toString error)
---            in
             ( model, Cmd.none )
 
         ShareWithUser permission username _ ->
@@ -427,7 +402,7 @@ updateInternal session msg model =
                     model.shareDropdownState
 
                 newModel =
-                    { model | showShareBusy = True, shareDropdownState = { dropdownState | value = "", results = [] } }
+                    { model | shareDropdownState = { dropdownState | value = "", results = [] } }
 
                 firstSelected =
                     model.selectedPaths |> Maybe.withDefault [] |> List.head |> Maybe.withDefault ""
@@ -468,26 +443,16 @@ updateInternal session msg model =
             updateInternal session (OpenShareDialog firstSelected) model
 
         ShareWithUserCompleted (Err error) -> -- TODO
---            let
---                _ = Debug.log "ShareWithUserCompleted" (toString error)
---            in
             ( model, Cmd.none )
 
-        OpenConfirmationDialog confirmationText yesMsg ->
---            let
---                dialog =
---                    confirmationDialogConfig confirmationText CloseConfirmationDialog yesMsg
---            in
---            ( { model | confirmationDialog = Just dialog }, Cmd.none )
-            ( model, Cmd.none )
+        OpenDialog dialogState ->
+            ( { model | dialogState = dialogState }, Cmd.none )
 
-        CloseConfirmationDialog ->
---            ( { model | confirmationDialog = Nothing }, Cmd.none )
-            ( model, Cmd.none )
+        CloseDialog ->
+            ( { model | dialogState = NoDialog }, Cmd.none )
 
         UploadFile ->
---            ( model, Ports.fileUploadOpenBrowser (session.token, model.path) )
-            ( model, Cmd.none )
+            ( model, fileUploadOpenBrowser (token, model.path) )
 
 
 determinePreviousPath : String -> String
@@ -506,14 +471,12 @@ determinePreviousPath path =
 
 
 view : Model -> Html Msg
-view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy, errorMessage,
-            showNewFolderDialog, showNewFolderBusy, showViewFileDialog, showViewFileBusy, filePath, fileContent,
-            fileErrorMessage, showShareDialog, showShareBusy, filePermissions, shareDropdownState,
-            config
+view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy, errorMessage, dialogState,
+            filePath, fileContent, fileErrorMessage, filePermissions, shareDropdownState, config
             }) =
     let
         menuBar =
-            div []
+            div [ class "d-inline" ]
                 [ div [ class "input-group" ]
                     [ div [ class "input-group-prepend" ]
                         [ filterButton "Home"
@@ -524,33 +487,16 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
                         [ button [ class "btn btn-outline-secondary", type_ "button", onClick (LoadPath path) ] [ text "Go " ]
                         ]
                     ]
-                , button [ style "visibility" "hidden" ] -- FIXME make a better spacer than this
-                    [ text " " ]
-                , if (config.showNewFolderButton) then
-                    button [ class "btn btn-default btn-sm margin-right", type_ "button", onClick OpenNewFolderDialog ]
-                        [ span [ class "glyphicon glyphicon-folder-close" ] [], text " New Folder" ]
+                , if config.showNewFolderButton then
+                    button [ class "btn btn-outline-secondary btn-sm margin-right", type_ "button", onClick (OpenDialog NewFolderDialog) ]
+                        [ Icon.folder, text " New Folder" ]
                   else
                     text ""
-                , if (config.showUploadFileButton) then
---                        div [ class "btn-group" ]
---                            [ button [ class "btn btn-default btn-sm dropdown-toggle", type_ "button", attribute "data-toggle" "dropdown" ]
---                                [ span [ class "glyphicon glyphicon-cloud-upload" ] []
---                                , text " Upload File "
---                                , span [ class "caret" ] []
---                                ]
---                            , ul [ class "dropdown-menu" ]
---                                [ li [] [ a [ onClick UploadFile ] [ text "From local" ] ]
---                                , li [] [ a [] [ text "From URL (FTP/HTTP)" ] ]
---                                , li [] [ a [] [ text "From NCBI" ] ]
---                                , li [] [ a [] [ text "From EBI" ] ]
---                                ]
---                            ]
-                        button [ class "btn btn-default btn-sm", type_ "button", onClick UploadFile ]
-                            [ span [ class "glyphicon glyphicon-cloud-upload" ] []
-                            , text " Upload File"
-                            ]
-                    else
-                      text ""
+                , if config.showUploadFileButton then
+                    button [ class "btn btn-outline-secondary btn-sm", type_ "button", onClick UploadFile ]
+                        [ Icon.upload, text " Upload File" ]
+                  else
+                    text ""
                 ]
 
         filterButton label =
@@ -560,9 +506,6 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
             in
             button [ class "btn btn-outline-secondary", classList [("active", isActive)], type_ "button", onClick (SetFilter label) ]
                 [ text label ]
-
-        firstSelected =
-            selectedPaths |> Maybe.withDefault [] |> List.head |> Maybe.withDefault ""
     in
     div []
         [ if config.showMenuBar then
@@ -574,27 +517,27 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
           else if isBusy then
             viewSpinner
           else
-            div [ style "overflow-y" "auto", style "height" "100%" ] --("height","60vh")] ]
-                [ viewFileTable config contents selectedPaths ] --[ Table.view (tableConfig config selectedPaths) tableState contents ]
-        --, Dialog.view
-        --    (if (confirmationDialog /= Nothing) then
-        --        confirmationDialog
-        --     else if showNewFolderDialog then
-        --        Just (newFolderDialogConfig showNewFolderBusy)
-        --     else if showViewFileDialog && filePath /= Nothing then
-        --        Just (viewFileDialogConfig (filePath |> Maybe.withDefault "") (fileContent |> Maybe.withDefault "") showViewFileBusy fileErrorMessage)
-        --     else if showShareDialog then
-        --        Just (shareDialogConfig firstSelected (filePermissions |> Maybe.withDefault []) currentUserName shareDropdownState showShareBusy fileErrorMessage)
-        --     else
-        --        Nothing
-        --    )
-        , if showViewFileDialog then
-            viewFileDialog (filePath |> Maybe.withDefault "") (fileContent |> Maybe.withDefault "") showViewFileBusy fileErrorMessage
-          else if showShareDialog then
-            viewShareDialog firstSelected (filePermissions |> Maybe.withDefault []) currentUserName shareDropdownState showShareBusy fileErrorMessage
-          else
-            text ""
+            div [ style "overflow-y" "auto", style "height" "100%" ]
+                [ viewFileTable config contents selectedPaths ]
         , input [ type_ "file", id "fileToUpload", name "fileToUpload", style "display" "none" ] [] -- hidden input for file upload plugin, "fileToUpload" name is required by Agave
+        , case dialogState of
+            NoDialog ->
+                text ""
+
+            ConfirmationDialog message yesMsg ->
+                Page.viewConfirmationDialog message CloseDialog yesMsg
+
+            MessageDialog message ->
+                Page.viewProgressDialog message CloseDialog
+
+            NewFolderDialog ->
+                viewNewFolderDialog False
+
+            ShareDialog ->
+                viewShareDialog (filePermissions |> Maybe.withDefault []) currentUserName shareDropdownState False fileErrorMessage
+
+            ViewFileDialog ->
+                viewFileDialog (filePath |> Maybe.withDefault "") (fileContent |> Maybe.withDefault "") False fileErrorMessage
         ]
 
 
@@ -696,33 +639,26 @@ viewFileTable config files selectedPaths =
 --        , viewData = (\file -> Table.HtmlDetails [] [ if (file.length > 0) then (text (Filesize.format file.length)) else text "" ])
 --        , sorter = Table.increasingOrDecreasingBy .length
 --        }
---
---
---newFolderDialogConfig : Bool -> Dialog.Config Msg
---newFolderDialogConfig isBusy =
---    let
---        content =
---            if isBusy then
---                spinner
---            else
---                input [ class "form-control", type_ "text", size 20, placeholder "Enter the name of the new folder", onInput SetNewFolderName ] []
---
---        footer =
---            let
---                disable =
---                    disabled isBusy
---            in
---                div []
---                    [ button [ class "btn btn-default float-left", onClick CloseNewFolderDialog, disable ] [ text "Cancel" ]
---                    , button [ class "btn btn-primary", onClick CreateNewFolder, disable ] [ text "OK" ]
---                    ]
---    in
---    { closeMessage = Just CloseNewFolderDialog
---    , containerClass = Nothing
---    , header = Just (h3 [] [ text "Create New Folder" ])
---    , body = Just content
---    , footer = Just footer
---    }
+
+
+viewNewFolderDialog : Bool -> Html Msg
+viewNewFolderDialog isBusy =
+    let
+        content =
+            if isBusy then
+                Page.viewSpinner
+            else
+                input [ class "form-control", type_ "text", size 20, placeholder "Enter the name of the new folder", onInput SetNewFolderName ] []
+
+        footer =
+            [ button [ class "btn btn-outline-secondary float-left", onClick CloseDialog, disabled isBusy ] [ text "Cancel" ]
+            , button [ class "btn btn-primary", onClick CreateNewFolder, disabled isBusy ] [ text "OK" ]
+            ]
+    in
+    viewDialog "Create New Folder"
+        [ content ]
+        footer
+        CloseDialog
 
 
 viewFileDialog : String -> String -> Bool -> Maybe String -> Html Msg
@@ -748,17 +684,17 @@ viewFileDialog path data isBusy errorMsg =
                         text ""
                     ]
                 , div [ class "col" ]
-                    [ button [ class "btn btn-primary", onClick CloseViewFileDialog ] [ text "Close" ] ]
+                    [ button [ class "btn btn-primary", onClick CloseDialog ] [ text "Close" ] ]
                 ]
     in
     viewDialog "View File"
         [ body ]
         [ footer ]
-        CloseViewFileDialog
+        CloseDialog
 
 
-viewShareDialog : String -> List PermissionResult -> String -> SearchableDropdown.State -> Bool -> Maybe String -> Html Msg
-viewShareDialog path permissions currentUserName dropdownState isBusy errorMsg =
+viewShareDialog : List PermissionResult -> String -> SearchableDropdown.State -> Bool -> Maybe String -> Html Msg
+viewShareDialog permissions currentUserName dropdownState isBusy errorMsg =
     let
         body =
             if errorMsg /= Nothing then
@@ -784,7 +720,7 @@ viewShareDialog path permissions currentUserName dropdownState isBusy errorMsg =
     viewDialog "Share Item"
         [ body ]
         []
-        CloseShareDialog
+        CloseDialog
 
 
 shareDropdownConfig : SearchableDropdown.Config Msg Msg
@@ -867,6 +803,34 @@ permissionDesc permission =
             "read-only"
     else
         "none"
+
+
+
+---- PORTS ----
+
+
+type alias FileToUpload =
+    { name : String
+    , size : Int
+    , type_ : String
+    }
+
+
+fileDecoder : Decoder FileToUpload
+fileDecoder =
+    Decode.succeed FileToUpload
+        |> Pipeline.required "name" Decode.string
+        |> Pipeline.required "size" Decode.int
+        |> Pipeline.required "type" Decode.string
+
+
+port fileUploadOpenBrowser : (String, String) -> Cmd msg
+
+
+port fileUploadFileSelected : (String -> msg) -> Sub msg
+
+
+port fileUploadDone : (String -> msg) -> Sub msg
 
 
 

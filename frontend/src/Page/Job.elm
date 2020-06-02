@@ -698,7 +698,7 @@ viewFileInfo token file =
                 " '" ++ file.name ++ "'?"
 
         deleteMsg =
-            FileBrowserMsg (FileBrowser.OpenConfirmationDialog deleteText (FileBrowser.DeletePath file.path))
+            FileBrowserMsg (FileBrowser.OpenDialog (FileBrowser.ConfirmationDialog deleteText (FileBrowser.DeletePath file.path)))
 
         deUrl =
             "https://de.cyverse.org/de/?type=data&folder=/iplant/home" ++ --TODO move base url to config file

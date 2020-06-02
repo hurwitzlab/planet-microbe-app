@@ -98,6 +98,16 @@ fileDownload =
     i [ class "fas fa-fw fa-file-download" ] []
 
 
+folder : Html msg
+folder =
+    i [ class "fas fa-fw fa-folder" ] []
+
+
+upload : Html msg
+upload =
+    i [ class "fas fa-fw fa-cloud-upload-alt" ] []
+
+
 ban : Html msg
 ban =
     i [ class "fas fa-fw fa-ban" ] []

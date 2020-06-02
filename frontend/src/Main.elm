@@ -67,6 +67,9 @@ subscriptions model =
         Job job ->
             Sub.map JobMsg (Job.subscriptions job)
 
+        Analyze analyze ->
+            Sub.map AnalyzeMsg (Analyze.subscriptions analyze)
+
         Search search ->
             Sub.map SearchMsg (Search.subscriptions search)
 

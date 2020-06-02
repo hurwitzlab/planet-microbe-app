@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "assets": "^3.0.1",
+    "blueimp-file-upload": "^10.29.0",
     "bootstrap": "^4.3.1",
     "jquery": "^3.4.1",
     "popper.js": "^1.16.0",
