@@ -471,24 +471,23 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
             }) =
     let
         menuBar =
-            div [ class "d-inline" ]
-                [ div [ class "input-group" ]
-                    [ div [ class "input-group-prepend" ]
-                        [ filterButton "Home"
-                        , filterButton "Shared"
-                        ]
-                    , input [ class "form-control",  type_ "text", size 30, value path, placeholder "Enter path", onInput SetPath ] [] -- onKeyDown KeyDown ] []
-                    , div [ class "input-group-append" ]
-                        [ button [ class "btn btn-outline-secondary", type_ "button", onClick (LoadPath path) ] [ text "Go " ]
-                        ]
+            div [ class "input-group mb-4" ]
+                [ div [ class "input-group-prepend" ]
+                    [ filterButton "Home"
+                    , filterButton "Shared"
+                    ]
+                , input [ class "form-control",  type_ "text", size 30, value path, placeholder "Enter path", onInput SetPath ] [] -- onKeyDown KeyDown ] []
+                , div [ class "input-group-append" ]
+                    [ button [ class "btn btn-outline-secondary", type_ "button", onClick (LoadPath path) ]
+                        [ text "Go " ]
                     ]
                 , if config.showNewFolderButton then
-                    button [ class "btn btn-outline-secondary btn-sm margin-right", type_ "button", onClick (OpenDialog NewFolderDialog) ]
+                    button [ class "btn btn-outline-secondary btn-sm ml-4", type_ "button", onClick (OpenDialog NewFolderDialog) ]
                         [ Icon.folder, text " New Folder" ]
                   else
                     text ""
                 , if config.showUploadFileButton then
-                    button [ class "btn btn-outline-secondary btn-sm", type_ "button", onClick UploadFile ]
+                    button [ class "btn btn-outline-secondary btn-sm ml-2", type_ "button", onClick UploadFile ]
                         [ Icon.upload, text " Upload File" ]
                   else
                     text ""
@@ -587,53 +586,6 @@ viewFileTable config files selectedPaths =
         , tbody [ style "user-select" "none" ]
             (List.map fileRow files)
         ]
-
---tableConfig : Config -> Maybe (List String) -> Table.Config FileResult Msg
---tableConfig config selectedRowIds =
---    Table.customConfig
---        { toId = .path
---        , toMsg = SetTableState
---        , columns =
---            [ nameColumn
---            , sizeColumn
---            ]
---        , customizations =
---            { defaultCustomizations | tableAttrs = toTableAttrs, rowAttrs = toRowAttrs config selectedRowIds }
---        }
---
---
---nameColumn : Table.Column FileResult Msg
---nameColumn =
---    Table.veryCustomColumn
---        { name = "Name"
---        , viewData = nameLink
---        , sorter =
---            Table.increasingOrDecreasingBy
---                (\data ->
---                    if data.type_ == "dir" then -- sort dirs before files
---                        "..." ++ data.name
---                    else data.name
---                )
---        }
---
---
---nameLink : FileResult -> Table.HtmlDetails Msg
---nameLink file =
---    if file.type_ == "dir" then
---        Table.HtmlDetails []
---            [ a [ onClick (LoadPath file.path) ] [ text file.name ]
---            ]
---    else
---        Table.HtmlDetails [] [ text file.name ]
---
---
---sizeColumn : Table.Column FileResult Msg
---sizeColumn =
---    Table.veryCustomColumn
---        { name = "Size"
---        , viewData = (\file -> Table.HtmlDetails [] [ if (file.length > 0) then (text (Filesize.format file.length)) else text "" ])
---        , sorter = Table.increasingOrDecreasingBy .length
---        }
 
 
 viewNewFolderDialog : Bool -> Html Msg

@@ -188,15 +188,14 @@ view model =
                     )
 
         dataRow =
-            div [ class "row", style "margin-left" "0.1em" ]
+            div [ class "row ml-3" ]
                 [ div [ style "width" "70%", style "min-height" "20em" ]
                     [ FileBrowser.view model.fileBrowser |> Html.map FileBrowserMsg ]
-                , div [ class "ml-4 pt-2", style "width" "25%" ]
+                , div [ class "ml-4", style "width" "25%" ]
                     [ case FileBrowser.getSelected model.fileBrowser of
                         [] ->
-                            p []
-                                [ br [] []
-                                , text "Here are the contents of your CyVerse Data Store home directory."
+                            div [ class "font-weight-light text-secondary" ]
+                                [ text "Here are the contents of your CyVerse Data Store home directory."
                                 , br [] []
                                 , br [] []
                                 , text "Click to select a file or directory."
@@ -230,7 +229,6 @@ view model =
             [ navItem "Apps" numApps
             , navItem "Jobs" numJobs
             , navItem "Data" 0
-            , div [ class "w-50" ] [ input [ class "float-right w-50", placeholder "Search", onInput SetQuery ] [] ]
             ]
         , if model.tab == "Jobs" then
             jobsRow
@@ -282,18 +280,21 @@ viewJobs jobs =
               EQ -> EQ
               GT -> LT
     in
-    table [ class "table" ]
-        [ thead []
-            [ tr []
-                [ th [] [ text "Name" ]
-                , th [] [ text "App" ]
-                , th [] [ text "Start" ]
-                , th [] [ text "End" ]
-                , th [] [ text "Status" ]
+    div []
+        [ input [ class "float-right w-25 mb-2", placeholder "Search", onInput SetQuery ] []
+        , table [ class "table" ]
+            [ thead []
+                [ tr []
+                    [ th [] [ text "Name" ]
+                    , th [] [ text "App" ]
+                    , th [] [ text "Start" ]
+                    , th [] [ text "End" ]
+                    , th [] [ text "Status" ]
+                    ]
                 ]
+            , tbody []
+                (jobs |> List.sortWith sortByTimeDesc |> List.map row)
             ]
-        , tbody []
-            (jobs |> List.sortWith sortByTimeDesc |> List.map row)
         ]
 
 
