@@ -24,6 +24,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline as Pipeline exposing (required)
 import Icon
 import Error
+import Config
 
 
 
@@ -337,14 +338,8 @@ updateInternal session msg model =
 
         GetPermissionCompleted (Ok permissions) ->
             let
-                notAllowed = --FIXME move to config file
-                    [ "dooley", "vaughn", "rodsadmin", "jstubbs", "jfonner", "eriksf", "QuickShare"
-                    , "admin2", "admin_proxy", "agave", "bisque-adm", "de-irods", "has_admin", "ibp-proxy"
-                    , "ipc_admin", "ipcservices", "proxy-de-tools", "uk_admin", "uportal_admin2"
-                    ]
-
                 filtered =
-                    List.filter (\p -> List.member p.username notAllowed |> not) permissions
+                    List.filter (\p -> List.member p.username Config.filteredUsers |> not) permissions
             in
             ( { model | filePermissions = Just filtered }, Cmd.none )
 

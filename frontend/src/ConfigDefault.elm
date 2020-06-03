@@ -69,6 +69,16 @@ agaveRedirectUrl =
     ""
 
 
+-- Remove these admin users from Share view in File Browser
+filteredUsers : List String
+filteredUsers =
+    [ "dooley", "vaughn", "rodsadmin", "jstubbs", "jfonner", "eriksf", "QuickShare"
+    , "admin2", "admin_proxy", "agave", "bisque-adm", "de-irods", "has_admin", "ibp-proxy"
+    , "ipc_admin", "ipcservices", "proxy-de-tools", "uk_admin", "uportal_admin2", "terraref_admin"
+    , "avra_admin", "tacc_admin"
+    ]
+
+
 
 ---- Plan B ----
 

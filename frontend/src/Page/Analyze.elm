@@ -196,7 +196,7 @@ view model =
                         [] ->
                             p []
                                 [ br [] []
-                                , text "Here are the output files from the job."
+                                , text "Here are the contents of your CyVerse Data Store home directory."
                                 , br [] []
                                 , br [] []
                                 , text "Click to select a file or directory."
