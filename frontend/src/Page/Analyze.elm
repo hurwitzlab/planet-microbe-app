@@ -188,7 +188,7 @@ view model =
                     )
 
         dataRow =
-            div [ class "row ml-3" ]
+            div [ class "row ml-3 mt-4" ]
                 [ div [ style "width" "70%", style "min-height" "20em" ]
                     [ FileBrowser.view model.fileBrowser |> Html.map FileBrowserMsg ]
                 , div [ class "ml-4", style "width" "25%" ]
@@ -212,20 +212,13 @@ view model =
                 ]
 
         navItem label count =
-            li [ class "nav-item text-nowrap", style "min-width" "5em" ]
-                [ a [ class "nav-link", classList [ ("border rounded", model.tab == label) ], href "", onClick (SetTab label) ]
-                    [ text label
-                    , text " "
-                    , if count > 0 then
-                        span [ class "badge badge-light" ]
-                            [ text (String.fromInt count) ]
-                      else
-                        text ""
-                    ]
+            li [ class "nav-item text-nowrap mr-5 font-weight-bold" ]
+                [ a [ class "nav-link text-secondary", classList [ ("border rounded", model.tab == label) ], href "", onClick (SetTab label) ]
+                    [ text label ]
                 ]
     in
     div [ class "container" ]
-        [ ul [ class "nav nav-pills mt-5 mb-4 h5" ]
+        [ ul [ class "nav nav-pills mt-5 h5" ]
             [ navItem "Apps" numApps
             , navItem "Jobs" numJobs
             , navItem "Data" 0
@@ -249,7 +242,7 @@ viewApps apps =
                 , td [] [ text "" ]
                 ]
     in
-    table [ class "table" ]
+    table [ class "table mt-4" ]
         [ thead []
             [ tr []
                 [ th [] [ text "Name" ]
