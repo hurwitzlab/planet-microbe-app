@@ -42,14 +42,12 @@ type alias InternalModel =
     , sharedPath : String
     , selectedPaths : Maybe (List String)
     , pathFilter : String
-    , contents : List FileResult
-    , isBusy : Bool
+    , contents : RemoteData Http.Error (List FileResult)
     , config : Config
     , newFolderName : String
     , fileContent : RemoteData Http.Error String
     , filePermissions : RemoteData Http.Error (List PermissionResult)
     , shareDropdownState : SearchableDropdown.State
-    , errorMessage : Maybe String
     , dialogState : DialogState
     }
 
@@ -81,7 +79,7 @@ type DialogState
     = NoDialog
     | ConfirmationDialog String Msg
     | MessageDialog String
-    | NewFolderDialog
+    | NewFolderDialog Bool
     | ShareDialog
     | ViewFileDialog String
 
@@ -106,14 +104,12 @@ init session maybeConfig =
         , sharedPath = "/shared"
         , selectedPaths = Nothing
         , pathFilter = "Home"
-        , contents = []
-        , isBusy = True
+        , contents = NotAsked
         , config = config
         , newFolderName = ""
         , fileContent = NotAsked
         , filePermissions = NotAsked
         , shareDropdownState = SearchableDropdown.init
-        , errorMessage = Nothing
         , dialogState = NoDialog
         }
 
@@ -211,7 +207,7 @@ updateInternal session msg model =
             updateInternal session (LoadPath model.path) { model | dialogState = NoDialog }
 
         LoadPath path ->
-            ( { model | path = path, selectedPaths = Nothing, errorMessage = Nothing, isBusy = True }
+            ( { model | path = path, selectedPaths = Nothing, contents = Loading }
             , Task.attempt LoadPathCompleted (loadPath token path)
             )
 
@@ -239,35 +235,27 @@ updateInternal session msg model =
                     else
                         filtered
             in
-            ( { model | contents = newFiles, isBusy = False }, Cmd.none )
+            ( { model | contents = Success newFiles }, Cmd.none )
 
         LoadPathCompleted (Err error) ->
             let
-                (errMsg, cmd) =
+                cmd =
                     case error of
-                        Http.NetworkError ->
-                            ("Cannot connect to remote host", Cmd.none)
-
                         Http.BadStatus response ->
                             case response.status.code of
                                 401 ->
-                                    ("Unauthorized", Route.replaceUrl (Session.navKey session) Route.Login) -- redirect to Login page
+                                    Route.replaceUrl (Session.navKey session) Route.Login -- redirect to Login page
 
-                                403 ->
-                                    ("Permission denied", Cmd.none)
+                                --403 ->
+                                --    ("Permission denied", Cmd.none)
 
                                 _ ->
-                                    case String.length response.body of
-                                        0 ->
-                                            ("Bad status", Cmd.none)
-
-                                        _ ->
-                                            (response.body, Cmd.none)
+                                    Cmd.none
 
                         _ ->
-                            (Error.toString error, Cmd.none)
+                            Cmd.none
             in
-            ( { model | errorMessage = (Just errMsg), isBusy = False }, cmd )
+            ( { model | contents = Failure error }, cmd )
 
         OpenPath path length ->
             let
@@ -295,13 +283,13 @@ updateInternal session msg model =
                 createFolder =
                     Agave.mkdir token model.path model.newFolderName |> Http.toTask
             in
-            ( model, Task.attempt CreateNewFolderCompleted createFolder )
+            ( { model | dialogState = NewFolderDialog True }, Task.attempt CreateNewFolderCompleted createFolder )
 
         CreateNewFolderCompleted (Ok _) ->
             updateInternal session RefreshPath { model | dialogState = NoDialog }
 
         CreateNewFolderCompleted (Err error) ->
-            ( { model | dialogState = NoDialog, errorMessage = Just (Error.toString error) }, Cmd.none )
+            ( { model | dialogState = NoDialog, contents = Failure error }, Cmd.none )
 
         DeletePath path ->
             if path == "" || path == "/" || path == model.homePath then -- don't let them try something stupid
@@ -311,13 +299,13 @@ updateInternal session msg model =
                     delete =
                         Agave.delete token path |> Http.toTask
                 in
-                ( { model | isBusy = True, dialogState = NoDialog }, Task.attempt DeletePathCompleted delete )
+                ( { model | contents = Loading, dialogState = NoDialog }, Task.attempt DeletePathCompleted delete )
 
         DeletePathCompleted (Ok _) ->
             updateInternal session RefreshPath model
 
         DeletePathCompleted (Err error) ->
-            ( { model | isBusy = False }, Cmd.none )
+            ( { model | contents = Failure error }, Cmd.none )
 
         OpenShareDialog path ->
             let
@@ -443,9 +431,7 @@ determinePreviousPath path =
 
 
 view : Model -> Html Msg
-view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy, errorMessage, dialogState,
-             fileContent, filePermissions, shareDropdownState, config
-            }) =
+view (Model {currentUserName, path, pathFilter, contents, selectedPaths, dialogState, fileContent, filePermissions, shareDropdownState, config}) =
     let
         menuBar =
             div [ class "input-group mb-4" ]
@@ -459,7 +445,7 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
                         [ text "Go " ]
                     ]
                 , if config.showNewFolderButton then
-                    button [ class "btn btn-outline-secondary btn-sm ml-4", type_ "button", onClick (OpenDialog NewFolderDialog) ]
+                    button [ class "btn btn-outline-secondary btn-sm ml-4", type_ "button", onClick (OpenDialog (NewFolderDialog False)) ]
                         [ Icon.folder, text " New Folder" ]
                   else
                     text ""
@@ -483,13 +469,18 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
             menuBar
           else
             text ""
-        , if errorMessage /= Nothing then
-            div [ class "alert alert-danger" ] [ text (Maybe.withDefault "An error occurred" errorMessage) ]
-          else if isBusy then
-            viewSpinner
-          else
-            div [ style "overflow-y" "auto", style "height" "100%" ]
-                [ viewFileTable config contents selectedPaths ]
+        , case contents of
+            Success items ->
+                div [ style "overflow-y" "auto", style "height" "100%" ]
+                    [ viewFileTable config items selectedPaths ]
+
+            Failure error ->
+                div [ class "alert alert-danger" ]
+                    [ text <| Error.toString error
+                    ]
+
+            _ ->
+                viewSpinner
         , input [ type_ "file", id "fileToUpload", name "fileToUpload", style "display" "none" ] [] -- hidden input for file upload plugin, "fileToUpload" name is required by Agave
         , case dialogState of
             NoDialog ->
@@ -501,8 +492,8 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
             MessageDialog message ->
                 Page.viewProgressDialog message CloseDialog
 
-            NewFolderDialog ->
-                viewNewFolderDialog False
+            NewFolderDialog busy ->
+                viewNewFolderDialog busy
 
             ShareDialog ->
                 viewShareDialog filePermissions currentUserName shareDropdownState
@@ -569,10 +560,12 @@ viewNewFolderDialog : Bool -> Html Msg
 viewNewFolderDialog isBusy =
     let
         content =
-            if isBusy then
-                Page.viewSpinner
-            else
-                input [ class "form-control", type_ "text", size 20, placeholder "Enter the name of the new folder", onInput SetNewFolderName ] []
+            div [ style "min-height" "3em" ]
+                [ if isBusy then
+                    Page.viewSpinnerEmbedded
+                else
+                    input [ class "form-control", type_ "text", size 20, placeholder "Enter the name of the new folder", onInput SetNewFolderName ] []
+                ]
 
         footer =
             [ button [ class "btn btn-outline-secondary float-left", onClick CloseDialog, disabled isBusy ] [ text "Cancel" ]
@@ -783,22 +776,32 @@ port fileUploadDone : (String -> msg) -> Sub msg
 
 numItems : Model -> Int
 numItems (Model {contents}) =
-    case List.Extra.uncons contents of
-        Nothing ->
-            0
+    case contents of
+        Success items ->
+            case List.Extra.uncons items of
+                Nothing ->
+                    0
 
-        Just (first, rest) ->
-            if first.name == ".. (previous)" then
-                List.length rest
-            else
-                List.length contents
+                Just (first, rest) ->
+                    if first.name == ".. (previous)" then
+                        List.length rest
+                    else
+                        List.length items
+
+        _ ->
+            0
 
 
 getSelected : Model -> List FileResult
 getSelected (Model { selectedPaths, contents }) =
-    case selectedPaths of
-        Nothing ->
-            []
+    case contents of
+        Success items ->
+            case selectedPaths of
+                Nothing ->
+                    []
 
-        Just paths ->
-            List.filter (\f -> List.member f.path paths) contents
+                Just paths ->
+                    List.filter (\f -> List.member f.path paths) items
+
+        _ ->
+            []

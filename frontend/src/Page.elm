@@ -1,4 +1,4 @@
-module Page exposing (Page(..), view, viewErrors, viewRemoteData, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerCentered, viewSpinnerOverlay, viewSpinnerOverlayCentered, viewToggleText, viewDialog, viewMessageDialog, viewProgressDialog, viewConfirmationDialog, viewErrorDialog, viewJobStatus)
+module Page exposing (Page(..), view, viewErrors, viewRemoteData, viewTitle, viewTitle1, viewTitle2, viewBlank, viewSpinner, viewSpinnerEmbedded, viewSpinnerCentered, viewSpinnerOverlay, viewSpinnerOverlayCentered, viewToggleText, viewDialog, viewMessageDialog, viewProgressDialog, viewConfirmationDialog, viewErrorDialog, viewJobStatus)
 
 import Browser exposing (Document)
 import Html exposing (Html, a, button, h1, h2, h5, div, span, img, i, li, nav, p, text, ul, small, footer)
@@ -263,6 +263,15 @@ viewSpinner : Html msg
 viewSpinner =
     div [ class "d-flex justify-content-center m-5" ]
         [ div [ class "d-flex spinner-border", style "color" "lightgray", style "width" "4rem", style "height" "4rem" ]
+            [ span [ class "sr-only" ] [ text "Loading..." ]
+            ]
+        ]
+
+
+viewSpinnerEmbedded : Html msg
+viewSpinnerEmbedded =
+    div [ class "d-flex justify-content-center" ]
+        [ div [ class "d-flex spinner-border", style "color" "lightgray", style "width" "2rem", style "height" "2rem" ]
             [ span [ class "sr-only" ] [ text "Loading..." ]
             ]
         ]

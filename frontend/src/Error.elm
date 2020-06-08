@@ -79,11 +79,19 @@ toString err =
             "Timeout exceeded"
 
         NetworkError ->
-            "Network error"
+            "Cannot connect to remote host"
 
         BadStatus resp ->
-            parse resp.body
-                |> Maybe.withDefault (String.fromInt resp.status.code ++ " " ++ resp.status.message)
+            case resp.status.code of
+                401 ->
+                    "Unauthorized"
+
+                403 ->
+                    "Permission denied"
+
+                _ ->
+                    parse resp.body
+                        |> Maybe.withDefault (String.fromInt resp.status.code ++ " " ++ resp.status.message)
 
         BadPayload text resp ->
             "Unexpected response from api: " ++ text
