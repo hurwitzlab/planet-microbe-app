@@ -393,7 +393,7 @@ viewFileInfo token file =
                 ]
             ]
         , if file.type_ == "file" then
-            a [ class "mt-2", href (apiBaseUrl ++ "/download" ++ file.path ++ "?token=" ++ token) ]
+            a [ class "mt-2", href (apiBaseUrl ++ "/download" ++ file.path ++ "?token=" ++ token), target "_blank" ]
                 [ Icon.cloudDownload, text " Download" ]
           else
             text ""
