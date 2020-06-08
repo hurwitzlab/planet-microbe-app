@@ -545,13 +545,17 @@ getProfile token =
 
 
 searchProfiles : String -> String -> Http.Request (Response (List Profile))
-searchProfiles token username =
+searchProfiles token keyword =
     let
         url =
             agaveBaseUrl ++ "/profiles/v2"
 
+        -- Do exact match query, the "like" query returns 500 error
         queryParams =
-            [( "username", username )]
+            [ ( "username", keyword ),
+              ( "first_name", keyword ),
+              ( "last_name", keyword )
+            ]
     in
     HttpBuilder.get url
         |> HttpBuilder.withHeaders [ authorizationHeader token ]
