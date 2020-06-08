@@ -109,7 +109,12 @@ update msg model =
                 (subModel, subCmd) =
                     case label of
                         "Data" ->
-                            FileBrowser.update model.session FileBrowser.RefreshPath model.fileBrowser
+                            case model.session of
+                                LoggedIn _ _ _ _ ->
+                                    FileBrowser.update model.session FileBrowser.RefreshPath model.fileBrowser
+
+                                _ ->
+                                    ( model.fileBrowser, Cmd.none )
 
                         _ ->
                             ( model.fileBrowser, Cmd.none )
@@ -181,35 +186,22 @@ view model =
 
                 NotAsked ->
                     ( 0
-                    , div [ class "mt-2 ml-3 alert alert-secondary" ]
+                    , div [ class "mt-4 ml-3 alert alert-secondary" ]
                         [ a [ Route.href Route.Login ] [ text "Sign-in" ]
                         , text " to see your jobs"
                         ]
                     )
 
         dataRow =
-            div [ class "row ml-3 mt-4" ]
-                [ div [ style "width" "70%", style "min-height" "20em" ]
-                    [ FileBrowser.view model.fileBrowser |> Html.map FileBrowserMsg ]
-                , div [ class "ml-4", style "width" "25%" ]
-                    [ case FileBrowser.getSelected model.fileBrowser of
-                        [] ->
-                            div [ class "font-weight-light text-secondary" ]
-                                [ text "Here are the contents of your CyVerse Data Store home directory."
-                                , br [] []
-                                , br [] []
-                                , text "Click to select a file or directory."
-                                , br [] []
-                                , text "Double-click to open a file or directory."
-                                ]
+            case model.session of
+                LoggedIn _ _ _ cred ->
+                    viewData cred.token model.fileBrowser
 
-                        file :: _ ->
-                            if file.name == ".. (previous)" then -- FIXME
-                                text ""
-                            else
-                                viewFileInfo (Session.token model.session) file
-                    ]
-                ]
+                _ ->
+                    div [ class "mt-4 ml-3 alert alert-secondary" ]
+                        [ a [ Route.href Route.Login ] [ text "Sign-in" ]
+                        , text " to see your data"
+                        ]
 
         navItem label count =
             li [ class "nav-item text-nowrap mr-5 font-weight-bold" ]
@@ -287,6 +279,32 @@ viewJobs jobs =
                 ]
             , tbody []
                 (jobs |> List.sortWith sortByTimeDesc |> List.map row)
+            ]
+        ]
+
+
+viewData : String -> FileBrowser.Model -> Html Msg
+viewData token fileBrowser =
+    div [ class "row ml-3 mt-4" ]
+        [ div [ style "width" "70%", style "min-height" "20em" ]
+            [ FileBrowser.view fileBrowser |> Html.map FileBrowserMsg ]
+        , div [ class "ml-4", style "width" "25%" ]
+            [ case FileBrowser.getSelected fileBrowser of
+                [] ->
+                    div [ class "font-weight-light text-secondary" ]
+                        [ text "Here are the contents of your CyVerse Data Store home directory."
+                        , br [] []
+                        , br [] []
+                        , text "Click to select a file or directory."
+                        , br [] []
+                        , text "Double-click to open a file or directory."
+                        ]
+
+                file :: _ ->
+                    if file.name == ".. (previous)" then
+                        text ""
+                    else
+                        viewFileInfo token file
             ]
         ]
 

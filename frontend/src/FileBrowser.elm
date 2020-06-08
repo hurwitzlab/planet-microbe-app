@@ -9,10 +9,9 @@ However there is so much functionality packed into this module that it seems jus
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onDoubleClick, onInput)
---import Events exposing (onKeyDown)
 import Task exposing (Task)
-import Time
 import Http
+import RemoteData exposing (RemoteData(..))
 import Route
 import Filesize
 import Page exposing (viewSpinner, viewDialog)
@@ -21,7 +20,7 @@ import Session exposing (Session)
 import Agave exposing (FileResult, PermissionResult, Permission)
 import List.Extra
 import Json.Decode as Decode exposing (Decoder)
-import Json.Decode.Pipeline as Pipeline exposing (required)
+import Json.Decode.Pipeline as Pipeline
 import Icon
 import Error
 import Config
@@ -47,12 +46,8 @@ type alias InternalModel =
     , isBusy : Bool
     , config : Config
     , newFolderName : String
-    , filePath : Maybe String
-    , fileContent : Maybe String
-    , fileErrorMessage : Maybe String
-    , doUserSearch : Bool
-    , searchStartTime : Int -- milliseconds
-    , filePermissions : Maybe (List PermissionResult)
+    , fileContent : RemoteData Http.Error String
+    , filePermissions : RemoteData Http.Error (List PermissionResult)
     , shareDropdownState : SearchableDropdown.State
     , errorMessage : Maybe String
     , dialogState : DialogState
@@ -88,10 +83,10 @@ type DialogState
     | MessageDialog String
     | NewFolderDialog
     | ShareDialog
-    | ViewFileDialog
+    | ViewFileDialog String
 
 
-init : Session -> Maybe Config -> Model --Task Http.Error Model
+init : Session -> Maybe Config -> Model
 init session maybeConfig =
     let
         username =
@@ -115,12 +110,8 @@ init session maybeConfig =
         , isBusy = True
         , config = config
         , newFolderName = ""
-        , filePath = Nothing
-        , fileContent = Nothing
-        , fileErrorMessage = Nothing
-        , doUserSearch = False
-        , searchStartTime = 0
-        , filePermissions = Nothing
+        , fileContent = NotAsked
+        , filePermissions = NotAsked
         , shareDropdownState = SearchableDropdown.init
         , errorMessage = Nothing
         , dialogState = NoDialog
@@ -156,8 +147,7 @@ type Msg
     | DeletePathCompleted (Result Http.Error (Agave.EmptyResponse))
     | GetPermissionCompleted (Result Http.Error (List PermissionResult))
     | SetShareUserName String
-    | SetSearchStartTime Time.Posix
-    | SearchUsers Time.Posix
+    | SearchUsers
     | SearchUsersCompleted (Result Http.Error (List Agave.Profile))
     | ShareWithUser String String String
     | ShareWithUserCompleted (Result Http.Error (Agave.EmptyResponse))
@@ -287,15 +277,15 @@ updateInternal session msg model =
                 openPath =
                     Agave.getFileRange token path (Just (0, chunkSz)) |> Http.toTask
             in
-            ( { model | dialogState = ViewFileDialog, filePath = Just path }
+            ( { model | dialogState = ViewFileDialog path }
             , Task.attempt OpenPathCompleted openPath
             )
 
         OpenPathCompleted (Ok data) ->
-            ( { model | fileContent = Just data }, Cmd.none )
+            ( { model | fileContent = Success data }, Cmd.none )
 
         OpenPathCompleted (Err error) ->
-            ( { model | fileErrorMessage = (Just (Error.toString error)) }, Cmd.none )
+            ( { model | fileContent = Failure error }, Cmd.none )
 
         SetNewFolderName name ->
             ( { model | newFolderName = name }, Cmd.none )
@@ -341,39 +331,26 @@ updateInternal session msg model =
                 filtered =
                     List.filter (\p -> List.member p.username Config.filteredUsers |> not) permissions
             in
-            ( { model | filePermissions = Just filtered }, Cmd.none )
+            ( { model | filePermissions = Success filtered }, Cmd.none )
 
         GetPermissionCompleted (Err error) -> -- TODO
-            ( { model | filePermissions = Nothing }, Cmd.none )
+            ( { model | filePermissions = Failure error }, Cmd.none )
 
         SetShareUserName name ->
             let
                 dropdownState =
                     model.shareDropdownState
             in
-            if String.length name >= 3 then
-                ( { model | shareDropdownState = { dropdownState | value = name }, doUserSearch = True }
-                , Task.perform SetSearchStartTime Time.now
-                )
-            else
-                ( { model | shareDropdownState = { dropdownState | value = name, results = [] }, doUserSearch = False }
-                , Cmd.none
-                )
+            ( { model | shareDropdownState = { dropdownState | value = name, results = [] } }
+            , Cmd.none
+            )
 
-        SetSearchStartTime time ->
-            ( { model | searchStartTime = Time.posixToMillis time }, Cmd.none )
-
-        SearchUsers time ->
-            if model.doUserSearch && Time.posixToMillis time - model.searchStartTime >= 500 then
-                let
-                    searchProfiles =
-                        Agave.searchProfiles token model.shareDropdownState.value |> Http.toTask |> Task.map .result
-                in
-                ( { model | doUserSearch = False }
-                , Task.attempt SearchUsersCompleted searchProfiles
-                )
-            else
-                ( model, Cmd.none )
+        SearchUsers ->
+            let
+                searchProfiles =
+                    Agave.searchProfiles token model.shareDropdownState.value |> Http.toTask |> Task.map .result
+            in
+            ( model, Task.attempt SearchUsersCompleted searchProfiles )
 
         SearchUsersCompleted (Ok users) ->
             let
@@ -388,7 +365,7 @@ updateInternal session msg model =
             in
             ( { model | shareDropdownState = { dropdownState | results = results } }, Cmd.none )
 
-        SearchUsersCompleted (Err error) -> -- TODO
+        SearchUsersCompleted (Err error) -> --TODO
             ( model, Cmd.none )
 
         ShareWithUser permission username _ ->
@@ -397,7 +374,7 @@ updateInternal session msg model =
                     model.shareDropdownState
 
                 newModel =
-                    { model | shareDropdownState = { dropdownState | value = "", results = [] } }
+                    { model | shareDropdownState = { dropdownState | value = "", results = [] }, filePermissions = NotAsked }
 
                 firstSelected =
                     model.selectedPaths |> Maybe.withDefault [] |> List.head |> Maybe.withDefault ""
@@ -405,11 +382,11 @@ updateInternal session msg model =
             let
                 noChange =
                     case model.filePermissions of
-                        Nothing ->
-                            False
-
-                        Just permissions ->
+                        Success permissions ->
                             List.any (\p -> p.username == username && (permissionDesc p.permission) == permission) permissions
+
+                        _ ->
+                            False
 
                 agavePerm =
                     case permission of
@@ -444,7 +421,7 @@ updateInternal session msg model =
             ( { model | dialogState = dialogState }, Cmd.none )
 
         CloseDialog ->
-            ( { model | dialogState = NoDialog }, Cmd.none )
+            ( { model | dialogState = NoDialog, fileContent = NotAsked, filePermissions = NotAsked }, Cmd.none )
 
         UploadFile ->
             ( model, fileUploadOpenBrowser (token, model.path) )
@@ -467,7 +444,7 @@ determinePreviousPath path =
 
 view : Model -> Html Msg
 view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy, errorMessage, dialogState,
-            filePath, fileContent, fileErrorMessage, filePermissions, shareDropdownState, config
+             fileContent, filePermissions, shareDropdownState, config
             }) =
     let
         menuBar =
@@ -476,7 +453,7 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
                     [ filterButton "Home"
                     , filterButton "Shared"
                     ]
-                , input [ class "form-control",  type_ "text", size 30, value path, placeholder "Enter path", onInput SetPath ] [] -- onKeyDown KeyDown ] []
+                , input [ class "form-control",  type_ "text", size 30, value path, placeholder "Enter path", onInput SetPath ] [] --, onKeyDown KeyDown ] []
                 , div [ class "input-group-append" ]
                     [ button [ class "btn btn-outline-secondary", type_ "button", onClick (LoadPath path) ]
                         [ text "Go " ]
@@ -528,10 +505,10 @@ view (Model {currentUserName, path, pathFilter, contents, selectedPaths, isBusy,
                 viewNewFolderDialog False
 
             ShareDialog ->
-                viewShareDialog (filePermissions |> Maybe.withDefault []) currentUserName shareDropdownState False fileErrorMessage
+                viewShareDialog filePermissions currentUserName shareDropdownState
 
-            ViewFileDialog ->
-                viewFileDialog (filePath |> Maybe.withDefault "") (fileContent |> Maybe.withDefault "") False fileErrorMessage
+            ViewFileDialog filePath ->
+                viewFileDialog filePath fileContent
         ]
 
 
@@ -608,27 +585,33 @@ viewNewFolderDialog isBusy =
         CloseDialog
 
 
-viewFileDialog : String -> String -> Bool -> Maybe String -> Html Msg
-viewFileDialog path data isBusy errorMsg =
+viewFileDialog : String -> RemoteData Http.Error String -> Html Msg
+viewFileDialog path data =
     let
         body =
-            if errorMsg /= Nothing then
-                div [ class "alert alert-danger" ] [ Maybe.withDefault "" errorMsg |> text ]
-            else if isBusy then
-                viewSpinner
-            else
-                div []
-                    [ span [ class "text-monospace" ] [ text path ]
-                    , pre [ class "border p-2", style "overflow" "auto", style "background-color" "#E7E7E7", style "max-height" "50vh" ] [ text data ]
-                    ]
+            case data of
+                Success content ->
+                    div []
+                        [ span [ class "text-monospace" ] [ text path ]
+                        , pre [ class "border p-2", style "overflow" "auto", style "background-color" "#e7e7e7", style "max-height" "50vh" ] [ text content ]
+                        ]
+
+                Failure error ->
+                    div [ class "alert alert-danger" ]
+                        [ text <| Error.toString error ]
+
+                _ ->
+                    viewSpinner
 
         footer =
             div [ class "row text-right", style "width" "100%" ]
                 [ em []
-                    [ if errorMsg == Nothing && not isBusy then
-                        text <| "Showing first " ++ (String.fromInt maxViewFileSz) ++ " bytes only"
-                      else
-                        text ""
+                    [ case data of
+                        Success _ ->
+                            text <| "Showing first " ++ (String.fromInt maxViewFileSz) ++ " bytes only"
+
+                        _ ->
+                            text ""
                     ]
                 , div [ class "col" ]
                     [ button [ class "btn btn-primary", onClick CloseDialog ] [ text "Close" ] ]
@@ -640,28 +623,42 @@ viewFileDialog path data isBusy errorMsg =
         CloseDialog
 
 
-viewShareDialog : List PermissionResult -> String -> SearchableDropdown.State -> Bool -> Maybe String -> Html Msg
-viewShareDialog permissions currentUserName dropdownState isBusy errorMsg =
+viewShareDialog : RemoteData Http.Error (List PermissionResult) -> String -> SearchableDropdown.State -> Html Msg
+viewShareDialog permissions currentUserName dropdownState =
     let
         body =
-            if errorMsg /= Nothing then
-                div [ class "alert alert-danger" ] [ Maybe.withDefault "" errorMsg |> text ]
-            else if isBusy then
-                viewSpinner
-            else
-                div []
-                    [ text "Who has access"
-                    , div [ class "border-top pb-5", style "overflow-y" "auto", style "max-height" "30vh" ]
-                        [ viewPermissions currentUserName permissions
-                        ]
-                    , addUserPanel
+            div []
+                [ text "Who has access"
+                , div [ class "border-top pb-5", style "overflow-y" "auto", style "max-height" "30vh" ]
+                    [ case permissions of
+                        Success perms ->
+                            viewPermissions currentUserName perms
+
+                        Failure error ->
+                            div [ class "alert alert-danger" ] [ text <| Error.toString error ]
+
+                        _ ->
+                            viewSpinner
                     ]
+                , addUserPanel
+                ]
+
+        disable =
+            case permissions of
+                Success _ ->
+                    False
+
+                _ ->
+                    True
 
         addUserPanel =
             div [ class "form-group mt-5" ]
                 [ div [] [ text "Add a person:" ]
-                , div []
-                    [ SearchableDropdown.view shareDropdownConfig dropdownState ]
+                , div [ class "d-flex" ]
+                    [ div [ class "w-100" ] [ SearchableDropdown.view shareDropdownConfig dropdownState ]
+                    , button [ class "btn btn-outline-secondary btn-sm d-inline", style "max-height" "2.7em", type_ "button", disabled disable, onClick SearchUsers ]
+                        [ text "Search" ]
+                    ]
                 ]
     in
     viewDialog "Share Item"

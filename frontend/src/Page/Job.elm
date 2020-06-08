@@ -103,8 +103,7 @@ toSession model =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ Time.every 500 (\time -> FileBrowserMsg (FileBrowser.SearchUsers time)) -- milliseconds
-        , Time.every (10*1000) PollJob -- milliseconds
+        [ Time.every (10*1000) PollJob -- milliseconds
         ]
 
 
