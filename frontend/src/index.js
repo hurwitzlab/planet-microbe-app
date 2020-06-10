@@ -8,7 +8,6 @@ import "blueimp-file-upload/js/vendor/jquery.ui.widget.js";
 import "blueimp-file-upload/js/jquery.iframe-transport.js";
 import "blueimp-file-upload/js/jquery.fileupload.js";
 import "blueimp-file-upload/js/jquery.fileupload-image.js";
-//import popper from "popper.js"; // for Bootstrap but not used
 import bootstrap from "bootstrap";
 import * as simplots from '../node_modules/sim-plots/src/sim-plots.js';
 //import "@fortawesome/fontawesome-free/js/all.min.js" // DO NOT USE!  Include CSS as below
@@ -186,8 +185,10 @@ function initMap() {
   console.log("initMap");
 
   var mapDiv = document.getElementsByTagName('gmap')[0]; // TODO add support for more than one map in a page
-  if (!mapDiv)
-    throw("initMap: map div not found");
+  if (!mapDiv) {
+    console.error("initMap: 'gmap' element not found");
+    return;
+  }
 
   gmap = new google.maps.Map(mapDiv, {
     zoom: 2,
@@ -274,19 +275,16 @@ function initMap() {
   );
 }
 
-function resetMap(results) { // TODO only clear markers that aren't in new results
+function resetMap(results) {
   // Clear all markers
+  //TODO only clear markers that aren't in new results
   for (var i = 0; i < markers.length; i++) {
     markers[i].setMap(null);
   }
+
   markers = [];
   if (markerClusterer)
     markerClusterer.clearMarkers();
-
-  /*for (var i = 0; i < features.length; i++) {
-    gmap.data.remove(features[i]);
-  }
-  features = [];*/
 
   if (gmap)
     google.maps.event.clearListeners(gmap, 'radius_changed');
@@ -318,22 +316,6 @@ app.ports.loadMap.subscribe(function(results) {
 
   var bounds = new google.maps.LatLngBounds();
 
-  /*model.forEach(cluster => {
-    let circle = gmap.data.addGeoJson({ type: "Feature", id: 123, "geometry": JSON.parse(cluster.circle) });
-    features = features.concat(circle);
-
-    let centroid = JSON.parse(cluster.centroid)
-
-    let marker = new google.maps.Marker({
-        position: new google.maps.LatLng(centroid.coordinates[1], centroid.coordinates[0]),
-        map: gmap,
-        label: { text: cluster.count.toString(), color: "white" }
-    });
-    markers.push(marker);
-
-    bounds.extend(marker.position);
-  });*/
-
   results.forEach(result => {
     let marker = new google.maps.Marker({
         position: new google.maps.LatLng(result.latitude, result.longitude),
@@ -363,7 +345,7 @@ app.ports.loadMap.subscribe(function(results) {
     for (var i = 0; i < markers.length; i++)
       markers[i].setMap(gmap);
   }
-  console.log("markers:", markers.length); //markerClusterer.getMarkers().length);
+  console.log("markers:", markers.length);
 
   if (mapSettings.fitBounds) {
     //gmap.fitBounds(bounds);
@@ -407,7 +389,7 @@ app.ports.setLocation.subscribe(function(location) {
 
 
 /*
- * Define port for file-upload integration
+ * Define port for file upload integration
  */
 
 app.ports.fileUploadOpenBrowser.subscribe(function(args) {
