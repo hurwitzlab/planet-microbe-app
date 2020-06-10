@@ -65,32 +65,34 @@ app.ports.storeCredentials.subscribe(function(session) {
     localStorage.setItem(CRED_COOKIE_NAME, JSON.stringify(session));
 });
 
-// This event is only triggered when cookie is modified in another tab/window
-window.addEventListener("storage",
-    function(event) {
-        if (event.storageArea === localStorage && event.key === CRED_COOKIE_NAME) {
-            console.log("storage listener:", event.newValue);
-            app.ports.onCredentialsChange.send(event.newValue);
-        }
-    },
-    false
-);
+// Sync cookie among open tabs: this event is only triggered when cookie is modified in another tab/window
+//TODO port to Elm 0.19 in Main.elm
+//window.addEventListener("storage",
+//    function(event) {
+//        if (event.storageArea === localStorage && event.key === CRED_COOKIE_NAME) {
+//            console.log("storage listener:", event.newValue);
+//            app.ports.onCredentialsChange.send(event.newValue);
+//        }
+//    },
+//    false
+//);
 
 app.ports.storeCart.subscribe(function(session) {
     console.log("storeCart: ", session);
     localStorage.setItem(CART_COOKIE_NAME, JSON.stringify(session));
 });
 
-// This event is only triggered when cookie is modified in another tab/window
-window.addEventListener("storage",
-    function(event) {
-        if (event.storageArea === localStorage && event.key === CART_COOKIE_NAME) {
-            console.log("storage listener:", event.newValue);
-            app.ports.onSessionChange.send(event.newValue);
-        }
-    },
-    false
-);
+// Sync cookie among open tabs: this event is only triggered when cookie is modified in another tab/window
+//TODO port to Elm 0.19 in Main.elm
+//window.addEventListener("storage",
+//    function(event) {
+//        if (event.storageArea === localStorage && event.key === CART_COOKIE_NAME) {
+//            console.log("storage listener:", event.newValue);
+//            app.ports.onSessionChange.send(event.newValue);
+//        }
+//    },
+//    false
+//);
 
 
 /*
