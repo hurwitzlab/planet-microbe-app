@@ -123,7 +123,7 @@ view =
                         ]
                     ]
                 , div [ class "col-md-5 order-md-1" ]
-                    [ img [ class "border shadow featurette-image img-fluid mx-auto", src "assets/images/scalable-analytics.png", attribute "loading" "lazy", alt "architecture diagram" ]
+                    [ img [ class "border shadow featurette-image img-fluid mx-auto", src "assets/images/scalable-analytics.jpg", attribute "loading" "lazy", alt "architecture diagram" ]
                         []
                     ]
                 ]
