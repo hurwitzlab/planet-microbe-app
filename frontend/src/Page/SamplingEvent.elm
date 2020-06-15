@@ -148,14 +148,11 @@ view model =
                 , viewData model.ctdData
                 ]
 
-        Loading ->
-            Page.viewSpinner
-
         Failure error ->
             Error.view error False
 
-        NotAsked ->
-            Page.viewBlank
+        _ ->
+            Page.viewSpinner
 
 
 viewSamplingEvent : SamplingEvent -> Html Msg
@@ -313,4 +310,4 @@ viewData maybeData =
             Page.viewSpinner
 
         _ ->
-            Page.viewBlank
+            text "None"
