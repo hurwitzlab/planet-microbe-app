@@ -651,7 +651,7 @@ viewOutputs model =
                                     , div [ class "ml-4 pt-2", style "width" "25%" ]
                                         [ case FileBrowser.getSelected fileBrowser of
                                             [] ->
-                                                p []
+                                                div [ class "font-weight-light text-secondary" ]
                                                     [ br [] []
                                                     , text "Here are the output files from the job."
                                                     , br [] []
