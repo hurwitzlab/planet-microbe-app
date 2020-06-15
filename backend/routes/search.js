@@ -117,14 +117,32 @@ async function getSearchTerm(id, termIndex) {
         });
     }
 
-    if (term.type == "string") {
-        let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
-        let caseStr = "CASE " + cases.join(" ") + " END";
-        let result = await client.query({ text: `SELECT COALESCE(LOWER(${caseStr}),'none') AS val,COUNT(*)::int FROM sample GROUP BY val ORDER BY val`, rowMode: 'array' });
+    let result = {
+        id: term.id,
+        label: term.label,
+        definition: term.definition,
+        unitId: term.unitId,
+        unitLabel: term.unitLabel,
+        type: term.type,
+        aliases: aliases,
+        annotations: annotations
+    };
 
-        // Convert purl values to labels
+    if (term.type == "string") {
+        const cases = "CASE " +
+            [].concat
+              .apply([], Object.values(term.schemas))
+              .map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`)
+              .join(" ") +
+            " END";
+        const counts = await client.query({
+            text: `SELECT COALESCE(LOWER(${cases}),'none') AS val,COUNT(*)::int FROM sample GROUP BY val ORDER BY val`,
+            rowMode: 'array'
+        });
+
+        // Convert purl values to labels //TODO move into function
         let purlLabels = {};
-        for (let row of result.rows) { //TODO move into function
+        for (let row of counts.rows) {
             let val = row[0];
             if (val && val.startsWith("http://")) { // is this a purl?
                 let term2 = termIndex.getTerm(val);
@@ -134,42 +152,38 @@ async function getSearchTerm(id, termIndex) {
             }
         }
 
-        return {
-            id: term.id,
-            label: term.label,
-            definition: term.definition,
-            unitId: term.unitId,
-            unitLabel: term.unitLabel,
-            type: term.type,
-            distribution: result.rows,
-            aliases: aliases,
-            annotations: annotations,
-            purlLabels: purlLabels
-        };
+        result.distribution = counts.rows;
+        result.purlLabels = purlLabels;
     }
     else if (term.type == "number") {
-        let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
-        let caseStr = "CASE " + cases.join(" ") + " END";
-        let clauses = [].concat.apply([], Object.values(term.schemas)).map(schema => `(schema_id=${schema.schemaId} AND number_vals[${schema.position}] != 'NaN')`);
-        let clauseStr = clauses.join(' OR ');
-        let rangeResult = await client.query({ text: `SELECT MIN(${caseStr}),MAX(${caseStr}) FROM sample WHERE ${clauseStr}`, rowMode: "array" });
-        let [min, max] = rangeResult.rows[0];
-        let range = max - min;
-        let binLen = range/10;
+        const cases =
+            "CASE " +
+            [].concat
+              .apply([], Object.values(term.schemas))
+              .map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`)
+              .join(" ") +
+            " END";
+        const clauses = [].concat
+            .apply([], Object.values(term.schemas))
+            .map(schema => `(schema_id=${schema.schemaId} AND number_vals[${schema.position}] != 'NaN')`)
+            .join(' OR ');
+
+        const rangeResult = await client.query({ text: `SELECT MIN(${cases}),MAX(${cases}) FROM sample WHERE ${clauses}`, rowMode: "array" });
+        const [min, max] = rangeResult.rows[0];
 
         let binResult = await client.query({
             text:
                 `SELECT label, count FROM
                     (WITH min_max AS (
                         SELECT
-                            MIN(${caseStr}) AS min_val,
-                            MAX(${caseStr}) AS max_val
+                            MIN(${cases}) AS min_val,
+                            MAX(${cases}) AS max_val
                         FROM sample
-                        WHERE ${clauseStr}
+                        WHERE ${clauses}
                     )
                     SELECT
-                        REGEXP_REPLACE(REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None'),'NaN - NaN','Below Detection Limit') AS label,
-                        WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val+1e-9,10) AS bucket,COUNT(*)::int
+                        REGEXP_REPLACE(REGEXP_REPLACE(CONCAT(MIN(${cases}),' - ',MAX(${cases})),'^ - $','None'),'NaN - NaN','Below Detection Limit') AS label,
+                        WIDTH_BUCKET(NULLIF(${cases},'NaN'),min_val,max_val+1e-9,10) AS bucket,COUNT(*)::int
                     FROM sample, min_max
                     GROUP BY bucket
                     ORDER BY bucket) AS foo`,
@@ -179,19 +193,9 @@ async function getSearchTerm(id, termIndex) {
             rowMode: 'array'
         });
 
-        return {
-            id: term.id,
-            label: term.label,
-            definition: term.definition,
-            unitId: term.unitId,
-            unitLabel: term.unitLabel,
-            type: term.type,
-            min: min,
-            max: max,
-            distribution: binResult.rows,
-            aliases: aliases,
-            annotations: annotations
-        };
+        result.min = min;
+        result.max = max;
+        result.distribution = binResult.rows;
     }
     else if (term.type == "datetime") {
         let queries = term.schema.map(schema => {
@@ -203,7 +207,7 @@ async function getSearchTerm(id, termIndex) {
         });
 
         let min, max;
-        let results = await batchQuery(queries); // FIXME would a single query be faster?
+        let results = await batchQuery(queries);
         results.forEach(vals => {
             vals.rows.forEach(row => {
                 if (typeof row[0] !== "undefined" && typeof row[1] !== "undefined") {
@@ -213,22 +217,14 @@ async function getSearchTerm(id, termIndex) {
             });
         });
 
-        return {
-            id: term.id,
-            label: term.label,
-            definition: term.definition,
-            unitId: term.unitId,
-            unitLabel: term.unitLabel,
-            type: term.type,
-            aliases: aliases,
-            min: new Date(min).toISOString(),
-            max: new Date(max).toISOString(),
-            annotations: annotations
-        };
+        result.min = new Date(min).toISOString();
+        result.max = new Date(max).toISOString();
     }
     else {
         throw("Unknown term type '" + term.type + "'");
     }
+
+    return result;
 }
 
 // Support POST and GET methods for search endpoint
@@ -283,10 +279,6 @@ async function search(termIndex, params) {
 
     let sampleSort = params['sampleSort'] || 1;
     let fileSort = params['fileSort'] || 1;
-
-//    let columns;
-//    if (params['columns'])
-//        columns = params['columns'].split(',');
 
     let summaryTermIDs = [];
     if (params['summary'])
@@ -505,36 +497,6 @@ async function search(termIndex, params) {
             selections[term.id] = "CASE" + selectStr + " END";
     }
 
-//TODO column selection
-//    if (columns && columns.length > 0) {
-//        selections = [];
-//
-//        for (param of columns) {
-//            let term = getTerm(param);
-//            if (!term) {
-//                console.log("Error: term not found for column", param);
-//                return;
-//            }
-//            console.log("term:", term);
-//
-//            let selectStr = "";
-//            if (!term.schemas || term.schemas.length == 0)
-//                console.log("Error: schema not found for column", param);
-//
-//            for (schemaId in term.schemas) {
-//                for (alias in term.schemas[schemaId]) {
-//                    let arrIndex = term.schemas[schemaId][alias];
-//                    let [field, clause] = buildTermSQL(arrIndex, "");
-//
-//                    selectStr += " WHEN schema_id=" + schemaId + " THEN " + field;
-//                }
-//            }
-//
-//            if (selectStr)
-//                selections.push("CASE" + selectStr + " END");
-//        }
-//    }
-
     console.log("selections:", selections);
     console.log("andClauses:", andClauses);
     console.log("orClauses:", orClauses);
@@ -595,27 +557,46 @@ async function search(termIndex, params) {
 
         let queryStr = "";
         if (term.type == 'string') {
-            let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`);
-            queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,COUNT(DISTINCT(sample.sample_id))::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
+            const cases =
+                "CASE " +
+                [].concat
+                  .apply([], Object.values(term.schemas))
+                  .map(schema => `WHEN schema_id=${schema.schemaId} THEN string_vals[${schema.position}]`)
+                  .join(" ") +
+                " END";
+
+            queryStr =
+                `SELECT COALESCE(${cases},'none') AS val,COUNT(DISTINCT(sample.sample_id))::int
+                ${tableStr}
+                ${clauseStr}
+                GROUP BY val ORDER BY val`;
         }
         else if (term.type == 'number') {
-            let cases = [].concat.apply([], Object.values(term.schemas)).map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`);
-            let caseStr = "CASE " + cases.join(" ") + " END";
-            let subClauses = [].concat.apply([], Object.values(term.schemas)).map(schema => `(schema_id=${schema.schemaId} AND number_vals[${schema.position}] != 'NaN')`);
-            let subClauseStr = subClauses.join(' OR ');
+            const cases =
+                "CASE " +
+                [].concat
+                  .apply([], Object.values(term.schemas))
+                  .map(schema => `WHEN schema_id=${schema.schemaId} THEN number_vals[${schema.position}]`)
+                  .join(" ") +
+                " END";
+            const clauses =
+                [].concat
+                  .apply([], Object.values(term.schemas))
+                  .map(schema => `(schema_id=${schema.schemaId} AND number_vals[${schema.position}] != 'NaN')`)
+                  .join(' OR ');
 
             queryStr =
                 `SELECT label, count FROM
                     (WITH min_max AS (
                         SELECT
-                            MIN(${caseStr}) AS min_val,
-                            MAX(${caseStr}) AS max_val
+                            MIN(${cases}) AS min_val,
+                            MAX(${cases}) AS max_val
                         FROM sample
-                        WHERE ${subClauseStr}
+                        WHERE ${clauses}
                     )
                     SELECT
-                        REGEXP_REPLACE(REGEXP_REPLACE(CONCAT(MIN(${caseStr}),' - ',MAX(${caseStr})),'^ - $','None'),'NaN - NaN','Below Detection Limit') AS label,
-                        WIDTH_BUCKET(NULLIF(${caseStr},'NaN'),min_val,max_val+1e-9,10) AS bucket,COUNT(DISTINCT(sample.sample_id))::int
+                        REGEXP_REPLACE(REGEXP_REPLACE(CONCAT(MIN(${cases}),' - ',MAX(${cases})),'^ - $','None'),'NaN - NaN','Below Detection Limit') AS label,
+                        WIDTH_BUCKET(NULLIF(${cases},'NaN'),min_val,max_val+1e-9,10) AS bucket,COUNT(DISTINCT(sample.sample_id))::int
                     ${tableStr}, min_max
                     ${clauseStr}
                     GROUP BY bucket ORDER BY bucket) AS foo`;
@@ -624,11 +605,21 @@ async function search(termIndex, params) {
                     // hydrogen sulfide (http://purl.obolibrary.org/obo/ENVO_3100017)
         }
         else if (term.type == 'datetime') {
-            //select date_trunc('year', start_time) from sampling_event;
-            let cases = [].concat.apply([], Object.values(term.schemas))
-                .map(schema => `WHEN schema_id=${schema.schemaId} THEN to_char(datetime_vals[${schema.position}], 'YYYY')`);
-            queryStr = `SELECT COALESCE(CASE ${cases.join(" ")} END, 'none') AS val,COUNT(DISTINCT(sample.sample_id))::int ${tableStr} ${clauseStr} GROUP BY val ORDER BY val`;
+            const cases =
+                "CASE " +
+                [].concat
+                  .apply([], Object.values(term.schemas))
+                  .map(schema => `WHEN schema_id=${schema.schemaId} THEN to_char(datetime_vals[${schema.position}], 'YYYY')`)
+                  .join(" ") +
+                " END";
+
+            queryStr =
+                `SELECT COALESCE(${cases},'none') AS val,COUNT(DISTINCT(sample.sample_id))::int
+                ${tableStr}
+                ${clauseStr}
+                GROUP BY val ORDER BY val`;
         }
+
         summaryQueryStrs.push(queryStr);
     }
 
@@ -690,13 +681,9 @@ async function search(termIndex, params) {
 
     console.log("Sample File Query:");
     let files = await client.query({
-        text: //FIXME use tableStr from above
+        text:
             `SELECT sample.sample_id,file.file_id
-            FROM sample
-            JOIN experiment USING(sample_id)
-            JOIN run USING(experiment_id)
-            JOIN run_to_file USING(run_id)
-            JOIN file USING(file_id)
+            ${tableStr}
             WHERE sample.sample_id = ANY($1)`,
         values: [ sampleResults.rows.map(r => r[1]) ]
     });
@@ -759,11 +746,6 @@ async function search(termIndex, params) {
     let fileClause = (clauseStr ? 'AND ' : 'WHERE ') + 'file.file_id IS NOT NULL';
     groupByStr = "GROUP BY file.file_id,sample.sample_id,project.project_id,library.source,library.strategy,library.selection,library.layout";
 
-//    countQueryStr =
-//        `SELECT COUNT(foo)::int FROM (SELECT file.file_id
-//        ${tableStr}
-//        ${clauseStr} ${fileClause} ${groupByStr}) AS foo`;
-
     let queryStr =
         //FIXME order of first six fields should match sample query above for sorting to work
         `SELECT file.file_id AS "fileId",project.name AS "projectName",sample.accn AS "sampleAccn",sample.sample_id AS "sampleId",project.project_id AS "projectId",
@@ -772,12 +754,6 @@ async function search(termIndex, params) {
         ${clauseStr} ${fileClause}
         ${groupByStr} ${sortStr}
         ${offsetStr} ${limitStr}`;
-
-//    count = await client.query({
-//        text: countQueryStr,
-//        rowMode: 'array'
-//    });
-//    count = count.rows[0][0];
 
     let fileResults = await client.query(queryStr);
     fileResults = fileResults.rows;
