@@ -18,7 +18,6 @@ import Config exposing (apiBaseUrl)
 
 type alias Model =
     { session : Session
-    , name : String
     , email : String
     , message : String
     , sent : Bool
@@ -33,15 +32,9 @@ init session =
 
         email =
             user |> Maybe.map .email |> Maybe.withDefault ""
-
-        name =
-            user
-                |> Maybe.map (\u -> u.first_name ++ " " ++ u.last_name)
-                |> Maybe.withDefault ""
     in
     (
         { session = session
-        , name = name
         , email = email
         , message = ""
         , sent = False
@@ -60,8 +53,7 @@ toSession model =
 
 
 type Msg
-    = SetName String
-    | SetEmail String
+    = SetEmail String
     | SetMessage String
     | Submit
     | SubmitDone (Result Http.Error ContactResponse)
@@ -70,9 +62,6 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        SetName name ->
-            ( { model | name = name }, Cmd.none )
-
         SetEmail email ->
             ( { model | email = email }, Cmd.none )
 
@@ -100,8 +89,7 @@ encodeContact : Model -> Http.Body
 encodeContact model =
     Http.jsonBody <|
         Encode.object
-            [ ("name", Encode.string model.name)
-            , ("email", Encode.string model.email)
+            [ ("email", Encode.string model.email)
             , ("message", Encode.string model.message)
             ]
 
@@ -151,10 +139,6 @@ view model =
                         ]
                     , div [ class "pt-4 w-50" ]
                         [ div [ class "form-group" ]
-                            [ label [ attribute "for" "name" ] [ text "Your name" ]
-                            , input [ type_ "text", class "form-control", placeholder "Enter your name", value model.name, onInput SetName ] []
-                            ]
-                        , div [ class "form-group" ]
                             [ label [ attribute "for" "email" ] [ text "Your email" ]
                             , input [ type_ "email", class "form-control", placeholder "Enter your email", value model.email, onInput SetEmail ] []
                             ]

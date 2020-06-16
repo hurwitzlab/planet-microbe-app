@@ -20,7 +20,6 @@ router.post('/contact', (req, res) => {
         return;
     }
 
-    const name = req.body.name || "Unknown";
     const email = req.body.email || "Unknown";
     const message = req.body.message || "";
 
