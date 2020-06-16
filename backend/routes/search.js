@@ -535,11 +535,11 @@ async function search(termIndex, params) {
         `FROM sample
         JOIN project_to_sample USING(sample_id)
         JOIN project USING(project_id)
-        LEFT JOIN experiment USING(sample_id)
-        LEFT JOIN library USING(experiment_id)
-        LEFT JOIN run USING(experiment_id)
-        LEFT JOIN run_to_file USING(run_id)
-        LEFT JOIN file USING(file_id) `;
+        JOIN experiment USING(sample_id)
+        JOIN library USING(experiment_id)
+        JOIN run USING(experiment_id)
+        JOIN run_to_file USING(run_id)
+        JOIN file USING(file_id) `;
 
     let groupByStr = " GROUP BY sample.sample_id,project.project_id ";
 
