@@ -816,7 +816,7 @@ function buildTermSQL(arrIndex, term, val) {
             console.log("Error: numeric exact query not supported for type", term.type);
         }
     }
-    else if (val.match(/^\[-?\d*(\.\d+)?\,-?\d*(\.\d+)?\]/)) { // numeric range query
+    else if (val.match(/^\[-?\d*(\.\d+)?,-?\d*(\.\d+)?\]/)) { // numeric range query
         if (term.type == "number") {
             console.log("numeric range query");
             bounds = val.substr(1, val.length-2).split(',');
@@ -835,7 +835,7 @@ function buildTermSQL(arrIndex, term, val) {
             console.log("Error: numeric range query not supported for type", term.type);
         }
     }
-    else if (val.match(/^-?\d*(\.\d+)?\,-?\d*(\.\d+)?$/)) { // numeric offset query
+    else if (val.match(/^-?\d*(\.\d+)?,-?\d*(\.\d+)?$/)) { // numeric offset query
         if (term.type == "number") {
             console.log("numeric offset query");
             bounds = val.split(",");
@@ -847,7 +847,7 @@ function buildTermSQL(arrIndex, term, val) {
             console.log("Error: numeric offset query not supported for type", term.type);
         }
     }
-    else if (val.match(/^\~(\w+)(\|\w+)*/)) { // partial string match on one or more values (case-insensitive)
+    else if (val.match(/^~(\w+)(\|\w+)*/)) { // partial string match on one or more values (case-insensitive)
         if (term.type == "string") {
             let vals = val.substr(1).split("|");
             console.log("partial string match on multiple values", vals);
@@ -862,7 +862,7 @@ function buildTermSQL(arrIndex, term, val) {
             console.log("Error: string similarity query not supported for type", term.type);
         }
     }
-    else if (val.match(/^(\d{4}\-\d{2}\-\d{2})/)) { // date/time exact match
+    else if (val.match(/^(\d{4}-\d{2}-\d{2})/)) { // date/time exact match
         if (term.type == "datetime" || term.type == "date") {
             console.log("exact datetime match");
             field = "CAST (datetime_vals[" + arrIndex + "] as DATE)";
@@ -889,7 +889,7 @@ function buildTermSQL(arrIndex, term, val) {
             console.log("Error: string literal query not supported for type", term.type);
         }
     }
-    else if (bounds = val.match(/^\[(\d{4}\-\d{2}\-\d{2})?\,(\d{4}\-\d{2}\-\d{2})?\]$/)) { // date/time range query
+    else if ((bounds = val.match(/^\[(\d{4}-\d{2}-\d{2})?,(\d{4}-\d{2}-\d{2})?\]$/))) { // date/time range query
         if (term.type == "datetime" || term.type == "date") {
             console.log("datetime range query:", bounds);
             field = "datetime_vals[" + arrIndex + "]";

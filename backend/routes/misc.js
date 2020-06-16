@@ -38,7 +38,7 @@ router.post('/contact', (req, res) => {
     });
 });
 
-router.get('/download/:filepath(\\S+)', async (req, res, next) => {
+router.get('/download/:filepath(\\S+)', async (req, res) => {
     // Can be done wit res.download(filename) but we want to send content directly
     res.setHeader('Content-disposition', 'attachment;filename=' + path.basename(req.params.filepath));
     res.setHeader('Content-type', 'application/octet-stream');

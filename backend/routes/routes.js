@@ -28,12 +28,12 @@ module.exports = function(app) {
     app.use(errorHandler);
 
     // Catch-all function
-    app.get('*', function(req, res, next){
+    app.get('*', function(req, res){
         res.status(404).send("Unknown route: " + req.path);
     });
 }
 
-function errorHandler(error, req, res, next) {
+function errorHandler(error, req, res) {
     console.log("ERROR ".padEnd(80, "!"));
     console.log(error.stack);
 
