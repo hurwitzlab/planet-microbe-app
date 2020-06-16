@@ -26,6 +26,17 @@
     "dev": "nodemon server.js",
     "lint": "eslint *.js ./routes"
   },
+  "eslintConfig": {
+    "env": {
+        "node": true,
+        "es2020": true
+    },
+    "extends": "eslint:recommended",
+    "parserOptions": {
+        "ecmaVersion": 11,
+        "sourceType": "module"
+    }
+  },
   "author": "",
   "license": "ISC"
 }
