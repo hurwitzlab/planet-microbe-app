@@ -2064,7 +2064,7 @@ viewSampleResults model =
                         )
                 ) ++
                 [ td [ class "text-right", style "min-width" "10em" ]
-                    [ Cart.addToCartButton cart Nothing result.files |> Html.map CartMsg ]
+                    [ Cart.addToCartButton cart Nothing Nothing result.files |> Html.map CartMsg ]
                 ])
     in
     SortableTable.view
@@ -2139,7 +2139,7 @@ viewFileResults model =
                 , mkTd result.selection
                 , mkTd result.layout
                 , td [] [ a [ href (dataCommonsUrl ++ result.fileUrl), target "_blank" ] [ text <| basename result.fileUrl ] ]
-                , td [] [ Cart.addToCartButton (Session.getCart model.session) Nothing [ result.fileId ] |> Html.map CartMsg ]
+                , td [] [ Cart.addToCartButton (Session.getCart model.session) Nothing Nothing [ result.fileId ] |> Html.map CartMsg ]
                 ]
     in
     SortableTable.view

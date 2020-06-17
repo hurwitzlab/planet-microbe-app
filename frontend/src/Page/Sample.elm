@@ -234,7 +234,7 @@ view model =
                         , small [ class "ml-3", style "color" "gray" ] [ text sample.accn ]
                         ]
                     , span [ class "float-right" ]
-                        [ Cart.addToCartButton (Session.getCart model.session) (Just ("Add to Cart", "Remove from Cart")) sample.files |> Html.map CartMsg ]
+                        [ Cart.addToCartButton (Session.getCart model.session) (Just ("Add Files to Cart", "Remove Files from Cart")) (Just "btn-primary") sample.files |> Html.map CartMsg ]
                     ]
                 , div []
                     [ viewSample sample (model.samplingEvents |> RemoteData.toMaybe |> Maybe.withDefault []) ]

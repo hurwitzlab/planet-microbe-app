@@ -224,14 +224,17 @@ view cart files cartType =
         ]
 
 
-addToCartButton : Cart -> Maybe (String, String) -> List Int -> Html Msg
-addToCartButton cart optionalLabels idList =
+addToCartButton : Cart -> Maybe (String, String) -> Maybe String -> List Int -> Html Msg
+addToCartButton cart optionalLabels optionalClasses idList =
     let
         (addLbl, removeLbl) =
-            optionalLabels |> Maybe.withDefault ( "Add", "Remove" )
+            optionalLabels |> Maybe.withDefault ( "Add Files", "Remove Files" )
+
+        classes =
+            optionalClasses |> Maybe.withDefault "btn-xs btn-outline-secondary"
 
         btn label clickMsg =
-            button [ class "btn btn-xs btn-outline-secondary text-nowrap", onClick clickMsg ]
+            button [ class <| "btn text-nowrap " ++ classes, onClick clickMsg ]
                 [ text label ]
     in
     if List.any (\id -> contains cart id) idList then
