@@ -22,9 +22,9 @@
     "nodemon": "^1.19.4"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js",
-    "lint": "eslint *.js ./routes"
+    "lint": "eslint *.js ./routes",
+    "test": "jest"
   },
   "eslintConfig": {
     "env": {
