@@ -61,7 +61,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     -- Workaround for race condition between view and Sample.fetch causing map creation to fail on missing gmap element
     Sub.batch
-        [ Time.every 100 TimerTick -- milliseconds
+        [ Time.every 250 TimerTick -- milliseconds
         , GMap.mapLoaded MapLoaded
         ]
 

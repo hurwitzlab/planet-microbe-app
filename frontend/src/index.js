@@ -304,10 +304,14 @@ app.ports.changeMapSettings.subscribe(function(settings) {
 app.ports.loadMap.subscribe(function(results) {
   console.log("loadMap");//: results:", results);
 
-  if (!gmap)
+  if (!gmap) {
     initMap();
-  else
+    if (!gmap) // "gmap" element still not rendered by Elm yet
+        return;
+  }
+  else {
     resetMap(results);
+  }
 
   if (!results || results.length == 0) {
     console.log("loadMap: no results");
