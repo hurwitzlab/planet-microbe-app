@@ -29,6 +29,9 @@
   "nodemonConfig": {
     "ignore": ["__tests__"]
   },
+  "jest": {
+    "testTimeout": 30000
+  },
   "eslintConfig": {
     "env": {
         "node": true,
