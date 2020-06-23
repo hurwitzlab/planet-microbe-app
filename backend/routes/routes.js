@@ -24,13 +24,13 @@ module.exports = function(app) {
     app.use(require('./samplingEvents'));
     app.use(require('./search'));
 
-    // Catch errors
-    app.use(errorHandler);
-
     // Catch-all function
     app.get('*', function(req, res){
         res.status(404).send("Unknown route: " + req.path);
     });
+
+    // Catch errors
+    app.use(errorHandler);
 }
 
 function errorHandler(error, req, res) {
