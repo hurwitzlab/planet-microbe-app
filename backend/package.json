@@ -26,6 +26,9 @@
     "lint": "eslint *.js ./routes",
     "test": "jest"
   },
+  "nodemonConfig": {
+    "ignore": ["__tests__"]
+  },
   "eslintConfig": {
     "env": {
         "node": true,
