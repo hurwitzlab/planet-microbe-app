@@ -289,7 +289,7 @@ router.get('/samples/:id(\\d+)/taxonomy', asyncHandler(async (req, res) => {
             FROM sample s
             JOIN experiment e USING(sample_id)
             JOIN run r USING(experiment_id)
-            LEFT JOIN centrifuge c USING(run_id)
+            LEFT JOIN run_to_taxonomy c USING(run_id)
             LEFT JOIN taxonomy t USING(tax_id)
             WHERE c.abundance > 0 AND s.sample_id=$1`,
         values: [id]
