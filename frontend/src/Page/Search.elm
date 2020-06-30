@@ -1338,15 +1338,16 @@ viewAddFilterDialog allTerms searchVal =
                 s
 
         viewTerm term =
-            div [ class "border-bottom px-2" ]
-                [ table [ style "width" "97%" ]
-                    [ tr []
-                        [ td [] [ a [ href term.id, target "_blank" ] [ text (String.Extra.toSentenceCase term.label) ] ]
-                        , td [] [ button [ class "btn btn-light btn-sm border float-right", onClick (AddFilter term.id) ] [ text "Add" ] ]
+            div [ class "border-bottom my-2 pb-1" ]
+                [ div [ class "w-100" ]
+                    [ a [ href term.id, target "_blank" ] [ text (String.Extra.toSentenceCase term.label) ]
+                    , button [ class "btn btn-light btn-sm border text-nowrap float-right", onClick (AddFilter term.id) ]
+                        [ Icon.plus
+                        , text " Add"
                         ]
                     ]
                 , (if term.definition /= "" then
-                    table [ class "table table-borderless table-sm small"]
+                    table [ class "table table-borderless table-sm small", style "width" "85%" ]
                         [ tr []
                             [ th [] [ text "Definition"]
                             , td [] [ text term.definition ]

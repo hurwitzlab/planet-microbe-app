@@ -115,11 +115,21 @@ ban =
 
 plus : Html msg
 plus =
-    i [ class "far fa-fw fa-plus-square" ] []
+    i [ class "fas fa-fw fa-plus" ] []
 
 
 minus : Html msg
 minus =
+    i [ class "fas fa-fw fa-minus" ] []
+
+
+plusSquare : Html msg
+plusSquare =
+    i [ class "far fa-fw fa-plus-square" ] []
+
+
+minusSquare : Html msg
+minusSquare =
     i [ class "far fa-fw fa-minus-square" ] []
 
 

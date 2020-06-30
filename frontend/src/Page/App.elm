@@ -888,9 +888,9 @@ viewCartDialog model =
                 Success files ->
                     div [ class "d-inline w-100" ]
                         [ button [ class "btn btn-outline-secondary float-left mr-2", onClick Cart.SelectAllInCart ]
-                            [ Icon.plus, text " All" ] |> Html.map CartMsg
+                            [ Icon.plusSquare, text " All" ] |> Html.map CartMsg
                         , button [ class "btn btn-outline-secondary float-left", onClick Cart.UnselectAllInCart ]
-                            [ Icon.minus, text " All" ] |> Html.map CartMsg
+                            [ Icon.minusSquare, text " All" ] |> Html.map CartMsg
                         --, div [ class "float-left ml-5" ]
                         --    [ viewFileFormatSelector model ]
                         , button [ class "btn btn-primary float-right ml-2" , onClick CloseCartDialog ]
