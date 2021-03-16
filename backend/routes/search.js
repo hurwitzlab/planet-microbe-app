@@ -242,8 +242,8 @@ async function handleSearchRequest(req, res, params) {
     const download = params.download;
 
     if (download) {
-        req.query['limit'] = 999999;
-        req.query['offset'] = 0;
+        params['limit'] = 999999;
+        params['offset'] = 0;
     }
 
     try {
