@@ -170,6 +170,37 @@ view =
                 ]
             , hr [ class "featurette-divider" ] []
             ]
+            , hr [ class "featurette-divider" ] []
+            , div [ class "row featurette" ]
+                [ div [ class "col-md-7" ]
+                    [ h2 [ class "featurette-heading" ]
+                        [ text "Ontology-Driven Analysis of Marine Metagenomics: "
+                        , span [ class "text-muted" ]
+                            [ text "What More Can We Learn from Our Data?" ]
+                        ]
+                    , p [ class "lead" ]
+                        [ text
+                            """
+                            In the latest phase of Planet Microbe research suite, we integrate functional and taxonomic annotations
+                            computed on the prokaryotic fraction of the Planet Microbe database with life-science ontologies into a 
+                            novel FAIR Semantic Web database. The new system leverages the intersection of ontologies and the computed 
+                            data to ask novel biological questions such as "What data do we have about metagenomes from the 'HOT 224-283'
+                            project, where we have observed occurrences of 'cellular lipid metabolic process'(es) [GO:0044255], as well 
+                            as recorded 'water temperature' [ENVO:09200014] values?". 
+                            Check it out for yourself following the protocol we created at
+                            """
+                        , a [ href "http://dx.doi.org/10.17504/protocols.io.e6nvwkw19vmk/v2", target "_blank" ]
+                            [ text "Protocols.io" ]
+                        , text "."
+                        ]
+                    ]
+                , div [ class "col-md-5" ]
+                    [ img [ class "border shadow featurette-image img-fluid mx-auto float-right", style "width" "80%", src "ontology_integration_overview.png", alt "Overview of the interaction between our FAIR Semantic Web database and Planet Microbe" ]
+                        []
+                    ]
+                ]
+            , hr [ class "featurette-divider" ] []
+            ]
         , div [ style "background-image" "url('assets/images/ocean-floor.jpg')", style "background-size" "cover", style "min-height" "18em" ] --TODO move into css
             [ div [ class "container" ]
                 [ div [ class "row", style "padding-top" "6em" ]
