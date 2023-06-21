@@ -193,7 +193,7 @@ view =
                         ]
                     ]
                 , div [ class "col-md-5" ]
-                    [ img [ class "border shadow featurette-image img-fluid mx-auto float-right", style "width" "80%", src "ontology_integration_overview.png", alt "Overview of the interaction between our FAIR Semantic Web database and Planet Microbe" ]
+                    [ img [ class "border shadow featurette-image img-fluid mx-auto float-right", style "width" "80%", src "assets/images/ontology_integration_overview.png", alt "Overview of the interaction between our FAIR Semantic Web database and Planet Microbe" ]
                         []
                     ]
                 ]
